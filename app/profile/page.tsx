@@ -8,6 +8,7 @@ import { Star, Film, Calendar, ArrowLeft, TrendingUp, Award, RefreshCw } from "l
 import { getImageUrl } from "@/lib/tmdb/image"
 import Header from "@/components/header"
 import AuthErrorBoundary from "@/components/auth-error-boundary"
+import { StarRatingDisplay } from "@/components/star-rating-display"
 
 type RatedMovie = {
   id: string
@@ -234,12 +235,9 @@ function ProfileContent() {
                       {/* Gradient overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-                      {/* Rating badge - updated to 5-star scale */}
+                      {/* Rating badge - updated to use StarRatingDisplay for half-star support */}
                       <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur-sm shadow-lg">
-                        <Star className="h-3 w-3 text-accent fill-accent" />
-                        <span className="text-xs font-bold text-foreground">
-                          {(rating.overallScore / 20).toFixed(1)}
-                        </span>
+                        <StarRatingDisplay rating={rating.overallScore / 20} size="sm" showValue />
                       </div>
 
                       {/* Hover overlay content */}

@@ -6,8 +6,8 @@ import Header from "@/components/header"
 import { sql } from "@/lib/db"
 import { getImageUrl } from "@/lib/tmdb/image"
 import Image from "next/image"
-import { Star } from "lucide-react"
 import { FeedItemInteractions } from "@/components/feed-item-interactions"
+import { StarRatingDisplay } from "@/components/star-rating-display"
 
 type Props = {
   params: Promise<{ id: string }>
@@ -206,21 +206,10 @@ export default async function CollectiveFeedPage({ params, searchParams }: Props
                         </Link>
                         {year && <p className="text-sm text-muted-foreground">{year}</p>}
 
-                        {/* Rating */}
-                        <div className="flex items-center gap-1 mt-2">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              className={`h-4 w-4 ${
-                                star <= score
-                                  ? "fill-accent text-accent"
-                                  : star - 0.5 <= score
-                                    ? "fill-accent/50 text-accent"
-                                    : "text-muted-foreground/30"
-                              }`}
-                            />
-                          ))}
-                          <span className="ml-2 text-sm font-medium text-foreground">{score.toFixed(1)}</span>
+                        {/* Rating - using new half-star component */}
+                        <div className="flex items-center gap-2 mt-2">
+                          <StarRatingDisplay rating={score} size="md" />
+                          <span className="text-sm font-medium text-foreground">{score.toFixed(1)}</span>
                         </div>
 
                         {/* Comment */}

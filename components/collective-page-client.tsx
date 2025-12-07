@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import Link from "next/link"
 import { CollectiveMoviesGrid } from "@/components/collective-movies-grid"
@@ -32,9 +34,10 @@ type Props = {
   collectiveId: string
   movieStats: MovieStat[]
   allRatings: Rating[]
+  children?: React.ReactNode // Add children prop to render content between Top Movies and Feed
 }
 
-export function CollectivePageClient({ collectiveId, movieStats, allRatings }: Props) {
+export function CollectivePageClient({ collectiveId, movieStats, allRatings, children }: Props) {
   const [selectedMovie, setSelectedMovie] = useState<MovieStat | null>(null)
 
   const handleMovieClick = (movie: MovieStat) => {
@@ -52,12 +55,21 @@ export function CollectivePageClient({ collectiveId, movieStats, allRatings }: P
     <>
       {/* Top Rated Movies */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Collective Top Movies</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-foreground">Collective Top Movies</h2>
+          {movieStats.length > 10 && (
+            <Link href={`/collectives/${collectiveId}/movies`} className="text-sm text-accent hover:underline">
+              View All ({movieStats.length})
+            </Link>
+          )}
+        </div>
         <CollectiveMoviesGrid movies={movieStats} onMovieClick={handleMovieClick} />
       </div>
 
+      {children}
+
       {/* Collective Feed */}
-      <div>
+      <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground">Collective Feed</h2>
           <Link href={`/collectives/${collectiveId}/feed`} className="text-sm text-accent hover:underline">

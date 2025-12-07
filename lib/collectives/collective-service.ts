@@ -143,7 +143,7 @@ export async function getCollectiveMovieStats(collectiveId: string) {
     JOIN collective_memberships cm ON umr.user_id = cm.user_id
     WHERE cm.collective_id = ${collectiveId}::uuid
     GROUP BY m.id, m.tmdb_id, m.title, m.poster_path, m.release_date, m.genres
-    ORDER BY rating_count DESC, avg_score DESC
+    ORDER BY avg_score DESC, rating_count DESC
     LIMIT 50
   `
   return result

@@ -123,18 +123,20 @@ export default async function CollectiveDetailPage({ params }: Props) {
             />
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Collective Insights</h2>
-            <CollectiveAnalytics
-              analytics={analytics}
-              genreStats={genreStats}
-              decadeStats={decadeStats}
-              ratingDistribution={ratingDistribution}
-              memberSimilarity={memberSimilarity}
-              controversialMovies={controversialMovies}
-              unanimousFavorites={unanimousFavorites}
-            />
-          </div>
+          <CollectivePageClient collectiveId={collectiveId} movieStats={movieStats} allRatings={allRatings}>
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-foreground mb-4">Collective Insights</h2>
+              <CollectiveAnalytics
+                analytics={analytics}
+                genreStats={genreStats}
+                decadeStats={decadeStats}
+                ratingDistribution={ratingDistribution}
+                memberSimilarity={memberSimilarity}
+                controversialMovies={controversialMovies}
+                unanimousFavorites={unanimousFavorites}
+              />
+            </div>
+          </CollectivePageClient>
 
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-foreground mb-4">Members ({members.length})</h2>
@@ -165,8 +167,6 @@ export default async function CollectiveDetailPage({ params }: Props) {
               ))}
             </div>
           </div>
-
-          <CollectivePageClient collectiveId={collectiveId} movieStats={movieStats} allRatings={allRatings} />
         </div>
       </main>
     </div>
