@@ -74,7 +74,33 @@ export async function getCollectiveMembers(collectiveId: string) {
 }
 
 // Get collective ratings (all member ratings for movies)
-export async function getCollectiveRatings(collectiveId: string) {
+export async function getCollectiveRatings(collectiveId: string, limit?: number) {
+  if (limit) {
+    const result = await sql`
+      SELECT 
+        umr.movie_id,
+        umr.overall_score,
+        umr.user_comment,
+        umr.rated_at,
+        u.id as user_id,
+        u.name as user_name,
+        u.avatar_url as user_avatar,
+        m.tmdb_id,
+        m.title,
+        m.poster_path,
+        m.release_date,
+        m.genres
+      FROM user_movie_ratings umr
+      JOIN collective_memberships cm ON umr.user_id = cm.user_id
+      JOIN users u ON umr.user_id = u.id
+      JOIN movies m ON umr.movie_id = m.id
+      WHERE cm.collective_id = ${collectiveId}::uuid
+      ORDER BY umr.rated_at DESC
+      LIMIT ${limit}
+    `
+    return result
+  }
+
   const result = await sql`
     SELECT 
       umr.movie_id,
@@ -289,6 +315,80 @@ export async function deleteCollective(collectiveId: string, userId: string) {
   }
 
   await sql`DELETE FROM collectives WHERE id = ${collectiveId}::uuid`
+}
+
+// Get genre analytics for a collective
+export async function getCollectiveGenreStats(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      genre_element->>'name' as genre_name,
+      COUNT(*) as movie_count,
+      AVG(umr.overall_score) as avg_score
+    FROM movies m
+    JOIN user_movie_ratings umr ON m.id = umr.movie_id
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id,
+    LATERAL jsonb_array_elements(m.genres) AS genre_element
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    GROUP BY genre_element->>'name'
+    ORDER BY movie_count DESC, avg_score DESC
+    LIMIT 10
+  `
+  return result
+}
+
+// Get all ratings for a specific movie in a collective
+export async function getCollectiveMovieRatings(collectiveId: string, tmdbId: string) {
+  const result = await sql`
+    SELECT 
+      umr.overall_score,
+      umr.user_comment,
+      umr.rated_at,
+      u.id as user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar
+    FROM user_movie_ratings umr
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    JOIN users u ON umr.user_id = u.id
+    JOIN movies m ON umr.movie_id = m.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+      AND m.tmdb_id = ${tmdbId}
+    ORDER BY umr.rated_at DESC
+  `
+  return result
+}
+
+// Get collective analytics summary
+export async function getCollectiveAnalytics(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      COUNT(DISTINCT umr.movie_id) as total_movies_rated,
+      COUNT(umr.id) as total_ratings,
+      AVG(umr.overall_score) as avg_collective_score,
+      COUNT(DISTINCT umr.user_id) as active_raters
+    FROM user_movie_ratings umr
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+  `
+  return result[0] || { total_movies_rated: 0, total_ratings: 0, avg_collective_score: 0, active_raters: 0 }
+}
+
+// Get decade preferences
+export async function getCollectiveDecadeStats(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      (EXTRACT(YEAR FROM m.release_date)::int / 10 * 10) as decade,
+      COUNT(*) as movie_count,
+      AVG(umr.overall_score) as avg_score
+    FROM movies m
+    JOIN user_movie_ratings umr ON m.id = umr.movie_id
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+      AND m.release_date IS NOT NULL
+    GROUP BY decade
+    ORDER BY movie_count DESC
+    LIMIT 5
+  `
+  return result
 }
 
 export const getCollectiveById = getCollectiveForUser

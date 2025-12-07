@@ -156,15 +156,22 @@ export async function getMovieRatings(movieId: string): Promise<{
   }
 }
 
-// Get all ratings by a user
-export async function getUserRatings(userId: string): Promise<UserRating[]> {
-  const results = await sql`
-    SELECT * FROM user_movie_ratings
-    WHERE user_id = ${userId}
-    ORDER BY rated_at DESC
+// Get community rating stats by TMDB ID
+export async function getMovieStatsByTmdbId(tmdbMovieId: number): Promise<{
+  averageScore: number | null
+  count: number
+}> {
+  const stats = await sql`
+    SELECT AVG(umr.overall_score) as avg_score, COUNT(*) as count
+    FROM user_movie_ratings umr
+    INNER JOIN movies m ON umr.movie_id = m.id
+    WHERE m.tmdb_id = ${tmdbMovieId}
   `
 
-  return results.map(transformRating)
+  return {
+    averageScore: stats[0]?.avg_score ? Number(stats[0].avg_score) : null,
+    count: Number(stats[0]?.count || 0),
+  }
 }
 
 function transformRating(row: any): UserRating {

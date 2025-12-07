@@ -1,7 +1,12 @@
+"use client"
+
 import Link from "next/link"
 import Image from "next/image"
 import { getImageUrl } from "@/lib/tmdb/image"
 import { Star, Film, Play } from "lucide-react"
+import useSWR from "swr"
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 type MovieCardProps = {
   movie: {
@@ -27,6 +32,13 @@ export function MovieCard({ movie, priority = false }: MovieCardProps) {
   const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : null
   const movieId = movie.tmdbId || movie.id
 
+  const { data: stats } = useSWR(movieId ? `/api/movies/${movieId}/stats` : null, fetcher)
+
+  // Use DB rating if available, otherwise fall back to TMDB
+  const displayRating = stats?.averageScore ?? (movie.voteAverage ? movie.voteAverage / 2 : null)
+  const ratingCount = stats?.ratingCount || 0
+  const isDbRating = stats?.ratingCount > 0
+
   return (
     <Link href={`/movies/${movieId}`} className="group relative block">
       {/* Card Container */}
@@ -50,11 +62,10 @@ export function MovieCard({ movie, priority = false }: MovieCardProps) {
         {/* Gradient overlay on hover */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
 
-        {/* Rating Badge - Always Visible */}
-        {movie.voteAverage !== null && movie.voteAverage !== undefined && movie.voteAverage > 0 && (
-          <div className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold backdrop-blur-sm ring-1 ring-white/10 shadow-lg">
-            <Star className="h-3 w-3 fill-accent text-accent" />
-            <span className="text-foreground">{movie.voteAverage.toFixed(1)}</span>
+        {displayRating !== null && displayRating > 0 && (
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-lg bg-background/90 px-2.5 py-1.5 backdrop-blur-sm ring-1 ring-white/10 shadow-lg">
+            <Star className={`h-4 w-4 ${isDbRating ? "fill-accent text-accent" : "fill-yellow-500 text-yellow-500"}`} />
+            <span className="text-sm font-semibold text-foreground">{displayRating.toFixed(1)}</span>
           </div>
         )}
 
@@ -66,10 +77,13 @@ export function MovieCard({ movie, priority = false }: MovieCardProps) {
           {/* Year & Rating Row */}
           <div className="mb-3 flex items-center gap-3 text-xs text-white/70">
             {year && <span className="font-medium">{year}</span>}
-            {movie.voteAverage && movie.voteAverage > 0 && (
+            {displayRating && displayRating > 0 && (
               <span className="flex items-center gap-1">
-                <Star className="h-3 w-3 fill-accent text-accent" />
-                {movie.voteAverage.toFixed(1)}
+                <Star
+                  className={`h-3 w-3 ${isDbRating ? "fill-accent text-accent" : "fill-yellow-500 text-yellow-500"}`}
+                />
+                {displayRating.toFixed(1)}
+                {isDbRating && <span className="text-white/50">({ratingCount})</span>}
               </span>
             )}
           </div>

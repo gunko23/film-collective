@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       userRating: userRating
         ? {
             ...userRating,
-            score: userRating.overallScore / 10,
+            score: userRating.overallScore / 20,
           }
         : null,
     })
@@ -59,11 +59,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "tmdbId is required" }, { status: 400 })
     }
 
-    if (score === undefined || score < 0 || score > 10) {
-      return NextResponse.json({ error: "score must be between 0 and 10" }, { status: 400 })
+    if (score === undefined || score < 0 || score > 5) {
+      return NextResponse.json({ error: "score must be between 0 and 5" }, { status: 400 })
     }
 
-    const overallScore = Math.round(score * 10)
+    const overallScore = Math.round(score * 20)
 
     const rating = await upsertRating({
       userId: user.id,
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       success: true,
       rating: {
         ...rating,
-        score: rating.overallScore / 10,
+        score: rating.overallScore / 20,
       },
     })
   } catch (error) {

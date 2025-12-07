@@ -5,7 +5,7 @@ import { useParams } from "next/navigation"
 import useSWR from "swr"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, Star, Clock, Calendar, Globe, Play, X, DollarSign, Users, Film, Clapperboard } from "lucide-react"
+import { ArrowLeft, Star, Clock, Calendar, Play, X, DollarSign, Users, Film, Clapperboard } from "lucide-react"
 import { useUser, useStackApp } from "@stackframe/stack"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -50,6 +50,13 @@ export default function MovieDetailsPage() {
   const { data: movie, error: movieError, isLoading: movieLoading } = useSWR(`/api/movies/tmdb/${id}`, fetcher)
 
   const { data: ratingData } = useSWR(user ? `/api/ratings?tmdbId=${id}` : null, fetcher)
+
+  const { data: communityStats } = useSWR(`/api/movies/${id}/stats`, fetcher)
+
+  // Use DB rating if available, otherwise fall back to TMDB
+  const displayRating = communityStats?.averageScore ?? (movie?.vote_average ? movie.vote_average / 2 : null)
+  const ratingCount = communityStats?.ratingCount || 0
+  const isDbRating = communityStats?.ratingCount > 0
 
   useEffect(() => {
     if (ratingData?.userRating) {
@@ -148,8 +155,8 @@ export default function MovieDetailsPage() {
         ) : backdropUrl ? (
           <Image src={backdropUrl || "/placeholder.svg"} alt="" fill className="object-cover" priority />
         ) : null}
-        <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/60 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/80 via-transparent to-background/80" />
       </div>
 
       {showTrailer && movie.trailer && (
@@ -174,7 +181,7 @@ export default function MovieDetailsPage() {
       )}
 
       {/* Content */}
-      <div className="relative z-10">
+      <div className="relative z-10 container mx-auto px-3 sm:px-4 pt-16 sm:pt-20 pb-8 sm:pb-12">
         {/* Back button below header */}
         <div className="mx-auto max-w-6xl px-4 sm:px-6 pt-4 sm:pt-12 lg:pt-20">
           <Button
@@ -236,32 +243,42 @@ export default function MovieDetailsPage() {
               </div>
 
               {/* Meta Info */}
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 sm:gap-4 text-xs text-muted-foreground">
-                {year && (
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
+                {movie.release_date && (
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-                    {year}
+                    {new Date(movie.release_date).getFullYear()}
                   </span>
                 )}
-                {movie.runtimeMinutes && (
+                {movie.runtime && (
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
-                    {movie.runtimeMinutes}m
-                  </span>
-                )}
-                {movie.tmdbVoteAverage > 0 && (
-                  <span className="flex items-center gap-1">
-                    <Star className="h-3 w-3 sm:h-4 sm:w-4 fill-accent text-accent" />
-                    {movie.tmdbVoteAverage.toFixed(1)}
-                  </span>
-                )}
-                {movie.originalLanguage && (
-                  <span className="flex items-center gap-1">
-                    <Globe className="h-3 w-3 sm:h-4 sm:w-4" />
-                    {movie.originalLanguage.toUpperCase()}
+                    {Math.floor(movie.runtime / 60)}h {movie.runtime % 60}m
                   </span>
                 )}
               </div>
+
+              {/* Rating */}
+              {displayRating && displayRating > 0 && (
+                <div className="flex justify-center lg:justify-start w-full">
+                  <div className="flex flex-col items-center">
+                    <span className="flex items-center gap-2">
+                      <Star
+                        className={`h-6 w-6 sm:h-7 sm:w-7 ${isDbRating ? "fill-accent text-accent" : "fill-yellow-500 text-yellow-500"}`}
+                      />
+                      <span className="text-xl sm:text-2xl font-bold">{displayRating.toFixed(1)}</span>
+                    </span>
+                    {isDbRating ? (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                        <Users className="h-3 w-3" />
+                        {ratingCount} {ratingCount === 1 ? "rating" : "ratings"}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground mt-1">(TMDB)</span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Genres */}
               {genres.length > 0 && (

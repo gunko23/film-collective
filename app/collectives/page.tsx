@@ -7,6 +7,7 @@ import Link from "next/link"
 import { Users, Plus, ArrowRight, Film, Crown, Shield, UserIcon } from "lucide-react"
 import Header from "@/components/header"
 import { Button } from "@/components/ui/button"
+import { AuthErrorBoundary } from "@/components/auth-error-boundary"
 
 type Collective = {
   id: string
@@ -17,7 +18,7 @@ type Collective = {
   created_at: string
 }
 
-export default function CollectivesPage() {
+function CollectivesContent() {
   const user = useUser()
   const app = useStackApp()
   const router = useRouter()
@@ -192,5 +193,13 @@ export default function CollectivesPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function CollectivesPage() {
+  return (
+    <AuthErrorBoundary>
+      <CollectivesContent />
+    </AuthErrorBoundary>
   )
 }

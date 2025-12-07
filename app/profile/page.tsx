@@ -4,9 +4,10 @@ import { useUser } from "@stackframe/stack"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Star, Film, Calendar, ArrowLeft, TrendingUp, Award } from "lucide-react"
+import { Star, Film, Calendar, ArrowLeft, TrendingUp, Award, RefreshCw } from "lucide-react"
 import { getImageUrl } from "@/lib/tmdb/image"
 import Header from "@/components/header"
+import AuthErrorBoundary from "@/components/auth-error-boundary"
 
 type RatedMovie = {
   id: string
@@ -23,7 +24,7 @@ type RatedMovie = {
   }
 }
 
-export default function ProfilePage() {
+function ProfileContent() {
   const user = useUser()
   const router = useRouter()
   const [ratings, setRatings] = useState<RatedMovie[]>([])
@@ -40,17 +41,22 @@ export default function ProfilePage() {
       try {
         const res = await fetch("/api/user/ratings")
         const text = await res.text()
+
+        if (text.startsWith("Too Many") || res.status === 429) {
+          throw new Error("Rate limited. Please wait a moment and try again.")
+        }
+
         let data
         try {
           data = JSON.parse(text)
         } catch {
-          throw new Error(`Failed to get user ratings: ${text.substring(0, 50)}`)
+          throw new Error("Failed to load ratings. Please try again.")
         }
         if (!res.ok) throw new Error(data.error || "Failed to fetch ratings")
         setRatings(data.ratings)
       } catch (err) {
         console.error("Error fetching ratings:", err)
-        setError("Failed to load your ratings")
+        setError(err instanceof Error ? err.message : "Failed to load your ratings")
       } finally {
         setLoading(false)
       }
@@ -140,8 +146,8 @@ export default function ProfilePage() {
                   <span className="text-sm font-medium">Average Rating</span>
                 </div>
                 <p className="text-3xl font-bold text-accent">
-                  {(averageScore / 10).toFixed(1)}
-                  <span className="text-lg text-muted-foreground">/10</span>
+                  {(averageScore / 20).toFixed(1)}
+                  <span className="text-lg text-muted-foreground">/5</span>
                 </p>
               </div>
               <div className="rounded-2xl bg-card/50 backdrop-blur-sm border border-border/50 p-5 hover-lift transition-all duration-300">
@@ -182,7 +188,14 @@ export default function ProfilePage() {
               </div>
             ) : error ? (
               <div className="text-center py-12 rounded-2xl bg-card/30 border border-border/50">
-                <p className="text-destructive">{error}</p>
+                <p className="text-destructive mb-4">{error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-accent-foreground font-medium hover:bg-accent/90 transition-all"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Try Again
+                </button>
               </div>
             ) : ratings.length === 0 ? (
               <div className="text-center py-20 rounded-2xl bg-card/30 border border-border/50 backdrop-blur-sm">
@@ -221,11 +234,11 @@ export default function ProfilePage() {
                       {/* Gradient overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-                      {/* Rating badge */}
+                      {/* Rating badge - updated to 5-star scale */}
                       <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur-sm shadow-lg">
                         <Star className="h-3 w-3 text-accent fill-accent" />
                         <span className="text-xs font-bold text-foreground">
-                          {(rating.overallScore / 10).toFixed(1)}
+                          {(rating.overallScore / 20).toFixed(1)}
                         </span>
                       </div>
 
@@ -254,5 +267,13 @@ export default function ProfilePage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function ProfilePage() {
+  return (
+    <AuthErrorBoundary>
+      <ProfileContent />
+    </AuthErrorBoundary>
   )
 }

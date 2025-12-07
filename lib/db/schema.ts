@@ -150,6 +150,38 @@ export const collectiveWatchlistEntries = pgTable(
 )
 
 // ============================================
+// FEED INTERACTIONS
+// ============================================
+export const feedComments = pgTable("feed_comments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ratingId: uuid("rating_id")
+    .notNull()
+    .references(() => userMovieRatings.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+export const feedReactions = pgTable(
+  "feed_reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ratingId: uuid("rating_id")
+      .notNull()
+      .references(() => userMovieRatings.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reactionType: text("reaction_type").notNull(), // 'like', 'love', 'fire', 'clap', 'thinking'
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [unique().on(table.ratingId, table.userId, table.reactionType)],
+)
+
+// ============================================
 // TYPES
 // ============================================
 export type User = typeof users.$inferSelect
@@ -165,3 +197,7 @@ export type UserWatchlistEntry = typeof userWatchlistEntries.$inferSelect
 export type CollectiveWatchlistEntry = typeof collectiveWatchlistEntries.$inferSelect
 export type CollectiveInvite = typeof collectiveInvites.$inferSelect
 export type NewCollectiveInvite = typeof collectiveInvites.$inferInsert
+export type FeedComment = typeof feedComments.$inferSelect
+export type NewFeedComment = typeof feedComments.$inferInsert
+export type FeedReaction = typeof feedReactions.$inferSelect
+export type NewFeedReaction = typeof feedReactions.$inferInsert
