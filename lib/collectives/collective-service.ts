@@ -1,0 +1,294 @@
+import { neon } from "@neondatabase/serverless"
+
+const sql = neon(process.env.DATABASE_URL!)
+
+// Generate a random invite code
+function generateInviteCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Avoid confusing chars like 0, O, I, 1
+  let code = ""
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return code
+}
+
+// Get all collectives for a user
+export async function getUserCollectives(userId: string) {
+  const result = await sql`
+    SELECT 
+      c.*,
+      cm.role,
+      (SELECT COUNT(*) FROM collective_memberships WHERE collective_id = c.id) as member_count
+    FROM collectives c
+    JOIN collective_memberships cm ON c.id = cm.collective_id
+    WHERE cm.user_id = ${userId}::uuid
+    ORDER BY c.created_at DESC
+  `
+  return result
+}
+
+// Get a single collective by ID
+export async function getCollective(collectiveId: string) {
+  const result = await sql`
+    SELECT * FROM collectives WHERE id = ${collectiveId}::uuid
+  `
+  return result[0] || null
+}
+
+// Get collective with membership info for a user
+export async function getCollectiveForUser(collectiveId: string, userId: string) {
+  const result = await sql`
+    SELECT 
+      c.*,
+      cm.role as user_role,
+      (SELECT COUNT(*) FROM collective_memberships WHERE collective_id = c.id) as member_count
+    FROM collectives c
+    LEFT JOIN collective_memberships cm ON c.id = cm.collective_id AND cm.user_id = ${userId}::uuid
+    WHERE c.id = ${collectiveId}::uuid
+  `
+  return result[0] || null
+}
+
+// Get all members of a collective
+export async function getCollectiveMembers(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      u.id,
+      u.name,
+      u.email,
+      u.avatar_url,
+      cm.role,
+      cm.created_at as joined_at
+    FROM collective_memberships cm
+    JOIN users u ON cm.user_id = u.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    ORDER BY 
+      CASE cm.role 
+        WHEN 'owner' THEN 1 
+        WHEN 'admin' THEN 2 
+        ELSE 3 
+      END,
+      cm.created_at ASC
+  `
+  return result
+}
+
+// Get collective ratings (all member ratings for movies)
+export async function getCollectiveRatings(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      umr.movie_id,
+      umr.overall_score,
+      umr.user_comment,
+      umr.rated_at,
+      u.id as user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      m.tmdb_id,
+      m.title,
+      m.poster_path,
+      m.release_date,
+      m.genres
+    FROM user_movie_ratings umr
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    JOIN users u ON umr.user_id = u.id
+    JOIN movies m ON umr.movie_id = m.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    ORDER BY umr.rated_at DESC
+  `
+  return result
+}
+
+// Get aggregated movie ratings for a collective
+export async function getCollectiveMovieStats(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      m.tmdb_id,
+      m.title,
+      m.poster_path,
+      m.release_date,
+      m.genres,
+      COUNT(umr.id) as rating_count,
+      AVG(umr.overall_score) as avg_score,
+      MIN(umr.overall_score) as min_score,
+      MAX(umr.overall_score) as max_score
+    FROM movies m
+    JOIN user_movie_ratings umr ON m.id = umr.movie_id
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    GROUP BY m.id, m.tmdb_id, m.title, m.poster_path, m.release_date, m.genres
+    ORDER BY rating_count DESC, avg_score DESC
+    LIMIT 50
+  `
+  return result
+}
+
+// Create a new collective
+export async function createCollective(name: string, description: string | null, userId: string) {
+  // Create the collective
+  const collectiveResult = await sql`
+    INSERT INTO collectives (name, description, created_by_user_id)
+    VALUES (${name}, ${description}, ${userId}::uuid)
+    RETURNING *
+  `
+
+  const collective = collectiveResult[0]
+
+  // Add creator as owner
+  await sql`
+    INSERT INTO collective_memberships (collective_id, user_id, role)
+    VALUES (${collective.id}::uuid, ${userId}::uuid, 'owner')
+  `
+
+  return collective
+}
+
+// Create an invite for a collective
+export async function createInvite(collectiveId: string, userId: string, expiresInDays?: number, maxUses?: number) {
+  const inviteCode = generateInviteCode()
+  const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString() : null
+
+  const result = await sql`
+    INSERT INTO collective_invites (collective_id, invite_code, created_by_user_id, expires_at, max_uses)
+    VALUES (${collectiveId}::uuid, ${inviteCode}, ${userId}::uuid, ${expiresAt}, ${maxUses})
+    RETURNING *
+  `
+
+  return result[0]
+}
+
+// Get invite by code
+export async function getInviteByCode(inviteCode: string) {
+  const result = await sql`
+    SELECT 
+      ci.*,
+      c.name as collective_name,
+      c.description as collective_description
+    FROM collective_invites ci
+    JOIN collectives c ON ci.collective_id = c.id
+    WHERE ci.invite_code = ${inviteCode}
+  `
+  return result[0] || null
+}
+
+// Join a collective via invite code
+export async function joinCollectiveViaInvite(inviteCode: string, userId: string) {
+  // Get the invite
+  const invite = await getInviteByCode(inviteCode)
+
+  if (!invite) {
+    throw new Error("Invalid invite code")
+  }
+
+  // Check if expired
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+    throw new Error("This invite has expired")
+  }
+
+  // Check if max uses reached
+  if (invite.max_uses && invite.use_count >= invite.max_uses) {
+    throw new Error("This invite has reached its maximum uses")
+  }
+
+  // Check if user is already a member
+  const existingMembership = await sql`
+    SELECT * FROM collective_memberships 
+    WHERE collective_id = ${invite.collective_id}::uuid AND user_id = ${userId}::uuid
+  `
+
+  if (existingMembership.length > 0) {
+    throw new Error("You are already a member of this collective")
+  }
+
+  // Add user to collective
+  await sql`
+    INSERT INTO collective_memberships (collective_id, user_id, role)
+    VALUES (${invite.collective_id}::uuid, ${userId}::uuid, 'member')
+  `
+
+  // Increment use count
+  await sql`
+    UPDATE collective_invites 
+    SET use_count = use_count + 1 
+    WHERE id = ${invite.id}::uuid
+  `
+
+  return invite
+}
+
+// Leave a collective
+export async function leaveCollective(collectiveId: string, userId: string) {
+  // Check if user is the owner
+  const membership = await sql`
+    SELECT * FROM collective_memberships 
+    WHERE collective_id = ${collectiveId}::uuid AND user_id = ${userId}::uuid
+  `
+
+  if (membership.length === 0) {
+    throw new Error("You are not a member of this collective")
+  }
+
+  if (membership[0].role === "owner") {
+    throw new Error("Owners cannot leave their collective. Transfer ownership first or delete the collective.")
+  }
+
+  await sql`
+    DELETE FROM collective_memberships 
+    WHERE collective_id = ${collectiveId}::uuid AND user_id = ${userId}::uuid
+  `
+}
+
+// Update member role
+export async function updateMemberRole(
+  collectiveId: string,
+  targetUserId: string,
+  newRole: "admin" | "member",
+  requestingUserId: string,
+) {
+  // Verify requesting user is owner or admin
+  const requesterMembership = await sql`
+    SELECT role FROM collective_memberships 
+    WHERE collective_id = ${collectiveId}::uuid AND user_id = ${requestingUserId}::uuid
+  `
+
+  if (requesterMembership.length === 0 || !["owner", "admin"].includes(requesterMembership[0].role)) {
+    throw new Error("You don't have permission to change member roles")
+  }
+
+  // Don't allow changing owner's role
+  const targetMembership = await sql`
+    SELECT role FROM collective_memberships 
+    WHERE collective_id = ${collectiveId}::uuid AND user_id = ${targetUserId}::uuid
+  `
+
+  if (targetMembership.length === 0) {
+    throw new Error("User is not a member of this collective")
+  }
+
+  if (targetMembership[0].role === "owner") {
+    throw new Error("Cannot change the owner's role")
+  }
+
+  await sql`
+    UPDATE collective_memberships 
+    SET role = ${newRole}
+    WHERE collective_id = ${collectiveId}::uuid AND user_id = ${targetUserId}::uuid
+  `
+}
+
+// Delete a collective (owner only)
+export async function deleteCollective(collectiveId: string, userId: string) {
+  // Verify user is owner
+  const membership = await sql`
+    SELECT role FROM collective_memberships 
+    WHERE collective_id = ${collectiveId}::uuid AND user_id = ${userId}::uuid
+  `
+
+  if (membership.length === 0 || membership[0].role !== "owner") {
+    throw new Error("Only the owner can delete a collective")
+  }
+
+  await sql`DELETE FROM collectives WHERE id = ${collectiveId}::uuid`
+}
+
+export const getCollectiveById = getCollectiveForUser
