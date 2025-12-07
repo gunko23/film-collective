@@ -246,7 +246,7 @@ export async function joinCollectiveViaInvite(inviteCode: string, userId: string
 export async function leaveCollective(collectiveId: string, userId: string) {
   // Check if user is the owner
   const membership = await sql`
-    SELECT * FROM collective_memberships 
+    SELECT role FROM collective_memberships 
     WHERE collective_id = ${collectiveId}::uuid AND user_id = ${userId}::uuid
   `
 
@@ -386,6 +386,105 @@ export async function getCollectiveDecadeStats(collectiveId: string) {
       AND m.release_date IS NOT NULL
     GROUP BY decade
     ORDER BY movie_count DESC
+    LIMIT 5
+  `
+  return result
+}
+
+// Get member rating similarity matrix
+export async function getMemberSimilarityData(collectiveId: string) {
+  // Get all members and their ratings
+  const result = await sql`
+    SELECT 
+      u.id as user_id,
+      u.name as user_name,
+      m.tmdb_id,
+      umr.overall_score
+    FROM user_movie_ratings umr
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    JOIN users u ON umr.user_id = u.id
+    JOIN movies m ON umr.movie_id = m.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    ORDER BY u.id, m.tmdb_id
+  `
+  return result
+}
+
+// Get rating distribution across the collective
+export async function getRatingDistribution(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      FLOOR(overall_score / 20) as rating_bucket,
+      COUNT(*) as count
+    FROM user_movie_ratings umr
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    GROUP BY rating_bucket
+    ORDER BY rating_bucket
+  `
+  return result
+}
+
+// Get member activity over time
+export async function getMemberActivityTimeline(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      DATE_TRUNC('week', umr.rated_at) as week,
+      u.id as user_id,
+      u.name as user_name,
+      COUNT(*) as rating_count
+    FROM user_movie_ratings umr
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    JOIN users u ON umr.user_id = u.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+      AND umr.rated_at > NOW() - INTERVAL '3 months'
+    GROUP BY week, u.id, u.name
+    ORDER BY week DESC
+  `
+  return result
+}
+
+// Get top controversial movies (highest variance in ratings)
+export async function getControversialMovies(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      m.tmdb_id,
+      m.title,
+      m.poster_path,
+      COUNT(umr.id) as rating_count,
+      AVG(umr.overall_score) as avg_score,
+      STDDEV(umr.overall_score) as score_variance,
+      MIN(umr.overall_score) as min_score,
+      MAX(umr.overall_score) as max_score
+    FROM movies m
+    JOIN user_movie_ratings umr ON m.id = umr.movie_id
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    GROUP BY m.id, m.tmdb_id, m.title, m.poster_path
+    HAVING COUNT(umr.id) >= 2
+    ORDER BY score_variance DESC NULLS LAST
+    LIMIT 5
+  `
+  return result
+}
+
+// Get unanimous favorites (high avg, low variance)
+export async function getUnanimousFavorites(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      m.tmdb_id,
+      m.title,
+      m.poster_path,
+      COUNT(umr.id) as rating_count,
+      AVG(umr.overall_score) as avg_score,
+      STDDEV(umr.overall_score) as score_variance
+    FROM movies m
+    JOIN user_movie_ratings umr ON m.id = umr.movie_id
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    GROUP BY m.id, m.tmdb_id, m.title, m.poster_path
+    HAVING COUNT(umr.id) >= 2 AND AVG(umr.overall_score) >= 70
+    ORDER BY score_variance ASC NULLS LAST, avg_score DESC
     LIMIT 5
   `
   return result

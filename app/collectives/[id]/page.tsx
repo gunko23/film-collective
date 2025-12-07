@@ -12,6 +12,10 @@ import {
   getCollectiveGenreStats,
   getCollectiveDecadeStats,
   getCollectiveAnalytics,
+  getMemberSimilarityData,
+  getRatingDistribution,
+  getControversialMovies,
+  getUnanimousFavorites,
 } from "@/lib/collectives/collective-service"
 import { CollectiveActions } from "@/components/collective-actions"
 import { CollectiveAnalytics } from "@/components/collective-analytics"
@@ -29,8 +33,19 @@ export default async function CollectiveDetailPage({ params }: Props) {
     redirect("/handler/sign-in")
   }
 
-  // Fetch all data directly from database
-  const [collective, members, movieStats, allRatings, genreStats, decadeStats, analytics] = await Promise.all([
+  const [
+    collective,
+    members,
+    movieStats,
+    allRatings,
+    genreStats,
+    decadeStats,
+    analytics,
+    memberSimilarity,
+    ratingDistribution,
+    controversialMovies,
+    unanimousFavorites,
+  ] = await Promise.all([
     getCollectiveById(collectiveId, user.id).catch(() => null),
     getCollectiveMembers(collectiveId).catch(() => []),
     getCollectiveMovieStats(collectiveId).catch(() => []),
@@ -43,6 +58,10 @@ export default async function CollectiveDetailPage({ params }: Props) {
       avg_collective_score: 0,
       active_raters: 0,
     })),
+    getMemberSimilarityData(collectiveId).catch(() => []),
+    getRatingDistribution(collectiveId).catch(() => []),
+    getControversialMovies(collectiveId).catch(() => []),
+    getUnanimousFavorites(collectiveId).catch(() => []),
   ])
 
   if (!collective) {
@@ -77,7 +96,6 @@ export default async function CollectiveDetailPage({ params }: Props) {
     <div className="min-h-screen bg-background">
       <Header />
 
-      {/* Background effects */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-20 left-1/4 w-[500px] h-[500px] rounded-full bg-accent/5 blur-[100px]" />
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
@@ -85,7 +103,6 @@ export default async function CollectiveDetailPage({ params }: Props) {
 
       <main className="relative z-10 pt-28 pb-16">
         <div className="mx-auto max-w-6xl px-6">
-          {/* Back button */}
           <Link
             href="/collectives"
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6 group"
@@ -94,7 +111,6 @@ export default async function CollectiveDetailPage({ params }: Props) {
             All Collectives
           </Link>
 
-          {/* Header */}
           <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-8">
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">{collective.name}</h1>
@@ -107,13 +123,19 @@ export default async function CollectiveDetailPage({ params }: Props) {
             />
           </div>
 
-          {/* Analytics Section */}
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-foreground mb-4">Collective Insights</h2>
-            <CollectiveAnalytics analytics={analytics} genreStats={genreStats} decadeStats={decadeStats} />
+            <CollectiveAnalytics
+              analytics={analytics}
+              genreStats={genreStats}
+              decadeStats={decadeStats}
+              ratingDistribution={ratingDistribution}
+              memberSimilarity={memberSimilarity}
+              controversialMovies={controversialMovies}
+              unanimousFavorites={unanimousFavorites}
+            />
           </div>
 
-          {/* Members */}
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-foreground mb-4">Members ({members.length})</h2>
             <div className="flex flex-wrap gap-3">
@@ -144,7 +166,6 @@ export default async function CollectiveDetailPage({ params }: Props) {
             </div>
           </div>
 
-          {/* Client-side interactive sections */}
           <CollectivePageClient collectiveId={collectiveId} movieStats={movieStats} allRatings={allRatings} />
         </div>
       </main>
