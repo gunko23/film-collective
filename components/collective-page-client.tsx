@@ -4,9 +4,11 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
+import { LayoutDashboard, MessageSquare } from "lucide-react"
 import { CollectiveMoviesGrid } from "@/components/collective-movies-grid"
 import { CollectiveActivityFeed } from "@/components/collective-activity-feed"
 import { CollectiveMovieModal } from "@/components/collective-movie-modal"
+import { MessageBoard } from "@/components/message-board"
 
 type MovieStat = {
   tmdb_id: string
@@ -34,11 +36,12 @@ type Props = {
   collectiveId: string
   movieStats: MovieStat[]
   allRatings: Rating[]
-  children?: React.ReactNode // Add children prop to render content between Top Movies and Feed
+  children?: React.ReactNode
 }
 
 export function CollectivePageClient({ collectiveId, movieStats, allRatings, children }: Props) {
   const [selectedMovie, setSelectedMovie] = useState<MovieStat | null>(null)
+  const [activeTab, setActiveTab] = useState<"dashboard" | "messageboard">("dashboard")
 
   const handleMovieClick = (movie: MovieStat) => {
     setSelectedMovie(movie)
@@ -53,31 +56,66 @@ export function CollectivePageClient({ collectiveId, movieStats, allRatings, chi
 
   return (
     <>
-      {/* Top Rated Movies */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">Collective Top Movies</h2>
-          {movieStats.length > 10 && (
-            <Link href={`/collectives/${collectiveId}/movies`} className="text-sm text-accent hover:underline">
-              View All ({movieStats.length})
-            </Link>
-          )}
-        </div>
-        <CollectiveMoviesGrid movies={movieStats} onMovieClick={handleMovieClick} />
+      <div className="flex gap-2 mb-6 border-b border-border/50">
+        <button
+          onClick={() => setActiveTab("dashboard")}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all border-b-2 -mb-px ${
+            activeTab === "dashboard"
+              ? "border-accent text-accent"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          }`}
+        >
+          <LayoutDashboard className="h-4 w-4" />
+          Dashboard
+        </button>
+        <button
+          onClick={() => setActiveTab("messageboard")}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all border-b-2 -mb-px ${
+            activeTab === "messageboard"
+              ? "border-accent text-accent"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          }`}
+        >
+          <MessageSquare className="h-4 w-4" />
+          Message Board
+        </button>
       </div>
 
-      {children}
+      {activeTab === "dashboard" && (
+        <>
+          {/* Top Rated Movies */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Collective Top Movies</h2>
+              {movieStats.length > 10 && (
+                <Link href={`/collectives/${collectiveId}/movies`} className="text-sm text-accent hover:underline">
+                  View All ({movieStats.length})
+                </Link>
+              )}
+            </div>
+            <CollectiveMoviesGrid movies={movieStats} onMovieClick={handleMovieClick} />
+          </div>
 
-      {/* Collective Feed */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">Collective Feed</h2>
-          <Link href={`/collectives/${collectiveId}/feed`} className="text-sm text-accent hover:underline">
-            View All
-          </Link>
+          {children}
+
+          {/* Collective Feed */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Collective Feed</h2>
+              <Link href={`/collectives/${collectiveId}/feed`} className="text-sm text-accent hover:underline">
+                View All
+              </Link>
+            </div>
+            <CollectiveActivityFeed ratings={allRatings.slice(0, 5)} onMovieClick={handleMovieClickFromFeed} />
+          </div>
+        </>
+      )}
+
+      {activeTab === "messageboard" && (
+        <div className="mb-8">
+          <MessageBoard collectiveId={collectiveId} />
         </div>
-        <CollectiveActivityFeed ratings={allRatings.slice(0, 5)} onMovieClick={handleMovieClickFromFeed} />
-      </div>
+      )}
 
       {/* Movie Modal */}
       <CollectiveMovieModal movie={selectedMovie} collectiveId={collectiveId} onClose={() => setSelectedMovie(null)} />
