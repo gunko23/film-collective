@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Star, Film, ChevronLeft, ChevronRight } from "lucide-react"
+import Link from "next/link"
+import { Star, Film, Tv, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getImageUrl } from "@/lib/tmdb/image"
 
@@ -15,11 +16,17 @@ type Rating = {
   tmdb_id: string
   title: string
   poster_path: string | null
+  media_type?: string
+  episode_name?: string
+  episode_number?: number
+  season_number?: number
+  tv_show_name?: string
+  tv_show_id?: number
 }
 
 type Props = {
   ratings: Rating[]
-  onMovieClick: (tmdbId: string) => void
+  onMovieClick?: (tmdbId: string) => void
 }
 
 const ITEMS_PER_PAGE = 10
@@ -39,69 +46,106 @@ export function CollectiveActivityFeed({ ratings, onMovieClick }: Props) {
     )
   }
 
+  const getMediaLink = (rating: Rating) => {
+    if (rating.media_type === "episode" && rating.tv_show_id) {
+      return `/tv/${rating.tv_show_id}/season/${rating.season_number}`
+    }
+    if (rating.media_type === "tv") {
+      return `/tv/${rating.tmdb_id}`
+    }
+    return `/movies/${rating.tmdb_id}`
+  }
+
+  const getMediaTitle = (rating: Rating) => {
+    if (rating.media_type === "episode") {
+      return `${rating.tv_show_name} S${rating.season_number}E${rating.episode_number}: ${rating.episode_name || rating.title}`
+    }
+    return rating.title
+  }
+
+  const getMediaIcon = (rating: Rating) => {
+    if (rating.media_type === "tv" || rating.media_type === "episode") {
+      return <Tv className="h-3 w-3" />
+    }
+    return <Film className="h-3 w-3" />
+  }
+
   return (
     <div>
-      <div className="space-y-3">
+      <div className="space-y-4">
         {paginatedRatings.map((rating, idx) => (
           <div
-            key={`${rating.user_id}-${rating.tmdb_id}-${idx}`}
-            className="flex items-center gap-4 p-4 rounded-xl bg-card/50 border border-border/50"
+            key={`${rating.user_id}-${rating.tmdb_id}-${rating.media_type}-${idx}`}
+            className="p-4 rounded-xl bg-card/50 border border-border/50"
           >
-            {/* User avatar */}
-            {rating.user_avatar ? (
-              <img
-                src={rating.user_avatar || "/placeholder.svg"}
-                alt={rating.user_name || "User"}
-                className="h-10 w-10 rounded-full shrink-0"
-              />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20 shrink-0">
-                <span className="text-sm font-semibold text-accent">
-                  {(rating.user_name || "U").charAt(0).toUpperCase()}
-                </span>
-              </div>
-            )}
-            {/* Movie poster - clickable */}
-            <button
-              onClick={() => onMovieClick(rating.tmdb_id)}
-              className="shrink-0 hover:opacity-80 transition-opacity"
-            >
-              <div className="w-12 h-18 rounded-lg overflow-hidden bg-muted">
-                {rating.poster_path ? (
-                  <img
-                    src={getImageUrl(rating.poster_path, "w92") || "/placeholder.svg"}
-                    alt={rating.title}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center">
-                    <Film className="h-4 w-4 text-muted-foreground/30" />
+            {/* Top row: Poster and Rating */}
+            <div className="flex gap-4">
+              {/* Poster */}
+              <Link href={getMediaLink(rating)} className="shrink-0 hover:opacity-80 transition-opacity">
+                <div className="w-16 sm:w-20 aspect-[2/3] rounded-lg overflow-hidden bg-muted relative">
+                  {rating.poster_path ? (
+                    <img
+                      src={getImageUrl(rating.poster_path, "w154") || "/placeholder.svg"}
+                      alt={rating.title}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center">{getMediaIcon(rating)}</div>
+                  )}
+                </div>
+              </Link>
+
+              {/* Rating and User Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent/10">
+                    <Star className="h-5 w-5 text-accent fill-accent" />
+                    <span className="text-lg font-bold text-accent">
+                      {(Number(rating.overall_score) / 20).toFixed(1)}
+                    </span>
                   </div>
-                )}
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    {getMediaIcon(rating)}
+                    <span className="capitalize">{rating.media_type || "movie"}</span>
+                  </div>
+                </div>
+
+                {/* User info */}
+                <div className="flex items-center gap-2 mb-2">
+                  {rating.user_avatar ? (
+                    <img
+                      src={rating.user_avatar || "/placeholder.svg"}
+                      alt={rating.user_name || "User"}
+                      className="h-6 w-6 rounded-full shrink-0"
+                    />
+                  ) : (
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 shrink-0">
+                      <span className="text-xs font-semibold text-accent">
+                        {(rating.user_name || "U").charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-foreground truncate">{rating.user_name || "Someone"}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(rating.rated_at).toLocaleDateString()}
+                  </span>
+                </div>
+
+                {/* Title */}
+                <Link href={getMediaLink(rating)} className="block">
+                  <p className="text-sm font-medium text-foreground hover:text-accent transition-colors line-clamp-2">
+                    {getMediaTitle(rating)}
+                  </p>
+                </Link>
               </div>
-            </button>
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-foreground">
-                <span className="font-medium">{rating.user_name || "Someone"}</span>
-                {" rated "}
-                <button
-                  onClick={() => onMovieClick(rating.tmdb_id)}
-                  className="font-medium hover:text-accent transition-colors"
-                >
-                  {rating.title}
-                </button>
+            </div>
+
+            {/* Comment if exists */}
+            {rating.user_comment && (
+              <p className="text-sm text-muted-foreground mt-3 pl-20 sm:pl-24 italic line-clamp-2">
+                "{rating.user_comment}"
               </p>
-              {rating.user_comment && (
-                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">"{rating.user_comment}"</p>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">{new Date(rating.rated_at).toLocaleDateString()}</p>
-            </div>
-            {/* Rating */}
-            <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent/10 shrink-0">
-              <Star className="h-4 w-4 text-accent fill-accent" />
-              <span className="text-sm font-bold text-accent">{(Number(rating.overall_score) / 20).toFixed(1)}</span>
-            </div>
+            )}
           </div>
         ))}
       </div>

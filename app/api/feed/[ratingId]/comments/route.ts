@@ -12,7 +12,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ rati
         fc.id,
         fc.user_id,
         u.name as user_name,
+        u.avatar_url as user_avatar,
         fc.content,
+        fc.gif_url,
         fc.created_at
       FROM feed_comments fc
       JOIN users u ON u.id = fc.user_id
@@ -38,21 +40,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ rat
 
     await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
 
-    const { content } = await request.json()
+    const { content, gifUrl } = await request.json()
 
-    if (!content || content.trim().length === 0) {
-      return NextResponse.json({ error: "Comment content is required" }, { status: 400 })
+    // Allow empty content if there's a GIF
+    if ((!content || content.trim().length === 0) && !gifUrl) {
+      return NextResponse.json({ error: "Comment content or GIF is required" }, { status: 400 })
     }
 
     const result = await sql`
-      INSERT INTO feed_comments (id, rating_id, user_id, content, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${ratingId}, ${user.id}, ${content.trim()}, NOW(), NOW())
-      RETURNING id, user_id, content, created_at
+      INSERT INTO feed_comments (id, rating_id, user_id, content, gif_url, created_at, updated_at)
+      VALUES (gen_random_uuid(), ${ratingId}, ${user.id}, ${content?.trim() || ""}, ${gifUrl || null}, NOW(), NOW())
+      RETURNING id, user_id, content, gif_url, created_at
     `
 
     const comment = {
       ...result[0],
       user_name: user.displayName || "Anonymous",
+      user_avatar: user.profileImageUrl || null,
     }
 
     return NextResponse.json({ comment })

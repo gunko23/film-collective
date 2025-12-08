@@ -9,6 +9,8 @@ interface StarRatingDisplayProps {
 }
 
 export function StarRatingDisplay({ rating, size = "md", showValue = false, className }: StarRatingDisplayProps) {
+  const safeRating = rating ?? 0
+
   const sizeClasses = {
     sm: "h-3 w-3",
     md: "h-4 w-4",
@@ -18,8 +20,8 @@ export function StarRatingDisplay({ rating, size = "md", showValue = false, clas
   const starSize = sizeClasses[size]
 
   const renderStar = (star: number) => {
-    const isFull = rating >= star
-    const isHalf = !isFull && rating >= star - 0.5
+    const isFull = safeRating >= star
+    const isHalf = !isFull && safeRating >= star - 0.5
 
     return (
       <div key={star} className={cn("relative", starSize)}>
@@ -40,7 +42,7 @@ export function StarRatingDisplay({ rating, size = "md", showValue = false, clas
   return (
     <div className={cn("flex items-center gap-0.5", className)}>
       {[1, 2, 3, 4, 5].map(renderStar)}
-      {showValue && <span className="ml-1.5 text-sm font-medium text-foreground">{rating.toFixed(1)}</span>}
+      {showValue && <span className="ml-1.5 text-sm font-medium text-foreground">{safeRating.toFixed(1)}</span>}
     </div>
   )
 }

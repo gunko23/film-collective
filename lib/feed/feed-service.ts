@@ -1,43 +1,102 @@
 import { sql } from "@/lib/db"
 
 export async function getCollectiveFeedWithInteractions(collectiveId: string, limit = 10, offset = 0) {
-  console.log("[v0] getCollectiveFeedWithInteractions called with:", { collectiveId, limit, offset })
-
   try {
     const members = await sql`
       SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid
     `
-    console.log("[v0] Collective members found:", members.length)
 
     if (members.length === 0) {
       return []
     }
 
     const result = await sql`
-      SELECT 
-        umr.id as rating_id,
-        umr.user_id,
-        u.name as user_name,
-        u.avatar_url as user_avatar,
-        umr.overall_score,
-        umr.user_comment,
-        umr.rated_at,
-        m.tmdb_id::text as tmdb_id,
-        m.title,
-        m.poster_path,
-        m.release_date,
-        0 as comment_count
-      FROM user_movie_ratings umr
-      JOIN movies m ON umr.movie_id = m.id
-      JOIN users u ON umr.user_id = u.id
-      WHERE umr.user_id IN (
-        SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid
+      (
+        SELECT 
+          umr.id as rating_id,
+          umr.user_id,
+          u.name as user_name,
+          u.avatar_url as user_avatar,
+          umr.overall_score,
+          umr.user_comment,
+          umr.rated_at,
+          m.tmdb_id::text as tmdb_id,
+          m.title,
+          m.poster_path,
+          m.release_date,
+          'movie' as media_type,
+          NULL::int as episode_number,
+          NULL::int as season_number,
+          NULL as show_name,
+          NULL::int as show_id,
+          0 as comment_count
+        FROM user_movie_ratings umr
+        JOIN movies m ON umr.movie_id = m.id
+        JOIN users u ON umr.user_id = u.id
+        WHERE umr.user_id IN (
+          SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid
+        )
       )
-      ORDER BY umr.rated_at DESC
-      LIMIT 10
+      UNION ALL
+      (
+        SELECT 
+          utr.id as rating_id,
+          utr.user_id,
+          u.name as user_name,
+          u.avatar_url as user_avatar,
+          utr.overall_score,
+          NULL as user_comment,
+          utr.rated_at,
+          ts.id::text as tmdb_id,
+          ts.name as title,
+          ts.poster_path,
+          ts.first_air_date as release_date,
+          'tv' as media_type,
+          NULL::int as episode_number,
+          NULL::int as season_number,
+          NULL as show_name,
+          NULL::int as show_id,
+          0 as comment_count
+        FROM user_tv_show_ratings utr
+        JOIN tv_shows ts ON utr.tv_show_id = ts.id
+        JOIN users u ON utr.user_id = u.id
+        WHERE utr.user_id IN (
+          SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid
+        )
+      )
+      UNION ALL
+      (
+        SELECT 
+          uer.id as rating_id,
+          uer.user_id,
+          u.name as user_name,
+          u.avatar_url as user_avatar,
+          uer.overall_score,
+          NULL as user_comment,
+          uer.rated_at,
+          te.id::text as tmdb_id,
+          te.name as title,
+          te.still_path as poster_path,
+          te.air_date as release_date,
+          'episode' as media_type,
+          te.episode_number,
+          te.season_number,
+          ts.name as show_name,
+          ts.id::int as show_id,
+          0 as comment_count
+        FROM user_episode_ratings uer
+        JOIN tv_episodes te ON uer.episode_id = te.id
+        JOIN tv_shows ts ON te.tv_show_id = ts.id
+        JOIN users u ON uer.user_id = u.id
+        WHERE uer.user_id IN (
+          SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid
+        )
+      )
+      ORDER BY rated_at DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
     `
 
-    console.log("[v0] Feed results:", result.length)
     return result
   } catch (error) {
     console.error("[v0] Error in getCollectiveFeedWithInteractions:", error)
@@ -117,11 +176,16 @@ export async function getUserReactionsForRatings(userId: string, ratingIds: stri
 
 export async function getCollectiveFeedCount(collectiveId: string) {
   const result = await sql`
-    SELECT COUNT(*)::int as count
-    FROM user_movie_ratings umr
-    WHERE umr.user_id IN (
-      SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid
-    )
+    SELECT (
+      (SELECT COUNT(*)::int FROM user_movie_ratings umr 
+       WHERE umr.user_id IN (SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid))
+      +
+      (SELECT COUNT(*)::int FROM user_tv_show_ratings utr 
+       WHERE utr.user_id IN (SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid))
+      +
+      (SELECT COUNT(*)::int FROM user_episode_ratings uer 
+       WHERE uer.user_id IN (SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid))
+    ) as count
   `
   return result[0]?.count || 0
 }

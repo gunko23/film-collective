@@ -490,4 +490,112 @@ export async function getUnanimousFavorites(collectiveId: string) {
   return result
 }
 
+// Get aggregated TV show ratings for a collective
+export async function getCollectiveTVShowStats(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      ts.id as tv_show_id,
+      ts.name,
+      ts.poster_path,
+      ts.first_air_date,
+      ts.genres,
+      COUNT(utsr.id) as rating_count,
+      AVG(utsr.overall_score) as avg_score
+    FROM tv_shows ts
+    JOIN user_tv_show_ratings utsr ON ts.id = utsr.tv_show_id
+    JOIN collective_memberships cm ON utsr.user_id = cm.user_id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    GROUP BY ts.id, ts.name, ts.poster_path, ts.first_air_date, ts.genres
+    ORDER BY avg_score DESC, rating_count DESC
+    LIMIT 50
+  `
+  return result
+}
+
+// Get aggregated episode ratings for a collective
+export async function getCollectiveEpisodeStats(collectiveId: string) {
+  const result = await sql`
+    SELECT 
+      te.id as episode_id,
+      te.name as episode_name,
+      te.episode_number,
+      te.season_number,
+      te.still_path,
+      te.air_date,
+      ts.id as tv_show_id,
+      ts.name as tv_show_name,
+      ts.poster_path as tv_show_poster,
+      COUNT(uer.id) as rating_count,
+      AVG(uer.overall_score) as avg_score
+    FROM tv_episodes te
+    JOIN tv_shows ts ON te.tv_show_id = ts.id
+    JOIN user_episode_ratings uer ON te.id = uer.episode_id
+    JOIN collective_memberships cm ON uer.user_id = cm.user_id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    GROUP BY te.id, te.name, te.episode_number, te.season_number, te.still_path, te.air_date, 
+             ts.id, ts.name, ts.poster_path
+    ORDER BY avg_score DESC, rating_count DESC
+    LIMIT 50
+  `
+  return result
+}
+
+// Get all ratings for a specific TV show in a collective
+export async function getCollectiveTVRatings(collectiveId: string, limit?: number) {
+  const limitClause = limit ? `LIMIT ${limit}` : ""
+  const result = await sql`
+    SELECT 
+      utsr.tv_show_id,
+      utsr.overall_score,
+      utsr.user_comment,
+      utsr.rated_at,
+      u.id as user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      ts.id as tmdb_id,
+      ts.name as title,
+      ts.poster_path,
+      ts.first_air_date,
+      'tv' as media_type
+    FROM user_tv_show_ratings utsr
+    JOIN collective_memberships cm ON utsr.user_id = cm.user_id
+    JOIN users u ON utsr.user_id = u.id
+    JOIN tv_shows ts ON utsr.tv_show_id = ts.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    ORDER BY utsr.rated_at DESC
+  `
+  return result
+}
+
+// Get all ratings for a specific episode in a collective
+export async function getCollectiveEpisodeRatings(collectiveId: string, limit?: number) {
+  const result = await sql`
+    SELECT 
+      uer.episode_id,
+      uer.overall_score,
+      uer.user_comment,
+      uer.rated_at,
+      u.id as user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      te.id as tmdb_id,
+      te.name as episode_name,
+      te.episode_number,
+      te.season_number,
+      te.still_path,
+      ts.id as tv_show_id,
+      ts.name as tv_show_name,
+      ts.poster_path,
+      'episode' as media_type
+    FROM user_episode_ratings uer
+    JOIN collective_memberships cm ON uer.user_id = cm.user_id
+    JOIN users u ON uer.user_id = u.id
+    JOIN tv_episodes te ON uer.episode_id = te.id
+    JOIN tv_shows ts ON te.tv_show_id = ts.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    ORDER BY uer.rated_at DESC
+  `
+  return result
+}
+
 export const getCollectiveById = getCollectiveForUser

@@ -88,6 +88,106 @@ export type TMDBMovieListResponse = {
   total_results: number
 }
 
+export type TMDBTVShow = {
+  id: number
+  name: string
+  original_name: string
+  overview: string
+  tagline?: string
+  poster_path: string | null
+  backdrop_path: string | null
+  first_air_date: string
+  last_air_date?: string
+  number_of_seasons?: number
+  number_of_episodes?: number
+  episode_run_time?: number[]
+  status?: string
+  type?: string
+  vote_average: number
+  vote_count: number
+  popularity: number
+  original_language: string
+  origin_country?: string[]
+  genres?: { id: number; name: string }[]
+  networks?: { id: number; name: string; logo_path: string | null; origin_country: string }[]
+  production_companies?: { id: number; name: string; logo_path: string | null; origin_country: string }[]
+  created_by?: { id: number; name: string; profile_path: string | null }[]
+  homepage?: string
+  in_production?: boolean
+}
+
+export type TMDBTVSeason = {
+  id: number
+  season_number: number
+  name: string
+  overview: string
+  poster_path: string | null
+  air_date: string
+  episode_count: number
+  vote_average: number
+}
+
+export type TMDBTVEpisode = {
+  id: number
+  name: string
+  overview: string
+  episode_number: number
+  season_number: number
+  still_path: string | null
+  air_date: string
+  runtime: number
+  vote_average: number
+  vote_count: number
+  crew?: { id: number; name: string; job: string; profile_path: string | null }[]
+  guest_stars?: { id: number; name: string; character: string; profile_path: string | null }[]
+}
+
+export type TMDBTVSeasonDetails = {
+  id: number
+  name: string
+  overview: string
+  poster_path: string | null
+  season_number: number
+  air_date: string
+  episodes: TMDBTVEpisode[]
+  vote_average: number
+}
+
+export type TMDBTVShowListResponse = {
+  page: number
+  results: TMDBTVShow[]
+  total_pages: number
+  total_results: number
+}
+
+export type TMDBMultiSearchResult = {
+  id: number
+  media_type: "movie" | "tv" | "person"
+  // Movie fields
+  title?: string
+  original_title?: string
+  release_date?: string
+  // TV fields
+  name?: string
+  original_name?: string
+  first_air_date?: string
+  // Common fields
+  overview: string
+  poster_path: string | null
+  backdrop_path: string | null
+  vote_average: number
+  vote_count: number
+  popularity: number
+  original_language?: string
+}
+
+export type TMDBMultiSearchResponse = {
+  page: number
+  results: TMDBMultiSearchResult[]
+  total_pages: number
+  total_results: number
+}
+
 class TMDBClient {
   private apiKey: string
 
@@ -110,10 +210,8 @@ class TMDBClient {
       try {
         const response = await fetch(url.toString())
 
-        // Handle rate limiting (429 Too Many Requests)
         if (response.status === 429) {
           const retryAfter = response.headers.get("Retry-After")
-          // Wait longer: minimum 2 seconds, use Retry-After header if provided, or exponential backoff
           const waitTime = retryAfter
             ? Math.max(Number.parseInt(retryAfter, 10) * 1000, 2000)
             : Math.max(2000, Math.pow(2, attempt + 1) * 1000)
@@ -129,11 +227,9 @@ class TMDBClient {
 
         return response.json()
       } catch (error) {
-        // If it's our own error, rethrow it
         if (error instanceof Error && error.message.startsWith("TMDB API error")) {
           throw error
         }
-        // Network errors - retry with backoff
         if (attempt < retries - 1) {
           const waitTime = Math.pow(2, attempt + 1) * 1000
           console.log(`Network error (attempt ${attempt + 1}/${retries}). Waiting ${waitTime}ms...`)
@@ -220,6 +316,52 @@ class TMDBClient {
   async getMovieVideos(movieId: number): Promise<TMDBVideosResponse> {
     return this.fetch<TMDBVideosResponse>(`/movie/${movieId}/videos`)
   }
+
+  // Get popular TV shows
+  async getPopularTVShows(page = 1): Promise<TMDBTVShowListResponse> {
+    return this.fetch<TMDBTVShowListResponse>("/tv/popular", { page: page.toString() })
+  }
+
+  // Get top rated TV shows
+  async getTopRatedTVShows(page = 1): Promise<TMDBTVShowListResponse> {
+    return this.fetch<TMDBTVShowListResponse>("/tv/top_rated", { page: page.toString() })
+  }
+
+  // Get TV show details
+  async getTVShowDetails(tvId: number): Promise<TMDBTVShow> {
+    return this.fetch<TMDBTVShow>(`/tv/${tvId}`)
+  }
+
+  // Get TV show credits (cast and crew)
+  async getTVShowCredits(tvId: number): Promise<TMDBCredits> {
+    return this.fetch<TMDBCredits>(`/tv/${tvId}/credits`)
+  }
+
+  // Get TV show videos (trailers, clips, etc.)
+  async getTVShowVideos(tvId: number): Promise<TMDBVideosResponse> {
+    return this.fetch<TMDBVideosResponse>(`/tv/${tvId}/videos`)
+  }
+
+  // Get TV season details
+  async getTVSeasonDetails(tvId: number, seasonNumber: number): Promise<TMDBTVSeasonDetails> {
+    return this.fetch<TMDBTVSeasonDetails>(`/tv/${tvId}/season/${seasonNumber}`)
+  }
+
+  // Search TV shows
+  async searchTVShows(query: string, page = 1): Promise<TMDBTVShowListResponse> {
+    return this.fetch<TMDBTVShowListResponse>("/search/tv", {
+      query,
+      page: page.toString(),
+    })
+  }
+
+  // Multi search for movies, TV shows, and people
+  async multiSearch(query: string, page = 1): Promise<TMDBMultiSearchResponse> {
+    return this.fetch<TMDBMultiSearchResponse>("/search/multi", {
+      query,
+      page: page.toString(),
+    })
+  }
 }
 
 // Helper to get image URLs
@@ -257,6 +399,31 @@ export async function getMovieCredits(movieId: number): Promise<TMDBCredits | nu
   const client = createTMDBClient()
   if (!client) return null
   return client.getMovieCredits(movieId)
+}
+
+export async function getTVShowDetails(tvId: number): Promise<TMDBTVShow | null> {
+  const client = createTMDBClient()
+  if (!client) return null
+  return client.getTVShowDetails(tvId)
+}
+
+export async function getTVShowVideos(tvId: number): Promise<TMDBVideo[]> {
+  const client = createTMDBClient()
+  if (!client) return []
+  const response = await client.getTVShowVideos(tvId)
+  return response.results || []
+}
+
+export async function getTVShowCredits(tvId: number): Promise<TMDBCredits | null> {
+  const client = createTMDBClient()
+  if (!client) return null
+  return client.getTVShowCredits(tvId)
+}
+
+export async function getTVSeasonDetails(tvId: number, seasonNumber: number): Promise<TMDBTVSeasonDetails | null> {
+  const client = createTMDBClient()
+  if (!client) return null
+  return client.getTVSeasonDetails(tvId, seasonNumber)
 }
 
 export { TMDBClient }
