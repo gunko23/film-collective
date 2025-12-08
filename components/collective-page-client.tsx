@@ -543,6 +543,7 @@ export function CollectivePageClient({
                         currentUserId={currentUserId}
                         collectiveId={collectiveId}
                         mediaTitle={item.title}
+                        mediaType={item.media_type as "movie" | "tv" | "episode"}
                       />
                     </div>
                   )

@@ -41,6 +41,7 @@ type Props = {
   collectiveId: string
   mediaTitle?: string
   initialCommentCount?: number
+  mediaType?: "movie" | "tv" | "episode"
 }
 
 async function searchGifs(query: string): Promise<{ url: string; preview: string }[]> {
@@ -69,6 +70,7 @@ export function EnhancedComments({
   collectiveId,
   mediaTitle,
   initialCommentCount = 0,
+  mediaType,
 }: Props) {
   const [reactions, setReactions] = useState<Reaction[]>([])
   const [comments, setComments] = useState<Comment[]>([])
@@ -88,8 +90,8 @@ export function EnhancedComments({
     async function fetchData() {
       try {
         const [reactionsRes, commentsRes] = await Promise.all([
-          fetch(`/api/feed/${ratingId}/reactions`),
-          fetch(`/api/feed/${ratingId}/comments`),
+          fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/reactions`),
+          fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`),
         ])
 
         if (reactionsRes.ok) {
@@ -106,7 +108,7 @@ export function EnhancedComments({
       }
     }
     fetchData()
-  }, [ratingId])
+  }, [ratingId, collectiveId])
 
   // Search GIFs with debounce
   useEffect(() => {
@@ -127,10 +129,10 @@ export function EnhancedComments({
 
   const handleReaction = async (type: string) => {
     try {
-      const res = await fetch(`/api/feed/${ratingId}/reactions`, {
+      const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/reactions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reactionType: type }),
+        body: JSON.stringify({ reactionType: type, mediaType }),
       })
 
       if (res.ok) {
@@ -153,12 +155,13 @@ export function EnhancedComments({
 
     setLoading(true)
     try {
-      const res = await fetch(`/api/feed/${ratingId}/comments`, {
+      const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content: newComment.trim(),
           gifUrl: selectedGif,
+          mediaType,
         }),
       })
 

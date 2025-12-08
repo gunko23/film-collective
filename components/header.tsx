@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { NotificationBell } from "@/components/notification-bell"
 
 export function Header() {
   const user = useUser()
@@ -73,6 +74,8 @@ export function Header() {
               {/* Right Section */}
               <div className="flex items-center gap-2 sm:gap-3">
                 <ThemeToggle />
+
+                {user && <NotificationBell />}
 
                 {user ? (
                   <DropdownMenu>

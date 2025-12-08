@@ -29,25 +29,28 @@ type Comment = {
 type Props = {
   ratingId: string
   currentUserId: string
+  collectiveId: string // Add collectiveId prop
 }
 
 async function searchGifs(query: string): Promise<{ url: string; preview: string }[]> {
   try {
     const response = await fetch(
-      `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=12&rating=pg`,
+      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ&client_key=film_collective&limit=12`,
     )
     if (!response.ok) throw new Error("Failed to fetch GIFs")
     const data = await response.json()
-    return data.data.map((gif: { images: { fixed_height: { url: string }; fixed_height_small: { url: string } } }) => ({
-      url: gif.images.fixed_height.url,
-      preview: gif.images.fixed_height_small.url,
-    }))
+    return (
+      data.results?.map((gif: { media_formats: { gif: { url: string }; tinygif: { url: string } } }) => ({
+        url: gif.media_formats.gif?.url || gif.media_formats.tinygif?.url,
+        preview: gif.media_formats.tinygif?.url || gif.media_formats.gif?.url,
+      })) || []
+    )
   } catch {
     return []
   }
 }
 
-export function ConversationThread({ ratingId, currentUserId }: Props) {
+export function ConversationThread({ ratingId, currentUserId, collectiveId }: Props) {
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState("")
   const [loading, setLoading] = useState(false)
@@ -64,7 +67,7 @@ export function ConversationThread({ ratingId, currentUserId }: Props) {
   useEffect(() => {
     async function fetchComments() {
       try {
-        const res = await fetch(`/api/feed/${ratingId}/comments`)
+        const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`)
         if (res.ok) {
           const data = await res.json()
           setComments(data.comments || [])
@@ -76,7 +79,7 @@ export function ConversationThread({ ratingId, currentUserId }: Props) {
       }
     }
     fetchComments()
-  }, [ratingId])
+  }, [ratingId, collectiveId])
 
   // Scroll to bottom on new comments
   useEffect(() => {
@@ -108,7 +111,7 @@ export function ConversationThread({ ratingId, currentUserId }: Props) {
 
     setLoading(true)
     try {
-      const res = await fetch(`/api/feed/${ratingId}/comments`, {
+      const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

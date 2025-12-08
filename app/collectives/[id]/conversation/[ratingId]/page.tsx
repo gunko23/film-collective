@@ -260,7 +260,7 @@ export default async function ConversationPage({ params }: Props) {
 
           {/* Conversation thread - scrollable */}
           <div className="flex-1 overflow-hidden">
-            <ConversationThread ratingId={ratingId} currentUserId={user.id} />
+            <ConversationThread ratingId={ratingId} currentUserId={user.id} collectiveId={collectiveId} />
           </div>
         </div>
       </main>

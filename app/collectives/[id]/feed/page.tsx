@@ -328,6 +328,7 @@ export default async function CollectiveFeedPage({ params, searchParams }: Props
                       currentUserId={user.id}
                       collectiveId={collectiveId}
                       mediaTitle={item.title}
+                      mediaType={item.media_type}
                     />
                   </div>
                 )
