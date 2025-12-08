@@ -2,11 +2,17 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Star, Film, Tv, ChevronLeft, ChevronRight } from "lucide-react"
+import { Star, Film, Tv, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getImageUrl } from "@/lib/tmdb/image"
 
+type Reaction = {
+  type: string
+  count: number
+}
+
 type Rating = {
+  rating_id?: string
   user_id: string
   user_name: string | null
   user_avatar: string | null
@@ -22,16 +28,28 @@ type Rating = {
   season_number?: number
   tv_show_name?: string
   tv_show_id?: number
+  comment_count?: number
+  reactions?: Reaction[] | null
 }
 
 type Props = {
   ratings: Rating[]
+  collectiveId: string
   onMovieClick?: (tmdbId: string) => void
 }
 
 const ITEMS_PER_PAGE = 10
 
-export function CollectiveActivityFeed({ ratings, onMovieClick }: Props) {
+const EMOJI_MAP: Record<string, string> = {
+  "thumbs-up": "👍",
+  heart: "❤️",
+  laugh: "😂",
+  fire: "🔥",
+  "mind-blown": "🤯",
+  party: "🎉",
+}
+
+export function CollectiveActivityFeed({ ratings, collectiveId, onMovieClick }: Props) {
   const [page, setPage] = useState(0)
 
   const totalPages = Math.ceil(ratings.length / ITEMS_PER_PAGE)
@@ -70,84 +88,132 @@ export function CollectiveActivityFeed({ ratings, onMovieClick }: Props) {
     return <Film className="h-3 w-3" />
   }
 
+  const getConversationLink = (rating: Rating) => {
+    if (rating.rating_id) {
+      return `/collectives/${collectiveId}/conversation/${rating.rating_id}`
+    }
+    return null
+  }
+
   return (
     <div>
       <div className="space-y-4">
-        {paginatedRatings.map((rating, idx) => (
-          <div
-            key={`${rating.user_id}-${rating.tmdb_id}-${rating.media_type}-${idx}`}
-            className="p-4 rounded-xl bg-card/50 border border-border/50"
-          >
-            {/* Top row: Poster and Rating */}
-            <div className="flex gap-4">
-              {/* Poster */}
-              <Link href={getMediaLink(rating)} className="shrink-0 hover:opacity-80 transition-opacity">
-                <div className="w-16 sm:w-20 aspect-[2/3] rounded-lg overflow-hidden bg-muted relative">
-                  {rating.poster_path ? (
-                    <img
-                      src={getImageUrl(rating.poster_path, "w154") || "/placeholder.svg"}
-                      alt={rating.title}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center">{getMediaIcon(rating)}</div>
-                  )}
-                </div>
-              </Link>
+        {paginatedRatings.map((rating, idx) => {
+          const conversationLink = getConversationLink(rating)
+          const commentCount = Number(rating.comment_count) || 0
+          const reactions = rating.reactions || []
 
-              {/* Rating and User Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent/10">
-                    <Star className="h-5 w-5 text-accent fill-accent" />
-                    <span className="text-lg font-bold text-accent">
-                      {(Number(rating.overall_score) / 20).toFixed(1)}
-                    </span>
+          return (
+            <div
+              key={`${rating.user_id}-${rating.tmdb_id}-${rating.media_type}-${idx}`}
+              className="rounded-xl bg-card/50 border border-border/50 overflow-hidden"
+            >
+              <Link
+                href={conversationLink || getMediaLink(rating)}
+                className="block p-4 hover:bg-card/70 transition-colors"
+              >
+                {/* Top row: Poster and Rating */}
+                <div className="flex gap-4">
+                  {/* Poster */}
+                  <div className="shrink-0">
+                    <div className="w-16 sm:w-20 aspect-[2/3] rounded-lg overflow-hidden bg-muted relative">
+                      {rating.poster_path ? (
+                        <img
+                          src={getImageUrl(rating.poster_path, "w154") || "/placeholder.svg"}
+                          alt={rating.title}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center">{getMediaIcon(rating)}</div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    {getMediaIcon(rating)}
-                    <span className="capitalize">{rating.media_type || "movie"}</span>
-                  </div>
-                </div>
 
-                {/* User info */}
-                <div className="flex items-center gap-2 mb-2">
-                  {rating.user_avatar ? (
-                    <img
-                      src={rating.user_avatar || "/placeholder.svg"}
-                      alt={rating.user_name || "User"}
-                      className="h-6 w-6 rounded-full shrink-0"
-                    />
-                  ) : (
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 shrink-0">
-                      <span className="text-xs font-semibold text-accent">
-                        {(rating.user_name || "U").charAt(0).toUpperCase()}
+                  {/* Rating and User Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent/10">
+                        <Star className="h-5 w-5 text-accent fill-accent" />
+                        <span className="text-lg font-bold text-accent">
+                          {(Number(rating.overall_score) / 20).toFixed(1)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        {getMediaIcon(rating)}
+                        <span className="capitalize">{rating.media_type || "movie"}</span>
+                      </div>
+                    </div>
+
+                    {/* User info */}
+                    <div className="flex items-center gap-2 mb-2">
+                      {rating.user_avatar ? (
+                        <img
+                          src={rating.user_avatar || "/placeholder.svg"}
+                          alt={rating.user_name || "User"}
+                          className="h-6 w-6 rounded-full shrink-0"
+                        />
+                      ) : (
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/20 shrink-0">
+                          <span className="text-xs font-semibold text-accent">
+                            {(rating.user_name || "U").charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <span className="text-sm font-medium text-foreground truncate">
+                        {rating.user_name || "Someone"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(rating.rated_at).toLocaleDateString()}
                       </span>
                     </div>
-                  )}
-                  <span className="text-sm font-medium text-foreground truncate">{rating.user_name || "Someone"}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(rating.rated_at).toLocaleDateString()}
-                  </span>
+
+                    {/* Title */}
+                    <p className="text-sm font-medium text-foreground line-clamp-2">{getMediaTitle(rating)}</p>
+                  </div>
                 </div>
 
-                {/* Title */}
-                <Link href={getMediaLink(rating)} className="block">
-                  <p className="text-sm font-medium text-foreground hover:text-accent transition-colors line-clamp-2">
-                    {getMediaTitle(rating)}
+                {/* Comment if exists */}
+                {rating.user_comment && (
+                  <p className="text-sm text-muted-foreground mt-3 pl-20 sm:pl-24 italic line-clamp-2">
+                    "{rating.user_comment}"
                   </p>
+                )}
+              </Link>
+
+              <div className="px-4 py-2 border-t border-border/30 bg-card/30 flex items-center justify-between">
+                {/* Reactions */}
+                <div className="flex items-center gap-1">
+                  {reactions.length > 0 ? (
+                    reactions.map((reaction) => (
+                      <span
+                        key={reaction.type}
+                        className="flex items-center gap-0.5 text-sm bg-muted/50 px-2 py-0.5 rounded-full"
+                      >
+                        <span>{EMOJI_MAP[reaction.type] || reaction.type}</span>
+                        <span className="text-xs text-muted-foreground">{reaction.count}</span>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground">No reactions yet</span>
+                  )}
+                </div>
+
+                {/* Comment count - links to conversation */}
+                <Link
+                  href={conversationLink || "#"}
+                  className="flex items-center gap-1.5 text-muted-foreground hover:text-accent transition-colors"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    {commentCount > 0
+                      ? `${commentCount} ${commentCount === 1 ? "comment" : "comments"}`
+                      : "Start conversation"}
+                  </span>
                 </Link>
               </div>
             </div>
-
-            {/* Comment if exists */}
-            {rating.user_comment && (
-              <p className="text-sm text-muted-foreground mt-3 pl-20 sm:pl-24 italic line-clamp-2">
-                "{rating.user_comment}"
-              </p>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Pagination */}

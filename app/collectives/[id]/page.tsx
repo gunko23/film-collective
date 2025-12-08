@@ -8,7 +8,6 @@ import {
   getCollectiveById,
   getCollectiveMembers,
   getCollectiveMovieStats,
-  getCollectiveRatings,
   getCollectiveGenreStats,
   getCollectiveDecadeStats,
   getCollectiveAnalytics,
@@ -18,8 +17,6 @@ import {
   getUnanimousFavorites,
   getCollectiveTVShowStats,
   getCollectiveEpisodeStats,
-  getCollectiveTVRatings,
-  getCollectiveEpisodeRatings,
 } from "@/lib/collectives/collective-service"
 import { CollectiveActions } from "@/components/collective-actions"
 import { CollectiveAnalytics } from "@/components/collective-analytics"
@@ -68,11 +65,8 @@ export default async function CollectiveDetailPage({ params }: Props) {
     collective,
     members,
     movieStats,
-    movieRatings,
     tvShowStats,
     episodeStats,
-    tvRatings,
-    episodeRatings,
     genreStats,
     decadeStats,
     analytics,
@@ -84,11 +78,8 @@ export default async function CollectiveDetailPage({ params }: Props) {
     getCollectiveById(collectiveId, user.id).catch(() => null),
     getCollectiveMembers(collectiveId).catch(() => []),
     getCollectiveMovieStats(collectiveId).catch(() => []),
-    getCollectiveRatings(collectiveId).catch(() => []),
     getCollectiveTVShowStats(collectiveId).catch(() => []),
     getCollectiveEpisodeStats(collectiveId).catch(() => []),
-    getCollectiveTVRatings(collectiveId).catch(() => []),
-    getCollectiveEpisodeRatings(collectiveId).catch(() => []),
     getCollectiveGenreStats(collectiveId).catch(() => []),
     getCollectiveDecadeStats(collectiveId).catch(() => []),
     getCollectiveAnalytics(collectiveId).catch(() => ({
@@ -119,12 +110,6 @@ export default async function CollectiveDetailPage({ params }: Props) {
       </div>
     )
   }
-
-  const allRatings = [
-    ...movieRatings.map((r: any) => ({ ...r, media_type: "movie" })),
-    ...tvRatings.map((r: any) => ({ ...r, media_type: "tv" })),
-    ...episodeRatings.map((r: any) => ({ ...r, media_type: "episode" })),
-  ].sort((a: any, b: any) => new Date(b.rated_at).getTime() - new Date(a.rated_at).getTime())
 
   return (
     <div className="min-h-screen bg-background">
@@ -159,10 +144,10 @@ export default async function CollectiveDetailPage({ params }: Props) {
 
           <CollectivePageClient
             collectiveId={collectiveId}
+            currentUserId={user.id}
             movieStats={movieStats}
             tvShowStats={tvShowStats}
             episodeStats={episodeStats}
-            allRatings={allRatings}
             members={members}
             insightsContent={
               <CollectiveAnalytics

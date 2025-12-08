@@ -541,6 +541,27 @@ export async function getCollectiveEpisodeStats(collectiveId: string) {
 }
 
 // Get all ratings for a specific TV show in a collective
+export async function getCollectiveTVShowRatings(collectiveId: string, tvShowId: string) {
+  const result = await sql`
+    SELECT 
+      utsr.overall_score,
+      utsr.user_comment,
+      utsr.rated_at,
+      u.id as user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar
+    FROM user_tv_show_ratings utsr
+    JOIN collective_memberships cm ON utsr.user_id = cm.user_id
+    JOIN users u ON utsr.user_id = u.id
+    JOIN tv_shows ts ON utsr.tv_show_id = ts.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+      AND ts.id = ${tvShowId}::integer
+    ORDER BY utsr.rated_at DESC
+  `
+  return result
+}
+
+// Get all ratings for a specific TV show in a collective
 export async function getCollectiveTVRatings(collectiveId: string, limit?: number) {
   const limitClause = limit ? `LIMIT ${limit}` : ""
   const result = await sql`
@@ -596,6 +617,119 @@ export async function getCollectiveEpisodeRatings(collectiveId: string, limit?: 
     ORDER BY uer.rated_at DESC
   `
   return result
+}
+
+// Get recent activity with comment and reaction counts
+export async function getCollectiveRecentActivityWithEngagement(collectiveId: string, limit = 20) {
+  // Get movie ratings with engagement
+  const movieRatings = await sql`
+    SELECT 
+      umr.id as rating_id,
+      umr.overall_score,
+      umr.user_comment,
+      umr.rated_at,
+      u.id as user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      m.tmdb_id,
+      m.title,
+      m.poster_path,
+      'movie' as media_type,
+      NULL::text as episode_name,
+      NULL::integer as episode_number,
+      NULL::integer as season_number,
+      NULL::text as tv_show_name,
+      NULL::integer as tv_show_id,
+      (SELECT COUNT(*) FROM feed_comments fc WHERE fc.rating_id = umr.id) as comment_count,
+      (SELECT json_agg(json_build_object('type', fr.reaction_type, 'count', cnt))
+       FROM (
+         SELECT reaction_type, COUNT(*) as cnt 
+         FROM feed_reactions 
+         WHERE rating_id = umr.id 
+         GROUP BY reaction_type
+       ) fr) as reactions
+    FROM user_movie_ratings umr
+    JOIN collective_memberships cm ON umr.user_id = cm.user_id
+    JOIN users u ON umr.user_id = u.id
+    JOIN movies m ON umr.movie_id = m.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+  `
+
+  // Get TV show ratings with engagement
+  const tvRatings = await sql`
+    SELECT 
+      utsr.id as rating_id,
+      utsr.overall_score,
+      utsr.user_comment,
+      utsr.rated_at,
+      u.id as user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      ts.id::text as tmdb_id,
+      ts.name as title,
+      ts.poster_path,
+      'tv' as media_type,
+      NULL::text as episode_name,
+      NULL::integer as episode_number,
+      NULL::integer as season_number,
+      NULL::text as tv_show_name,
+      ts.id as tv_show_id,
+      (SELECT COUNT(*) FROM feed_comments fc WHERE fc.rating_id = utsr.id) as comment_count,
+      (SELECT json_agg(json_build_object('type', fr.reaction_type, 'count', cnt))
+       FROM (
+         SELECT reaction_type, COUNT(*) as cnt 
+         FROM feed_reactions 
+         WHERE rating_id = utsr.id 
+         GROUP BY reaction_type
+       ) fr) as reactions
+    FROM user_tv_show_ratings utsr
+    JOIN collective_memberships cm ON utsr.user_id = cm.user_id
+    JOIN users u ON utsr.user_id = u.id
+    JOIN tv_shows ts ON utsr.tv_show_id = ts.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+  `
+
+  // Get episode ratings with engagement
+  const episodeRatings = await sql`
+    SELECT 
+      uer.id as rating_id,
+      uer.overall_score,
+      uer.user_comment,
+      uer.rated_at,
+      u.id as user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      te.id::text as tmdb_id,
+      te.name as title,
+      te.still_path as poster_path,
+      'episode' as media_type,
+      te.name as episode_name,
+      te.episode_number,
+      te.season_number,
+      ts.name as tv_show_name,
+      ts.id as tv_show_id,
+      (SELECT COUNT(*) FROM feed_comments fc WHERE fc.rating_id = uer.id) as comment_count,
+      (SELECT json_agg(json_build_object('type', fr.reaction_type, 'count', cnt))
+       FROM (
+         SELECT reaction_type, COUNT(*) as cnt 
+         FROM feed_reactions 
+         WHERE rating_id = uer.id 
+         GROUP BY reaction_type
+       ) fr) as reactions
+    FROM user_episode_ratings uer
+    JOIN collective_memberships cm ON uer.user_id = cm.user_id
+    JOIN users u ON uer.user_id = u.id
+    JOIN tv_episodes te ON uer.episode_id = te.id
+    JOIN tv_shows ts ON te.tv_show_id = ts.id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+  `
+
+  // Combine and sort by rated_at
+  const allRatings = [...movieRatings, ...tvRatings, ...episodeRatings]
+    .sort((a, b) => new Date(b.rated_at).getTime() - new Date(a.rated_at).getTime())
+    .slice(0, limit)
+
+  return allRatings
 }
 
 export const getCollectiveById = getCollectiveForUser
