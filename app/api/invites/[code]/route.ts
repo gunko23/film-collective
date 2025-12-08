@@ -44,13 +44,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Ensure user exists in our database
-    await ensureUserExists({
-      id: user.id,
-      email: user.primaryEmail,
-      displayName: user.displayName,
-      profileImageUrl: user.profileImageUrl,
-    })
+    await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
 
     const invite = await joinCollectiveViaInvite(code, user.id)
     return NextResponse.json({
