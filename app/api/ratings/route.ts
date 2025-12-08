@@ -45,12 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
-    await ensureUserExists({
-      id: user.id,
-      email: user.primaryEmail,
-      displayName: user.displayName,
-      profileImageUrl: user.profileImageUrl,
-    })
+    await ensureUserExists(user.id, user.primaryEmail, user.displayName, user.profileImageUrl)
 
     const body = await request.json()
     const { tmdbId, score, comment } = body
