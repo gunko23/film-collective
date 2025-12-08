@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Film, User, Sparkles, Menu, X, Info } from "lucide-react"
+import { Film, User, Sparkles, Menu, X, Info, Compass, Users, Settings } from "lucide-react"
 import { useUser, useStackApp } from "@stackframe/stack"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -104,11 +104,13 @@ export function Header() {
                       <div className="md:hidden">
                         <DropdownMenuItem asChild>
                           <Link href="/" className="flex items-center gap-2 cursor-pointer">
+                            <Compass className="h-4 w-4" />
                             Discover
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
                           <Link href="/collectives" className="flex items-center gap-2 cursor-pointer">
+                            <Users className="h-4 w-4" />
                             Collectives
                           </Link>
                         </DropdownMenuItem>
@@ -127,7 +129,8 @@ export function Header() {
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href="/handler/account-settings" className="cursor-pointer">
+                        <Link href="/handler/account-settings" className="flex items-center gap-2 cursor-pointer">
+                          <Settings className="h-4 w-4" />
                           Account Settings
                         </Link>
                       </DropdownMenuItem>
@@ -178,29 +181,33 @@ export function Header() {
                 <Link
                   href="/"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
                 >
+                  <Compass className="h-4 w-4" />
                   Discover
                 </Link>
                 <Link
                   href="/collectives"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
                 >
+                  <Users className="h-4 w-4" />
                   Collectives
                 </Link>
                 <Link
                   href="/profile"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
                 >
+                  <User className="h-4 w-4" />
                   My Films
                 </Link>
                 <Link
                   href="/about"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
                 >
+                  <Info className="h-4 w-4" />
                   About
                 </Link>
                 <div className="pt-2 space-y-2">
