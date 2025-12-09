@@ -205,6 +205,29 @@ function MobileMenuContent({ onClose }: { onClose: () => void }) {
   )
 }
 
+function MobileMenuButton({
+  mobileMenuOpen,
+  setMobileMenuOpen,
+}: {
+  mobileMenuOpen: boolean
+  setMobileMenuOpen: (open: boolean) => void
+}) {
+  const user = useUser()
+
+  if (user) {
+    return null
+  }
+
+  return (
+    <button
+      onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+      className="sm:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-secondary/50 transition-colors"
+    >
+      {mobileMenuOpen ? <X className="h-5 w-5 text-foreground" /> : <Menu className="h-5 w-5 text-foreground" />}
+    </button>
+  )
+}
+
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -269,17 +292,11 @@ export function Header() {
                   </Suspense>
                 </ErrorBoundary>
 
-                {/* Mobile menu button - shown when not logged in */}
-                <button
-                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className="sm:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-secondary/50 transition-colors"
-                >
-                  {mobileMenuOpen ? (
-                    <X className="h-5 w-5 text-foreground" />
-                  ) : (
-                    <Menu className="h-5 w-5 text-foreground" />
-                  )}
-                </button>
+                <ErrorBoundary FallbackComponent={() => null} onReset={() => {}}>
+                  <Suspense fallback={null}>
+                    <MobileMenuButton mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
             </div>
 
