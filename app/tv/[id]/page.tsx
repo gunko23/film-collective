@@ -36,7 +36,11 @@ export default function TVShowDetailsPage() {
   const { data: ratingData } = useSWR(user ? `/api/tv-ratings?tvShowId=${id}` : null, fetcher)
   const { data: communityStats } = useSWR(`/api/tv/${id}/stats`, fetcher)
 
-  const displayRating = communityStats?.averageScore ?? (show?.vote_average ? show.vote_average / 2 : null)
+  const displayRating = communityStats?.averageScore
+    ? communityStats.averageScore / 20
+    : show?.vote_average
+      ? show.vote_average / 2
+      : null
   const ratingCount = communityStats?.ratingCount || 0
   const isDbRating = communityStats?.ratingCount > 0
 

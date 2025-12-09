@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { X, Star, Film, ExternalLink, UserIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { StarRating } from "@/components/star-rating"
 import { getImageUrl } from "@/lib/tmdb/image"
 
 type MovieRating = {
@@ -33,23 +35,70 @@ type Props = {
 export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
   const [ratings, setRatings] = useState<MovieRating[]>([])
   const [loading, setLoading] = useState(false)
+  const [userRating, setUserRating] = useState<number>(0)
+  const [userComment, setUserComment] = useState<string>("")
+  const [saving, setSaving] = useState(false)
+  const [hasExistingRating, setHasExistingRating] = useState(false)
 
   useEffect(() => {
     if (movie) {
+      setRatings([])
+      setUserRating(0)
+      setUserComment("")
+      setHasExistingRating(false)
       setLoading(true)
-      fetch(`/api/collectives/${collectiveId}/movie/${movie.tmdb_id}`)
-        .then((res) => res.json())
-        .then((data) => {
-          setRatings(data.ratings || [])
+
+      Promise.all([
+        fetch(`/api/collectives/${collectiveId}/movie/${movie.tmdb_id}`).then((res) => res.json()),
+        fetch(`/api/ratings?tmdbId=${movie.tmdb_id}`).then((res) => res.json()),
+      ])
+        .then(([collectiveData, userRatingData]) => {
+          setRatings(collectiveData.ratings || [])
+          if (userRatingData.userRating) {
+            setUserRating(userRatingData.userRating.score)
+            setUserComment(userRatingData.userRating.userComment || "")
+            setHasExistingRating(true)
+          }
         })
         .catch((err) => {
-          console.error("Error fetching movie ratings:", err)
+          console.error("Error fetching movie data:", err)
         })
         .finally(() => {
           setLoading(false)
         })
     }
   }, [movie, collectiveId])
+
+  const handleSaveRating = async () => {
+    if (!movie || userRating === 0) return
+
+    setSaving(true)
+    try {
+      const response = await fetch("/api/ratings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tmdbId: Number.parseInt(movie.tmdb_id),
+          score: userRating,
+          comment: userComment.trim() || undefined,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to save rating")
+
+      // Refresh the collective ratings list
+      const collectiveData = await fetch(`/api/collectives/${collectiveId}/movie/${movie.tmdb_id}`).then((res) =>
+        res.json(),
+      )
+      setRatings(collectiveData.ratings || [])
+      setHasExistingRating(true)
+    } catch (error) {
+      console.error("Error saving rating:", error)
+      alert("Failed to save rating. Please try again.")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (!movie) return null
 
@@ -59,7 +108,7 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg max-h-[85vh] overflow-hidden rounded-2xl bg-card border border-border shadow-2xl">
+      <div className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl bg-card border border-border shadow-2xl">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -69,7 +118,7 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
         </button>
 
         {/* Movie header */}
-        <div className="flex gap-4 p-6 border-b border-border">
+        <div className="flex gap-4 p-6 border-b border-border shrink-0">
           {/* Poster */}
           <div className="w-24 h-36 shrink-0 rounded-lg overflow-hidden bg-muted">
             {movie.poster_path ? (
@@ -105,61 +154,88 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
           </div>
         </div>
 
-        {/* Ratings list */}
-        <div className="p-6 overflow-y-auto max-h-[45vh]">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Member Ratings</h3>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="h-6 w-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Your rating section */}
+          <div className="p-6 border-b border-border bg-background/30">
+            <h3 className="text-sm font-semibold text-foreground mb-3">
+              {hasExistingRating ? "Your Rating" : "Rate This Movie"}
+            </h3>
+            <div className="flex items-center gap-4 mb-3">
+              <StarRating rating={userRating} onRatingChange={setUserRating} size="lg" />
+              {userRating > 0 && <span className="text-lg font-bold text-accent">{userRating.toFixed(1)}</span>}
             </div>
-          ) : ratings.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No ratings yet</p>
-          ) : (
-            <div className="space-y-4">
-              {ratings.map((rating) => (
-                <div key={rating.user_id} className="flex items-start gap-3 p-3 rounded-xl bg-background/50">
-                  {/* User avatar */}
-                  {rating.user_avatar ? (
-                    <img
-                      src={rating.user_avatar || "/placeholder.svg"}
-                      alt={rating.user_name || "User"}
-                      className="h-10 w-10 rounded-full shrink-0"
-                    />
-                  ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20 shrink-0">
-                      <UserIcon className="h-5 w-5 text-accent" />
-                    </div>
-                  )}
+            <Textarea
+              placeholder="Add a comment (optional)..."
+              value={userComment}
+              onChange={(e) => setUserComment(e.target.value)}
+              className="min-h-[80px] mb-3"
+            />
+            <Button onClick={handleSaveRating} disabled={userRating === 0 || saving} className="w-full" size="sm">
+              {saving ? "Saving..." : hasExistingRating ? "Update Rating" : "Save Rating"}
+            </Button>
+          </div>
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-foreground">{rating.user_name || "Anonymous"}</span>
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-accent/10 shrink-0">
-                        <Star className="h-3 w-3 text-accent fill-accent" />
-                        <span className="text-xs font-bold text-accent">{(rating.overall_score / 20).toFixed(1)}</span>
+          {/* Ratings list */}
+          <div className="p-6">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+              Member Ratings
+            </h3>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="h-6 w-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : ratings.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No ratings yet</p>
+            ) : (
+              <div className="space-y-4">
+                {ratings.map((rating) => (
+                  <div key={rating.user_id} className="flex items-start gap-3 p-3 rounded-xl bg-background/50">
+                    {/* User avatar */}
+                    {rating.user_avatar ? (
+                      <img
+                        src={rating.user_avatar || "/placeholder.svg"}
+                        alt={rating.user_name || "User"}
+                        className="h-10 w-10 rounded-full shrink-0"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20 shrink-0">
+                        <UserIcon className="h-5 w-5 text-accent" />
                       </div>
-                    </div>
-                    {rating.user_comment && (
-                      <p className="text-sm text-muted-foreground mt-1">"{rating.user_comment}"</p>
                     )}
-                    <p className="text-xs text-muted-foreground/70 mt-1">
-                      {new Date(rating.rated_at).toLocaleDateString()}
-                    </p>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-foreground">{rating.user_name || "Anonymous"}</span>
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-accent/10 shrink-0">
+                          <Star className="h-3 w-3 text-accent fill-accent" />
+                          <span className="text-xs font-bold text-accent">
+                            {(rating.overall_score / 20).toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                      {rating.user_comment && (
+                        <p className="text-sm text-muted-foreground mt-1">"{rating.user_comment}"</p>
+                      )}
+                      <p className="text-xs text-muted-foreground/70 mt-1">
+                        {new Date(rating.rated_at).toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border shrink-0">
           <Link href={`/movies/${movie.tmdb_id}`} onClick={onClose}>
-            <Button className="w-full gap-2">
+            <Button variant="outline" className="w-full gap-2 bg-transparent">
               <ExternalLink className="h-4 w-4" />
-              View Movie Details
+              View Full Movie Details
             </Button>
           </Link>
         </div>

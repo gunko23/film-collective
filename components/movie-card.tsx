@@ -63,11 +63,16 @@ export function MovieCard({ movie, priority = false }: MovieCardProps) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
 
         {displayRating !== null && displayRating > 0 && (
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-lg bg-background/90 px-2.5 py-1.5 backdrop-blur-sm ring-1 ring-white/10 shadow-lg">
-            <Star className={`h-4 w-4 ${isDbRating ? "fill-accent text-accent" : "fill-yellow-500 text-yellow-500"}`} />
-            <span className="text-sm font-semibold text-foreground">{displayRating.toFixed(1)}</span>
+          <div className="absolute top-2 right-2 flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-medium backdrop-blur-sm">
+            <Star className={`h-3 w-3 ${isDbRating ? "fill-accent text-accent" : "fill-yellow-500 text-yellow-500"}`} />
+            <span className="text-white">{displayRating.toFixed(1)}</span>
           </div>
         )}
+
+        <div className="absolute top-2 left-2 flex items-center gap-1 rounded-md bg-blue-500/90 px-1.5 py-0.5 text-xs font-medium text-white">
+          <Film className="h-3 w-3" />
+          <span>Movie</span>
+        </div>
 
         {/* Hover Content */}
         <div className="absolute inset-0 flex flex-col justify-end p-4 opacity-0 transition-all duration-500 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0">
