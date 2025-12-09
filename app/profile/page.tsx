@@ -9,6 +9,7 @@ import { getImageUrl } from "@/lib/tmdb/image"
 import Header from "@/components/header"
 import AuthErrorBoundary from "@/components/auth-error-boundary"
 import { StarRatingDisplay } from "@/components/star-rating-display"
+import { PushNotificationToggle } from "@/components/push-notification-toggle"
 
 type RatedMovie = {
   id: string
@@ -126,9 +127,13 @@ function ProfileContent() {
                 </div>
               </div>
 
-              <div>
+              <div className="flex-1">
                 <h1 className="text-3xl font-bold text-foreground mb-1">{user.displayName || "Film Enthusiast"}</h1>
-                <p className="text-muted-foreground">{user.primaryEmail}</p>
+                <p className="text-muted-foreground mb-3">{user.primaryEmail}</p>
+                {/* Push notification toggle */}
+                <div className="flex items-center gap-3">
+                  <PushNotificationToggle />
+                </div>
               </div>
             </div>
 
@@ -201,7 +206,7 @@ function ProfileContent() {
             ) : ratings.length === 0 ? (
               <div className="text-center py-20 rounded-2xl bg-card/30 border border-border/50 backdrop-blur-sm">
                 <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-accent/10 mx-auto mb-6">
-                  <Film className="h-10 w-10 text-accent" />
+                  <Film className="h-12 w-12 text-muted-foreground/30" />
                 </div>
                 <h3 className="text-xl font-semibold text-foreground mb-2">No ratings yet</h3>
                 <p className="text-muted-foreground mb-8 max-w-sm mx-auto">

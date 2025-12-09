@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db"
+import { sendPushNotification } from "@/lib/push/push-service"
 
 interface CreateNotificationParams {
   userId: string // The user who will receive the notification
@@ -21,6 +22,10 @@ export async function createNotification(params: CreateNotificationParams) {
   }
 
   try {
+    // Get actor name for push notification
+    const actorResult = await sql`SELECT name FROM users WHERE id = ${actorId}`
+    const actorName = actorResult[0]?.name || "Someone"
+
     const result = await sql`
       INSERT INTO notifications (
         user_id, actor_id, type, rating_id, collective_id, 
@@ -32,6 +37,24 @@ export async function createNotification(params: CreateNotificationParams) {
       )
       RETURNING id
     `
+
+    const notificationId = result[0]?.id
+
+    const pushTitle = type === "comment" ? "New Comment" : "New Reaction"
+    const pushBody =
+      type === "comment"
+        ? `${actorName} commented on your ${mediaTitle} rating: "${content?.substring(0, 50)}${(content?.length || 0) > 50 ? "..." : ""}"`
+        : `${actorName} reacted ${content} to your ${mediaTitle} rating`
+
+    // Send push notification (fire and forget - don't block)
+    sendPushNotification(userId, {
+      title: pushTitle,
+      body: pushBody,
+      url: `/collectives/${collectiveId}`,
+      tag: `notification-${notificationId}`,
+      notificationId,
+    }).catch((err) => console.error("Push notification failed:", err))
+
     return result[0]
   } catch (error) {
     console.error("Error creating notification:", error)

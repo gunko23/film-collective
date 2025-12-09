@@ -662,17 +662,17 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
                             disabled={isSaving || isRateLimited}
                           />
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
                           <Button
                             onClick={handleSaveRating}
                             disabled={isSaving || userRating === 0 || isRateLimited}
-                            className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs sm:text-sm"
+                            className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs sm:text-sm w-full sm:w-auto"
                           >
                             {isSaving ? "Saving..." : "Save Rating"}
                           </Button>
                           {saveMessage && (
                             <span
-                              className={`text-xs sm:text-sm ${saveMessage === "Saved" ? "text-green-500" : "text-red-500"}`}
+                              className={`text-xs sm:text-sm text-center sm:text-left ${saveMessage === "Saved" ? "text-green-500" : "text-red-500"}`}
                             >
                               {saveMessage}
                             </span>

@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from "react"
 import Link from "next/link"
-import { Film, User, Sparkles, Menu, X, Info, Compass, Users, Settings, Loader2 } from "lucide-react"
+import { Film, User, Sparkles, Menu, X, Info, Compass, Users, Settings, Loader2, LogIn } from "lucide-react"
 import { useUser, useStackApp } from "@stackframe/stack"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -22,26 +22,24 @@ function UserContent() {
 
   if (!user) {
     return (
-      <>
-        <div className="hidden sm:flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => app.redirectToSignIn()}
-            className="text-muted-foreground hover:text-foreground rounded-lg"
-          >
-            Sign In
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => app.redirectToSignUp()}
-            className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-lg shadow-lg shadow-accent/25 hover:shadow-accent/40 transition-all duration-300"
-          >
-            <Sparkles className="h-4 w-4 mr-1.5" />
-            Get Started
-          </Button>
-        </div>
-      </>
+      <div className="hidden sm:flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => app.redirectToSignIn()}
+          className="text-muted-foreground hover:text-foreground rounded-lg"
+        >
+          Sign In
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => app.redirectToSignUp()}
+          className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-lg shadow-lg shadow-accent/25 hover:shadow-accent/40 transition-all duration-300"
+        >
+          <Sparkles className="h-4 w-4 mr-1.5" />
+          Get Started
+        </Button>
+      </div>
     )
   }
 
@@ -139,6 +137,74 @@ function UserContentError({ resetErrorBoundary }: { resetErrorBoundary: () => vo
   )
 }
 
+function MobileMenuContent({ onClose }: { onClose: () => void }) {
+  const user = useUser()
+  const app = useStackApp()
+
+  return (
+    <div className="sm:hidden border-t border-border/50 px-3 py-3 space-y-2">
+      <Link
+        href="/"
+        onClick={onClose}
+        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
+      >
+        <Compass className="h-4 w-4" />
+        Discover
+      </Link>
+      <Link
+        href="/collectives"
+        onClick={onClose}
+        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
+      >
+        <Users className="h-4 w-4" />
+        Collectives
+      </Link>
+      <Link
+        href="/profile"
+        onClick={onClose}
+        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
+      >
+        <User className="h-4 w-4" />
+        My Films
+      </Link>
+      <Link
+        href="/about"
+        onClick={onClose}
+        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
+      >
+        <Info className="h-4 w-4" />
+        About
+      </Link>
+
+      {!user && (
+        <>
+          <div className="border-t border-border/50 my-2" />
+          <button
+            onClick={() => {
+              onClose()
+              app.redirectToSignIn()
+            }}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50 w-full"
+          >
+            <LogIn className="h-4 w-4" />
+            Sign In
+          </button>
+          <button
+            onClick={() => {
+              onClose()
+              app.redirectToSignUp()
+            }}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-accent-foreground bg-accent hover:bg-accent/90 transition-colors rounded-lg w-full"
+          >
+            <Sparkles className="h-4 w-4" />
+            Get Started
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -218,40 +284,17 @@ export function Header() {
             </div>
 
             {mobileMenuOpen && (
-              <div className="sm:hidden border-t border-border/50 px-3 py-3 space-y-2">
-                <Link
-                  href="/"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
+              <ErrorBoundary FallbackComponent={UserContentError} onReset={() => window.location.reload()}>
+                <Suspense
+                  fallback={
+                    <div className="sm:hidden border-t border-border/50 px-3 py-3">
+                      <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                    </div>
+                  }
                 >
-                  <Compass className="h-4 w-4" />
-                  Discover
-                </Link>
-                <Link
-                  href="/collectives"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
-                >
-                  <Users className="h-4 w-4" />
-                  Collectives
-                </Link>
-                <Link
-                  href="/profile"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
-                >
-                  <User className="h-4 w-4" />
-                  My Films
-                </Link>
-                <Link
-                  href="/about"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
-                >
-                  <Info className="h-4 w-4" />
-                  About
-                </Link>
-              </div>
+                  <MobileMenuContent onClose={() => setMobileMenuOpen(false)} />
+                </Suspense>
+              </ErrorBoundary>
             )}
           </nav>
         </div>
