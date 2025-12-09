@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import Link from "next/link"
-import { Film, User, Sparkles, Menu, X, Info, Compass, Users, Settings } from "lucide-react"
+import { Film, User, Sparkles, Menu, X, Info, Compass, Users, Settings, Loader2 } from "lucide-react"
 import { useUser, useStackApp } from "@stackframe/stack"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -14,10 +14,132 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { NotificationBell } from "@/components/notification-bell"
+import { ErrorBoundary } from "react-error-boundary"
 
-export function Header() {
+function UserContent() {
   const user = useUser()
   const app = useStackApp()
+
+  if (!user) {
+    return (
+      <>
+        <div className="hidden sm:flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => app.redirectToSignIn()}
+            className="text-muted-foreground hover:text-foreground rounded-lg"
+          >
+            Sign In
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => app.redirectToSignUp()}
+            className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-lg shadow-lg shadow-accent/25 hover:shadow-accent/40 transition-all duration-300"
+          >
+            <Sparkles className="h-4 w-4 mr-1.5" />
+            Get Started
+          </Button>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <NotificationBell />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="relative flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-accent/50 focus:ring-offset-2 focus:ring-offset-background transition-all duration-300">
+            {user.profileImageUrl ? (
+              <img
+                src={user.profileImageUrl || "/placeholder.svg"}
+                alt={user.displayName || "User"}
+                className="h-8 w-8 sm:h-9 sm:w-9 rounded-full ring-2 ring-accent/30 hover:ring-accent/50 transition-all duration-300"
+              />
+            ) : (
+              <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent/80 ring-2 ring-accent/30 hover:ring-accent/50 transition-all duration-300">
+                <span className="text-xs sm:text-sm font-semibold text-accent-foreground">
+                  {user.displayName?.charAt(0).toUpperCase() || user.primaryEmail?.charAt(0).toUpperCase() || "U"}
+                </span>
+              </div>
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56 rounded-xl">
+          <div className="px-3 py-2">
+            <p className="text-sm font-medium text-foreground">{user.displayName || "User"}</p>
+            <p className="text-xs text-muted-foreground">{user.primaryEmail}</p>
+          </div>
+          <DropdownMenuSeparator />
+          <div className="md:hidden">
+            <DropdownMenuItem asChild>
+              <Link href="/" className="flex items-center gap-2 cursor-pointer">
+                <Compass className="h-4 w-4" />
+                Discover
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/collectives" className="flex items-center gap-2 cursor-pointer">
+                <Users className="h-4 w-4" />
+                Collectives
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/about" className="flex items-center gap-2 cursor-pointer">
+                <Info className="h-4 w-4" />
+                About
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </div>
+          <DropdownMenuItem asChild>
+            <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
+              <User className="h-4 w-4" />
+              My Profile
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/handler/account-settings" className="flex items-center gap-2 cursor-pointer">
+              <Settings className="h-4 w-4" />
+              Account Settings
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => user.signOut()} className="text-destructive cursor-pointer">
+            Sign Out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  )
+}
+
+function UserContentFallback() {
+  return (
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" size="sm" disabled className="text-muted-foreground rounded-lg">
+        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+        Loading...
+      </Button>
+    </div>
+  )
+}
+
+function UserContentError({ resetErrorBoundary }: { resetErrorBoundary: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={resetErrorBoundary}
+      className="text-muted-foreground hover:text-foreground rounded-lg"
+    >
+      Retry
+    </Button>
+  )
+}
+
+export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
@@ -75,111 +197,27 @@ export function Header() {
               <div className="flex items-center gap-2 sm:gap-3">
                 <ThemeToggle />
 
-                {user && <NotificationBell />}
+                <ErrorBoundary FallbackComponent={UserContentError} onReset={() => window.location.reload()}>
+                  <Suspense fallback={<UserContentFallback />}>
+                    <UserContent />
+                  </Suspense>
+                </ErrorBoundary>
 
-                {user ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="relative flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-accent/50 focus:ring-offset-2 focus:ring-offset-background transition-all duration-300">
-                        {user.profileImageUrl ? (
-                          <img
-                            src={user.profileImageUrl || "/placeholder.svg"}
-                            alt={user.displayName || "User"}
-                            className="h-8 w-8 sm:h-9 sm:w-9 rounded-full ring-2 ring-accent/30 hover:ring-accent/50 transition-all duration-300"
-                          />
-                        ) : (
-                          <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent/80 ring-2 ring-accent/30 hover:ring-accent/50 transition-all duration-300">
-                            <span className="text-xs sm:text-sm font-semibold text-accent-foreground">
-                              {user.displayName?.charAt(0).toUpperCase() ||
-                                user.primaryEmail?.charAt(0).toUpperCase() ||
-                                "U"}
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 rounded-xl">
-                      <div className="px-3 py-2">
-                        <p className="text-sm font-medium text-foreground">{user.displayName || "User"}</p>
-                        <p className="text-xs text-muted-foreground">{user.primaryEmail}</p>
-                      </div>
-                      <DropdownMenuSeparator />
-                      <div className="md:hidden">
-                        <DropdownMenuItem asChild>
-                          <Link href="/" className="flex items-center gap-2 cursor-pointer">
-                            <Compass className="h-4 w-4" />
-                            Discover
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href="/collectives" className="flex items-center gap-2 cursor-pointer">
-                            <Users className="h-4 w-4" />
-                            Collectives
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href="/about" className="flex items-center gap-2 cursor-pointer">
-                            <Info className="h-4 w-4" />
-                            About
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </div>
-                      <DropdownMenuItem asChild>
-                        <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
-                          <User className="h-4 w-4" />
-                          My Profile
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href="/handler/account-settings" className="flex items-center gap-2 cursor-pointer">
-                          <Settings className="h-4 w-4" />
-                          Account Settings
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => user.signOut()} className="text-destructive cursor-pointer">
-                        Sign Out
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <>
-                    <div className="hidden sm:flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => app.redirectToSignIn()}
-                        className="text-muted-foreground hover:text-foreground rounded-lg"
-                      >
-                        Sign In
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => app.redirectToSignUp()}
-                        className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-lg shadow-lg shadow-accent/25 hover:shadow-accent/40 transition-all duration-300"
-                      >
-                        <Sparkles className="h-4 w-4 mr-1.5" />
-                        Get Started
-                      </Button>
-                    </div>
-
-                    <button
-                      onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                      className="sm:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-secondary/50 transition-colors"
-                    >
-                      {mobileMenuOpen ? (
-                        <X className="h-5 w-5 text-foreground" />
-                      ) : (
-                        <Menu className="h-5 w-5 text-foreground" />
-                      )}
-                    </button>
-                  </>
-                )}
+                {/* Mobile menu button - shown when not logged in */}
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="sm:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-secondary/50 transition-colors"
+                >
+                  {mobileMenuOpen ? (
+                    <X className="h-5 w-5 text-foreground" />
+                  ) : (
+                    <Menu className="h-5 w-5 text-foreground" />
+                  )}
+                </button>
               </div>
             </div>
 
-            {mobileMenuOpen && !user && (
+            {mobileMenuOpen && (
               <div className="sm:hidden border-t border-border/50 px-3 py-3 space-y-2">
                 <Link
                   href="/"
@@ -213,30 +251,6 @@ export function Header() {
                   <Info className="h-4 w-4" />
                   About
                 </Link>
-                <div className="pt-2 space-y-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setMobileMenuOpen(false)
-                      app.redirectToSignIn()
-                    }}
-                    className="w-full justify-center rounded-lg"
-                  >
-                    Sign In
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setMobileMenuOpen(false)
-                      app.redirectToSignUp()
-                    }}
-                    className="w-full justify-center bg-accent text-accent-foreground hover:bg-accent/90 rounded-lg shadow-lg shadow-accent/25"
-                  >
-                    <Sparkles className="h-4 w-4 mr-1.5" />
-                    Get Started
-                  </Button>
-                </div>
               </div>
             )}
           </nav>

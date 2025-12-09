@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { X, Star, Film, ExternalLink, UserIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { StarRating } from "@/components/star-rating"
+import { InlineBreakdownFlow } from "@/components/inline-breakdown-flow"
 import { getImageUrl } from "@/lib/tmdb/image"
 
 type MovieRating = {
@@ -36,16 +36,29 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
   const [ratings, setRatings] = useState<MovieRating[]>([])
   const [loading, setLoading] = useState(false)
   const [userRating, setUserRating] = useState<number>(0)
-  const [userComment, setUserComment] = useState<string>("")
   const [saving, setSaving] = useState(false)
   const [hasExistingRating, setHasExistingRating] = useState(false)
+  const [showBreakdownFlow, setShowBreakdownFlow] = useState(false)
+  const [existingBreakdown, setExistingBreakdown] = useState<
+    | {
+        emotional_impact?: number
+        pacing?: number
+        aesthetic?: number
+        rewatchability?: number
+        breakdown_tags?: string[]
+      }
+    | undefined
+  >(undefined)
+  const [ratingSaved, setRatingSaved] = useState(false)
 
   useEffect(() => {
     if (movie) {
       setRatings([])
       setUserRating(0)
-      setUserComment("")
       setHasExistingRating(false)
+      setShowBreakdownFlow(false)
+      setExistingBreakdown(undefined)
+      setRatingSaved(false)
       setLoading(true)
 
       Promise.all([
@@ -56,8 +69,14 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
           setRatings(collectiveData.ratings || [])
           if (userRatingData.userRating) {
             setUserRating(userRatingData.userRating.score)
-            setUserComment(userRatingData.userRating.userComment || "")
             setHasExistingRating(true)
+            setExistingBreakdown({
+              emotional_impact: userRatingData.userRating.emotional_impact,
+              pacing: userRatingData.userRating.pacing,
+              aesthetic: userRatingData.userRating.aesthetic,
+              rewatchability: userRatingData.userRating.rewatchability,
+              breakdown_tags: userRatingData.userRating.breakdown_tags,
+            })
           }
         })
         .catch((err) => {
@@ -80,7 +99,6 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
         body: JSON.stringify({
           tmdbId: Number.parseInt(movie.tmdb_id),
           score: userRating,
-          comment: userComment.trim() || undefined,
         }),
       })
 
@@ -92,11 +110,24 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
       )
       setRatings(collectiveData.ratings || [])
       setHasExistingRating(true)
+      setRatingSaved(true)
+      setShowBreakdownFlow(true)
     } catch (error) {
       console.error("Error saving rating:", error)
       alert("Failed to save rating. Please try again.")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleBreakdownComplete = async () => {
+    setShowBreakdownFlow(false)
+    // Refresh ratings to show updated breakdown
+    if (movie) {
+      const collectiveData = await fetch(`/api/collectives/${collectiveId}/movie/${movie.tmdb_id}`).then((res) =>
+        res.json(),
+      )
+      setRatings(collectiveData.ratings || [])
     }
   }
 
@@ -161,19 +192,49 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
             <h3 className="text-sm font-semibold text-foreground mb-3">
               {hasExistingRating ? "Your Rating" : "Rate This Movie"}
             </h3>
-            <div className="flex items-center gap-4 mb-3">
-              <StarRating rating={userRating} onRatingChange={setUserRating} size="lg" />
-              {userRating > 0 && <span className="text-lg font-bold text-accent">{userRating.toFixed(1)}</span>}
-            </div>
-            <Textarea
-              placeholder="Add a comment (optional)..."
-              value={userComment}
-              onChange={(e) => setUserComment(e.target.value)}
-              className="min-h-[80px] mb-3"
+
+            {!showBreakdownFlow ? (
+              <>
+                <div className="flex items-center gap-4 mb-3">
+                  <StarRating rating={userRating} onRatingChange={setUserRating} size="lg" />
+                  {userRating > 0 && <span className="text-lg font-bold text-accent">{userRating.toFixed(1)}</span>}
+                </div>
+                <Button onClick={handleSaveRating} disabled={userRating === 0 || saving} className="w-full" size="sm">
+                  {saving ? "Saving..." : hasExistingRating ? "Update Rating" : "Save Rating"}
+                </Button>
+
+                {/* Show "Add Breakdown" button if rating exists but no breakdown flow active */}
+                {hasExistingRating && !ratingSaved && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowBreakdownFlow(true)}
+                    className="w-full mt-2 bg-transparent"
+                    size="sm"
+                  >
+                    {existingBreakdown?.emotional_impact ? "Edit Breakdown" : "Add Breakdown"}
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Show saved rating */}
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-5 w-5 text-accent fill-accent" />
+                    <span className="text-lg font-bold text-accent">{userRating.toFixed(1)}</span>
+                  </div>
+                  <span className="text-sm text-green-500">Rating saved!</span>
+                </div>
+              </>
+            )}
+
+            <InlineBreakdownFlow
+              isActive={showBreakdownFlow}
+              mediaType="movie"
+              tmdbId={Number.parseInt(movie.tmdb_id)}
+              onComplete={handleBreakdownComplete}
+              existingBreakdown={existingBreakdown}
             />
-            <Button onClick={handleSaveRating} disabled={userRating === 0 || saving} className="w-full" size="sm">
-              {saving ? "Saving..." : hasExistingRating ? "Update Rating" : "Save Rating"}
-            </Button>
           </div>
 
           {/* Ratings list */}

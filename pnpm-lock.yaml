@@ -13,7 +13,7 @@ importers:
         version: 3.947.0
       '@cloudflare/workers-types':
         specifier: latest
-        version: 4.20251205.0
+        version: 4.20251209.0
       '@electric-sql/pglite':
         specifier: latest
         version: 0.3.14
@@ -124,7 +124,7 @@ importers:
         version: 1.1.6(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@stackframe/stack':
         specifier: latest
-        version: 2.8.54(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@16.0.7(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.1.9)
+        version: 2.8.56(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@16.0.7(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.1.9)
       '@tidbcloud/serverless':
         specifier: latest
         version: 0.2.0
@@ -172,7 +172,7 @@ importers:
         version: 4.1.0
       drizzle-orm:
         specifier: latest
-        version: 0.45.0(3ac900822c2585654a21e328d63699ef)
+        version: 0.45.0(bc2abd42eae6296ded5ee180efddd899)
       embla-carousel-react:
         specifier: 8.5.1
         version: 8.5.1(react@19.2.0)
@@ -218,6 +218,9 @@ importers:
       react-dom:
         specifier: 19.2.0
         version: 19.2.0(react@19.2.0)
+      react-error-boundary:
+        specifier: latest
+        version: 6.0.0(react@19.2.0)
       react-hook-form:
         specifier: ^7.60.0
         version: 7.60.0(react@19.2.0)
@@ -977,8 +980,8 @@ packages:
     resolution: {integrity: sha512-qQ5m48eI/MFLQ5PxQj4PFaprjyCTLI37ElWMmNs0K8Lk3dVeOdNpB3ks8jc7yM5CDmVC73eMVk/trk3fgmrUpA==}
     engines: {node: '>=6.9.0'}
 
-  '@cloudflare/workers-types@4.20251205.0':
-    resolution: {integrity: sha512-7pup7fYkuQW5XD8RUS/vkxF9SXlrGyCXuZ4ro3uVQvca/GTeSa+8bZ8T4wbq1Aea5lmLIGSlKbhl2msME7bRBA==}
+  '@cloudflare/workers-types@4.20251209.0':
+    resolution: {integrity: sha512-O+cbUVwgb4NgUB39R1cITbRshlAAPy1UQV0l8xEy2xcZ3wTh3fMl9f5oBwLsVmE9JRhIZx6llCLOBVf53eI5xA==}
 
   '@date-fns/tz@1.2.0':
     resolution: {integrity: sha512-LBrd7MiJZ9McsOgxqWX7AaxrDjcFVjWH/tIKJd7pnR7McaslGYOP1QmmiBXdJH/H/yLCT+rcQ7FaPBUxRGUtrg==}
@@ -2608,8 +2611,8 @@ packages:
     resolution: {integrity: sha512-4aUIteuyxtBUhVdiQqcDhKFitwfd9hqoSDYY2KRXiWtgoWJ9Bmise+KfEPDiVHWeJepvF8xJO9/9+WDIciMFFw==}
     engines: {node: '>=18.0.0'}
 
-  '@stackframe/stack-sc@2.8.54':
-    resolution: {integrity: sha512-fPcqbC55Kn3AzmAqOHHTx7siyWfk9Bmuv9xP6hvQ14T5+CBPhOySLjd3IgEu7kknhwiviZHL9ORGTQYnVl7rDQ==}
+  '@stackframe/stack-sc@2.8.56':
+    resolution: {integrity: sha512-2GizntFNIERG+rN2r6qv8U8xY/N5U5LRVHuFizR2oo83um8IVSzgGozPVWjQUBdeKuMjpx0IzKolmCZMkE1pYQ==}
     peerDependencies:
       '@types/react': '>=19.0.0'
       '@types/react-dom': '>=19.0.0'
@@ -2622,8 +2625,8 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@stackframe/stack-shared@2.8.54':
-    resolution: {integrity: sha512-Rj6PyuOMfmmQLpkJYYDflKEQq7/LOAkz+HGUeeIk3J3HpQjm/9JE3eKN5Puu4u8jjF5260SPlVSpWmlOFl/koQ==}
+  '@stackframe/stack-shared@2.8.56':
+    resolution: {integrity: sha512-fPb01gM0bUS6DuQ5J4zoTyrEEo/4/p3mA4Z9YaQFJ47AOmzD58Q7uL5OTTARJNsQLeWvbbWx/EkmcPzVk9qLnw==}
     peerDependencies:
       '@types/react': '>=19.0.0'
       '@types/react-dom': '>=19.0.0'
@@ -2640,8 +2643,8 @@ packages:
       yup:
         optional: true
 
-  '@stackframe/stack-ui@2.8.54':
-    resolution: {integrity: sha512-lFlrdiByLpvcDNrwWSFTRKTNmLq/9F4OnaTje7P3GoHBLPRVz0oMSYF4PR0iZxek/ffMc8ryhnLgUhRpWrA35w==}
+  '@stackframe/stack-ui@2.8.56':
+    resolution: {integrity: sha512-seH/FAQMENyPJykpkhv1AjtjL70ju5BcMlGkhePGGvujDFhN7pzVPlGGmShkd23umKq6ZxlJFa8ynCSS3RAh3w==}
     peerDependencies:
       '@types/react': '>=19.0.0'
       '@types/react-dom': '>=19.0.0'
@@ -2656,8 +2659,8 @@ packages:
       yup:
         optional: true
 
-  '@stackframe/stack@2.8.54':
-    resolution: {integrity: sha512-3wdXh1cDytRd2dDJbWM8WUCEV7R6BGZMrptFQ28+KQeM00Aj7M0vE3piIr+InW7SKQoWZxqNjxmqleCRrqYKgw==}
+  '@stackframe/stack@2.8.56':
+    resolution: {integrity: sha512-jHSpslKPPNtduLVOAdf7uT/1X4xoJdI7ATmSI5yo/VHTieuzBIzzj+2AYXK/uEVozRaYyceLgqJoX+9Is6ZjTQ==}
     peerDependencies:
       '@types/react': '>=18.3.0'
       '@types/react-dom': '>=18.3.0'
@@ -5205,6 +5208,11 @@ packages:
       react: '>=16.4.0'
       react-dom: '>=16.4.0'
 
+  react-error-boundary@6.0.0:
+    resolution: {integrity: sha512-gdlJjD7NWr0IfkPlaREN2d9uUZUlksrfOx7SX62VRerwXbMY6ftGCIZua1VG1aXFNOimhISsTq+Owp725b9SiA==}
+    peerDependencies:
+      react: '>=16.13.1'
+
   react-hook-form@7.60.0:
     resolution: {integrity: sha512-SBrYOvMbDB7cV8ZfNpaiLcgjH/a1c7aK0lK+aNigpf4xWLO8q+o4tcvVurv3c4EOyzn/3dCsYt4GKD42VvJ/+A==}
     engines: {node: '>=18.0.0'}
@@ -7296,7 +7304,7 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@cloudflare/workers-types@4.20251205.0': {}
+  '@cloudflare/workers-types@4.20251209.0': {}
 
   '@date-fns/tz@1.2.0': {}
 
@@ -9206,7 +9214,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@stackframe/stack-sc@2.8.54(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@16.0.7(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+  '@stackframe/stack-sc@2.8.56(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@16.0.7(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       next: 16.0.7(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       react: 19.2.0
@@ -9215,7 +9223,7 @@ snapshots:
       '@types/react': 19.0.0
       '@types/react-dom': 19.0.0
 
-  '@stackframe/stack-shared@2.8.54(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(yup@1.7.1)':
+  '@stackframe/stack-shared@2.8.56(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(yup@1.7.1)':
     dependencies:
       '@aws-sdk/client-kms': 3.946.0
       '@opentelemetry/api': 1.9.0
@@ -9242,7 +9250,7 @@ snapshots:
       - aws-crt
       - buffer
 
-  '@stackframe/stack-ui@2.8.54(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(yup@1.7.1)':
+  '@stackframe/stack-ui@2.8.56(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(yup@1.7.1)':
     dependencies:
       '@radix-ui/react-accordion': 1.2.2(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@radix-ui/react-alert-dialog': 1.1.4(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -9273,7 +9281,7 @@ snapshots:
       '@radix-ui/react-toggle': 1.1.1(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@radix-ui/react-toggle-group': 1.1.1(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@radix-ui/react-tooltip': 1.1.6(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@stackframe/stack-shared': 2.8.54(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(yup@1.7.1)
+      '@stackframe/stack-shared': 2.8.56(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(yup@1.7.1)
       '@tanstack/react-table': 8.21.3(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       class-variance-authority: 0.7.1
       clsx: 2.1.1
@@ -9297,14 +9305,14 @@ snapshots:
       - aws-crt
       - buffer
 
-  '@stackframe/stack@2.8.54(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@16.0.7(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.1.9)':
+  '@stackframe/stack@2.8.56(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@16.0.7(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(tailwindcss@4.1.9)':
     dependencies:
       '@hookform/resolvers': 3.10.0(react-hook-form@7.60.0(react@19.2.0))
       '@oslojs/otp': 1.1.0
       '@simplewebauthn/browser': 11.0.0
-      '@stackframe/stack-sc': 2.8.54(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@16.0.7(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      '@stackframe/stack-shared': 2.8.54(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(yup@1.7.1)
-      '@stackframe/stack-ui': 2.8.54(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(yup@1.7.1)
+      '@stackframe/stack-sc': 2.8.56(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@16.0.7(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@stackframe/stack-shared': 2.8.56(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(yup@1.7.1)
+      '@stackframe/stack-ui': 2.8.56(@aws-sdk/credential-provider-web-identity@3.947.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(yup@1.7.1)
       '@tanstack/react-table': 8.21.3(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       browser-image-compression: 2.0.2
       color: 4.2.3
@@ -10224,10 +10232,10 @@ snapshots:
 
   dotenv@16.4.7: {}
 
-  drizzle-orm@0.45.0(3ac900822c2585654a21e328d63699ef):
+  drizzle-orm@0.45.0(bc2abd42eae6296ded5ee180efddd899):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.947.0
-      '@cloudflare/workers-types': 4.20251205.0
+      '@cloudflare/workers-types': 4.20251209.0
       '@electric-sql/pglite': 0.3.14
       '@libsql/client': 0.15.15(bufferutil@4.0.9)
       '@libsql/client-wasm': 0.15.15
@@ -12037,6 +12045,11 @@ snapshots:
       react: 19.2.0
       react-dom: 19.2.0(react@19.2.0)
       tslib: 2.8.1
+
+  react-error-boundary@6.0.0(react@19.2.0):
+    dependencies:
+      '@babel/runtime': 7.28.4
+      react: 19.2.0
 
   react-hook-form@7.60.0(react@19.2.0):
     dependencies:

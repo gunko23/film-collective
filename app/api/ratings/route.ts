@@ -1,12 +1,24 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { stackServerApp } from "@/stack"
 import { upsertRating, getUserRatingByTmdbId } from "@/lib/ratings/rating-service"
 import { ensureUserExists } from "@/lib/db/user-service"
+import { getSafeUser } from "@/lib/auth/auth-utils"
+import {
+  getActiveRatingDimensions,
+  validateDimensionScores,
+  validateDimensionTags,
+  type DimensionScores,
+  type DimensionTags,
+} from "@/lib/ratings/dimensions-service"
 
 // GET - Fetch user's rating for a movie
 export async function GET(request: NextRequest) {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable", userRating: null }, { status: 503 })
+    }
+
     if (!user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
@@ -40,7 +52,15 @@ export async function GET(request: NextRequest) {
 // POST - Create or update a rating
 export async function POST(request: NextRequest) {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json(
+        { error: "Auth temporarily unavailable. Please try again in a moment." },
+        { status: 503 },
+      )
+    }
+
     if (!user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
@@ -48,22 +68,60 @@ export async function POST(request: NextRequest) {
     await ensureUserExists(user.id, user.primaryEmail, user.displayName, user.profileImageUrl)
 
     const body = await request.json()
-    const { tmdbId, score, comment } = body
+    const {
+      tmdbId,
+      score,
+      stars,
+      comment,
+      // New dynamic dimension fields
+      dimensionScores,
+      dimensionTags,
+      extraNotes,
+      // Legacy fields (still accepted for backwards compatibility)
+      explanationText,
+      explanationTags,
+    } = body
 
     if (!tmdbId) {
       return NextResponse.json({ error: "tmdbId is required" }, { status: 400 })
     }
 
-    if (score === undefined || score < 0 || score > 5) {
-      return NextResponse.json({ error: "score must be between 0 and 5" }, { status: 400 })
+    // Support both 'score' and 'stars' field names
+    const starRating = stars ?? score
+    if (starRating === undefined || starRating < 0 || starRating > 5) {
+      return NextResponse.json({ error: "stars/score must be between 0 and 5" }, { status: 400 })
     }
 
-    const overallScore = Math.round(score * 20)
+    // Validate dimension scores and tags if provided
+    const dimensions = await getActiveRatingDimensions()
+
+    let validatedDimensionScores: DimensionScores | undefined
+    if (dimensionScores && Object.keys(dimensionScores).length > 0) {
+      const scoreValidation = validateDimensionScores(dimensionScores, dimensions)
+      if (!scoreValidation.valid) {
+        return NextResponse.json({ error: scoreValidation.errors.join(", ") }, { status: 400 })
+      }
+      validatedDimensionScores = dimensionScores
+    }
+
+    let validatedDimensionTags: DimensionTags | undefined
+    if (dimensionTags && Object.keys(dimensionTags).length > 0) {
+      const tagValidation = validateDimensionTags(dimensionTags, dimensions)
+      if (!tagValidation.valid) {
+        return NextResponse.json({ error: tagValidation.errors.join(", ") }, { status: 400 })
+      }
+      validatedDimensionTags = dimensionTags
+    }
+
+    const overallScore = Math.round(starRating * 20)
 
     const rating = await upsertRating({
       userId: user.id,
       tmdbMovieId: tmdbId,
       overallScore,
+      dimensionScores: validatedDimensionScores,
+      dimensionTags: validatedDimensionTags,
+      extraNotes: extraNotes || explanationText,
       userComment: comment,
     })
 
@@ -72,6 +130,7 @@ export async function POST(request: NextRequest) {
       rating: {
         ...rating,
         score: rating.overallScore / 20,
+        stars: rating.overallScore / 20,
       },
     })
   } catch (error) {

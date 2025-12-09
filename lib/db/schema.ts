@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, numeric, jsonb, uuid, date, unique } from "drizzle-orm/pg-core"
+import { pgTable, text, integer, timestamp, numeric, jsonb, uuid, date, unique, boolean } from "drizzle-orm/pg-core"
 
 // ============================================
 // USERS
@@ -86,10 +86,52 @@ export const ratingDimensions = pgTable("rating_dimensions", {
   key: text("key").unique().notNull(),
   label: text("label").notNull(),
   description: text("description"),
+  uiType: text("ui_type").notNull().default("slider"), // 'slider' or 'tags'
+  minValue: numeric("min_value"),
+  maxValue: numeric("max_value"),
+  step: numeric("step"),
+  isActive: boolean("is_active").notNull().default(true),
   weightDefault: numeric("weight_default").default("1.0"),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 })
+
+export const ratingDimensionOptions = pgTable(
+  "rating_dimension_options",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ratingDimensionId: uuid("rating_dimension_id")
+      .notNull()
+      .references(() => ratingDimensions.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    label: text("label").notNull(),
+    description: text("description"),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [unique().on(table.ratingDimensionId, table.key)],
+)
+
+export const movieRatingDimensionConfigs = pgTable(
+  "movie_rating_dimension_configs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    movieId: uuid("movie_id")
+      .notNull()
+      .references(() => movies.id, { onDelete: "cascade" }),
+    ratingDimensionId: uuid("rating_dimension_id")
+      .notNull()
+      .references(() => ratingDimensions.id, { onDelete: "cascade" }),
+    isRequired: boolean("is_required").notNull().default(false),
+    weight: numeric("weight"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [unique().on(table.movieId, table.ratingDimensionId)],
+)
 
 // ============================================
 // USER MOVIE RATINGS
@@ -105,12 +147,21 @@ export const userMovieRatings = pgTable(
       .notNull()
       .references(() => movies.id, { onDelete: "cascade" }),
     overallScore: numeric("overall_score").notNull(), // 0-100
-    dimensionScores: jsonb("dimension_scores"), // { "mood_match": 85, "pacing": 70, ... }
+    dimensionScores: jsonb("dimension_scores"), // { "emotional_impact": 4, "pacing": 3, ... }
+    dimensionTags: jsonb("dimension_tags"), // { "vibes": ["cozy", "heartwarming"], "themes": ["found_family"] }
+    extraNotes: text("extra_notes"), // Free-text "why?" comment
     userComment: text("user_comment"),
     aiExplanation: text("ai_explanation"),
-    aiTags: jsonb("ai_tags"), // ["cozy", "heist", "found_family"]
+    aiTags: jsonb("ai_tags"),
     ratedAt: timestamp("rated_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+    // Legacy columns (kept for backwards compatibility, will be removed later)
+    emotionalImpact: integer("emotional_impact"),
+    pacing: integer("pacing"),
+    aesthetic: integer("aesthetic"),
+    rewatchability: integer("rewatchability"),
+    breakdownTags: jsonb("breakdown_tags"),
+    breakdownNotes: text("breakdown_notes"),
   },
   (table) => [unique().on(table.userId, table.movieId)],
 )
@@ -236,6 +287,8 @@ export type CollectiveMembership = typeof collectiveMemberships.$inferSelect
 export type Movie = typeof movies.$inferSelect
 export type NewMovie = typeof movies.$inferInsert
 export type RatingDimension = typeof ratingDimensions.$inferSelect
+export type RatingDimensionOption = typeof ratingDimensionOptions.$inferSelect
+export type MovieRatingDimensionConfig = typeof movieRatingDimensionConfigs.$inferSelect
 export type UserMovieRating = typeof userMovieRatings.$inferSelect
 export type NewUserMovieRating = typeof userMovieRatings.$inferInsert
 export type UserWatchlistEntry = typeof userWatchlistEntries.$inferSelect

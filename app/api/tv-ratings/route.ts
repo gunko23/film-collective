@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { stackServerApp } from "@/stack"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { getOrFetchTVShow } from "@/lib/tmdb/tv-service"
+import { getSafeUser } from "@/lib/auth/auth-utils"
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -13,16 +13,32 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ userRating: null })
+    }
+
     if (!user) {
       return NextResponse.json({ userRating: null })
     }
 
     const result = await sql`
-      SELECT overall_score as score, user_comment, rated_at
-      FROM user_tv_show_ratings
-      WHERE user_id = (SELECT id FROM users WHERE email = ${user.primaryEmail})
-      AND tv_show_id = ${Number.parseInt(tvShowId)}
+      SELECT 
+        r.id,
+        r.overall_score as score, 
+        r.user_comment, 
+        r.rated_at,
+        r.emotional_impact,
+        r.pacing,
+        r.aesthetic,
+        r.rewatchability,
+        r.breakdown_tags,
+        r.breakdown_notes
+      FROM user_tv_show_ratings r
+      JOIN users u ON r.user_id = u.id
+      WHERE u.email = ${user.primaryEmail}
+      AND r.tv_show_id = ${Number.parseInt(tvShowId)}
     `
 
     if (result[0]) {
@@ -40,7 +56,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable. Please try again." }, { status: 503 })
+    }
+
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

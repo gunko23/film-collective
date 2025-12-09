@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless"
 import { getOrFetchMovie } from "@/lib/tmdb/movie-service"
+import type { DimensionScores, DimensionTags } from "@/lib/ratings/dimensions-service"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -12,27 +13,34 @@ export type RatingDimension = {
   sortOrder: number
 }
 
-export type DimensionScores = {
-  [key: string]: number // 0-100
-}
-
 export type UserRating = {
   id: string
   userId: string
   movieId: string
   overallScore: number
   dimensionScores: DimensionScores | null
+  dimensionTags: DimensionTags | null
+  extraNotes: string | null
   userComment: string | null
   aiExplanation: string | null
   aiTags: string[] | null
   ratedAt: string
   updatedAt: string
+  // Legacy fields (kept for backwards compatibility)
+  emotional_impact: number | null
+  pacing: number | null
+  aesthetic: number | null
+  rewatchability: number | null
+  breakdown_tags: string[] | null
+  breakdown_notes: string | null
 }
 
 // Get all rating dimensions
 export async function getRatingDimensions(): Promise<RatingDimension[]> {
   const results = await sql`
-    SELECT * FROM rating_dimensions ORDER BY sort_order ASC
+    SELECT * FROM rating_dimensions 
+    WHERE is_active = true
+    ORDER BY sort_order ASC
   `
 
   return results.map((row: any) => ({
@@ -70,9 +78,11 @@ export async function upsertRating(params: {
   tmdbMovieId: number
   overallScore?: number
   dimensionScores?: DimensionScores
+  dimensionTags?: DimensionTags
+  extraNotes?: string
   userComment?: string
 }): Promise<UserRating> {
-  const { userId, tmdbMovieId, overallScore, dimensionScores, userComment } = params
+  const { userId, tmdbMovieId, overallScore, dimensionScores, dimensionTags, extraNotes, userComment } = params
 
   // Ensure movie exists in local DB (fetches from TMDB if needed)
   const movie = await getOrFetchMovie(tmdbMovieId)
@@ -92,18 +102,22 @@ export async function upsertRating(params: {
 
   const result = await sql`
     INSERT INTO user_movie_ratings (
-      user_id, movie_id, overall_score, dimension_scores, user_comment
+      user_id, movie_id, overall_score, dimension_scores, dimension_tags, extra_notes, user_comment
     ) VALUES (
       ${userId},
       ${movie.id},
       ${finalOverallScore},
       ${dimensionScores ? JSON.stringify(dimensionScores) : null},
+      ${dimensionTags ? JSON.stringify(dimensionTags) : null},
+      ${extraNotes || null},
       ${userComment || null}
     )
     ON CONFLICT (user_id, movie_id) DO UPDATE SET
       overall_score = ${finalOverallScore},
-      dimension_scores = ${dimensionScores ? JSON.stringify(dimensionScores) : sql`user_movie_ratings.dimension_scores`},
-      user_comment = ${userComment !== undefined ? userComment : sql`user_movie_ratings.user_comment`},
+      dimension_scores = COALESCE(${dimensionScores ? JSON.stringify(dimensionScores) : null}, user_movie_ratings.dimension_scores),
+      dimension_tags = COALESCE(${dimensionTags ? JSON.stringify(dimensionTags) : null}, user_movie_ratings.dimension_tags),
+      extra_notes = COALESCE(${extraNotes || null}, user_movie_ratings.extra_notes),
+      user_comment = COALESCE(${userComment || null}, user_movie_ratings.user_comment),
       updated_at = NOW()
     RETURNING *
   `
@@ -125,7 +139,25 @@ export async function getUserRating(userId: string, movieId: string): Promise<Us
 // Get a user's rating by TMDB movie ID
 export async function getUserRatingByTmdbId(userId: string, tmdbMovieId: number): Promise<UserRating | null> {
   const result = await sql`
-    SELECT r.* FROM user_movie_ratings r
+    SELECT r.id,
+           r.user_id,
+           r.movie_id,
+           r.overall_score,
+           r.dimension_scores,
+           r.dimension_tags,
+           r.extra_notes,
+           r.user_comment,
+           r.ai_explanation,
+           r.ai_tags,
+           r.rated_at,
+           r.updated_at,
+           r.emotional_impact,
+           r.pacing,
+           r.aesthetic,
+           r.rewatchability,
+           r.breakdown_tags,
+           r.breakdown_notes
+    FROM user_movie_ratings r
     INNER JOIN movies m ON r.movie_id = m.id
     WHERE r.user_id = ${userId} AND m.tmdb_id = ${tmdbMovieId}
   `
@@ -181,10 +213,19 @@ function transformRating(row: any): UserRating {
     movieId: row.movie_id,
     overallScore: Number(row.overall_score),
     dimensionScores: row.dimension_scores,
+    dimensionTags: row.dimension_tags,
+    extraNotes: row.extra_notes,
     userComment: row.user_comment,
     aiExplanation: row.ai_explanation,
     aiTags: row.ai_tags,
     ratedAt: row.rated_at,
     updatedAt: row.updated_at,
+    // Legacy fields
+    emotional_impact: row.emotional_impact ? Number(row.emotional_impact) : null,
+    pacing: row.pacing ? Number(row.pacing) : null,
+    aesthetic: row.aesthetic ? Number(row.aesthetic) : null,
+    rewatchability: row.rewatchability ? Number(row.rewatchability) : null,
+    breakdown_tags: row.breakdown_tags,
+    breakdown_notes: row.breakdown_notes,
   }
 }

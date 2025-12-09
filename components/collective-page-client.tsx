@@ -496,28 +496,76 @@ export function CollectivePageClient({
 
                       {/* Content */}
                       <div className="flex gap-4">
-                        <Link href={getMediaLink(item)} className="flex-shrink-0">
-                          {posterUrl ? (
-                            <Image
-                              src={posterUrl || "/placeholder.svg"}
-                              alt={item.title}
-                              width={item.media_type === "episode" ? 120 : 80}
-                              height={item.media_type === "episode" ? 68 : 120}
-                              className="rounded-lg object-cover"
-                            />
-                          ) : (
-                            <div
-                              className={`${item.media_type === "episode" ? "w-[120px] h-[68px]" : "w-20 h-[120px]"} bg-muted rounded-lg flex items-center justify-center`}
-                            >
-                              <span className="text-xs text-muted-foreground">No image</span>
-                            </div>
-                          )}
-                        </Link>
+                        {item.media_type === "movie" ? (
+                          <button
+                            onClick={() =>
+                              setSelectedMovie({
+                                tmdb_id: item.tmdb_id,
+                                title: item.title,
+                                poster_path: item.poster_path,
+                                release_date: item.release_date || "",
+                                avg_score: Number(item.overall_score),
+                                rating_count: 0,
+                              })
+                            }
+                            className="flex-shrink-0 cursor-pointer"
+                          >
+                            {posterUrl ? (
+                              <Image
+                                src={posterUrl || "/placeholder.svg"}
+                                alt={item.title}
+                                width={80}
+                                height={120}
+                                className="rounded-lg object-cover hover:ring-2 hover:ring-accent transition-all"
+                              />
+                            ) : (
+                              <div className="w-20 h-[120px] bg-muted rounded-lg flex items-center justify-center hover:ring-2 hover:ring-accent transition-all">
+                                <span className="text-xs text-muted-foreground">No image</span>
+                              </div>
+                            )}
+                          </button>
+                        ) : (
+                          <Link href={getMediaLink(item)} className="flex-shrink-0">
+                            {posterUrl ? (
+                              <Image
+                                src={posterUrl || "/placeholder.svg"}
+                                alt={item.title}
+                                width={item.media_type === "episode" ? 120 : 80}
+                                height={item.media_type === "episode" ? 68 : 120}
+                                className="rounded-lg object-cover"
+                              />
+                            ) : (
+                              <div
+                                className={`${item.media_type === "episode" ? "w-[120px] h-[68px]" : "w-20 h-[120px]"} bg-muted rounded-lg flex items-center justify-center`}
+                              >
+                                <span className="text-xs text-muted-foreground">No image</span>
+                              </div>
+                            )}
+                          </Link>
+                        )}
 
                         <div className="flex-1 min-w-0">
-                          <Link href={getMediaLink(item)} className="hover:text-accent transition-colors">
-                            <h3 className="font-semibold text-foreground truncate">{item.title}</h3>
-                          </Link>
+                          {item.media_type === "movie" ? (
+                            <button
+                              onClick={() =>
+                                setSelectedMovie({
+                                  tmdb_id: item.tmdb_id,
+                                  title: item.title,
+                                  poster_path: item.poster_path,
+                                  release_date: item.release_date || "",
+                                  avg_score: Number(item.overall_score),
+                                  rating_count: 0,
+                                })
+                              }
+                              className="hover:text-accent transition-colors text-left"
+                            >
+                              <h3 className="font-semibold text-foreground truncate">{item.title}</h3>
+                            </button>
+                          ) : (
+                            <Link href={getMediaLink(item)} className="hover:text-accent transition-colors">
+                              <h3 className="font-semibold text-foreground truncate">{item.title}</h3>
+                            </Link>
+                          )}
                           {item.media_type === "episode" && (
                             <p className="text-sm text-muted-foreground">
                               {item.tv_show_name} - S{item.season_number}E{item.episode_number}

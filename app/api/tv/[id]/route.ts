@@ -26,9 +26,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       videos.find((v) => v.type === "Trailer" && v.site === "YouTube") ||
       videos.find((v) => v.site === "YouTube")
 
+    const clip =
+      videos.find((v) => v.site === "YouTube" && v.type === "Clip" && v.official) ||
+      videos.find((v) => v.site === "YouTube" && v.type === "Clip") ||
+      videos.find((v) => v.site === "YouTube" && v.type === "Teaser" && v.official) ||
+      videos.find((v) => v.site === "YouTube" && v.type === "Teaser")
+
     return NextResponse.json({
       ...show,
       trailer,
+      clip,
       credits,
     })
   } catch (error) {
