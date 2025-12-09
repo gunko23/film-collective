@@ -6,6 +6,7 @@ import { Bell, MessageCircle, Heart, X, CheckCheck } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import useSWR from "swr"
 import { formatDistanceToNow } from "date-fns"
+import { useNotificationStream } from "@/hooks/use-notification-stream"
 
 interface Notification {
   id: string
@@ -40,14 +41,16 @@ export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Poll every 30 seconds for new notifications
+  const { unreadCount: streamUnreadCount, refresh: refreshStream } = useNotificationStream()
+
+  // Only fetch full notification list when dropdown is open (no polling)
   const { data, mutate } = useSWR<{ notifications: Notification[]; unreadCount: number; total: number }>(
-    "/api/notifications?limit=10",
+    isOpen ? "/api/notifications?limit=10" : null,
     fetcher,
-    { refreshInterval: 30000 },
   )
 
-  const unreadCount = data?.unreadCount || 0
+  // Use stream count when dropdown is closed, fetched count when open
+  const unreadCount = isOpen ? (data?.unreadCount ?? streamUnreadCount) : streamUnreadCount
   const notifications = data?.notifications || []
 
   // Close dropdown when clicking outside
@@ -70,6 +73,7 @@ export function NotificationBell() {
         body: JSON.stringify(notificationIds ? { notificationIds } : { markAll: true }),
       })
       mutate()
+      refreshStream()
     } catch (error) {
       console.error("Error marking notifications as read:", error)
     }
