@@ -1,10 +1,11 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { StackProvider, StackTheme } from "@stackframe/stack"
 import { stackServerApp } from "@/stack"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Analytics } from "@vercel/analytics/next"
+import { PWARegister } from "@/components/pwa-register"
 import "./globals.css"
 
 const inter = Inter({
@@ -17,6 +18,12 @@ export const metadata: Metadata = {
   title: "Film Collective",
   description: "A social film platform for understanding and sharing your movie taste",
   generator: "v0.app",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Film Collective",
+  },
   icons: {
     icon: [
       {
@@ -32,8 +39,16 @@ export const metadata: Metadata = {
         type: "image/svg+xml",
       },
     ],
-    apple: "/apple-icon.png",
+    apple: [{ url: "/apple-icon.png" }, { url: "/icon-192.jpg", sizes: "192x192", type: "image/png" }],
   },
+}
+
+export const viewport: Viewport = {
+  themeColor: "#10b981",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
@@ -50,6 +65,7 @@ export default function RootLayout({
           </StackProvider>
         </ThemeProvider>
         <Analytics />
+        <PWARegister />
       </body>
     </html>
   )
