@@ -217,13 +217,10 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
     setShowBreakdownFlow(false)
 
     try {
-      const endpoint = existingRatingId ? `/api/ratings/${existingRatingId}` : `/api/ratings`
-
-      const method = existingRatingId ? "PUT" : "POST"
-      const bodyData = {
+      const bodyData: Record<string, unknown> = {
         mediaType: isMovie ? "movie" : "tv",
         tmdbId: media.id,
-        score: userRating, // Changed from "rating" to "score" to match API
+        score: userRating,
         comment: userComment || null,
       }
 
@@ -236,15 +233,15 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
         bodyData.breakdown_notes = existingBreakdown.breakdown_notes
       }
 
-      const res = await fetch(endpoint, {
-        method: method,
+      const res = await fetch("/api/ratings", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bodyData),
       })
 
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.error || "Failed to save")
+        throw new Error(data?.error || "Failed to save")
       }
 
       if (!skipBreakdown) {
