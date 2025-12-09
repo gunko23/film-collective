@@ -28,9 +28,15 @@ interface InlineBreakdownFlowProps {
   isActive: boolean
   mediaType: "movie" | "tv"
   tmdbId: number
-  onComplete: () => void
+  onComplete: (savedBreakdown?: {
+    dimensionScores?: Record<string, number>
+    dimensionTags?: Record<string, string[]>
+  }) => void
   onSkipPreferenceChange?: (skip: boolean) => void
   existingBreakdown?: {
+    dimensionScores?: Record<string, number>
+    dimensionTags?: Record<string, string[]>
+    // Legacy fields for backwards compatibility
     emotional_impact?: number
     pacing?: number
     aesthetic?: number
@@ -52,6 +58,7 @@ export function InlineBreakdownFlow({
   const [sliderDimensions, setSliderDimensions] = useState<RatingDimension[]>([])
   const [tagDimension, setTagDimension] = useState<RatingDimension | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
+  const [visitedDimensions, setVisitedDimensions] = useState<Set<string>>(new Set())
   const [touchedDimensions, setTouchedDimensions] = useState<Set<string>>(new Set())
   const [sliderValues, setSliderValues] = useState<Record<string, number>>({})
   const [selectedTags, setSelectedTags] = useState<string[]>(existingBreakdown?.breakdown_tags || [])
@@ -88,14 +95,25 @@ export function InlineBreakdownFlow({
           setSliderDimensions(sliders)
           setTagDimension(tags || null)
 
-          // Initialize slider values with defaults
           const initialValues: Record<string, number> = {}
           for (const dim of sliders) {
-            const existingKey = dim.key as keyof typeof existingBreakdown
             const defaultVal = Math.round(((dim.minValue ?? 1) + (dim.maxValue ?? 5)) / 2)
-            initialValues[dim.key] = (existingBreakdown?.[existingKey] as number) || defaultVal
+            // Check new format first, then legacy
+            if (existingBreakdown?.dimensionScores?.[dim.key] !== undefined) {
+              initialValues[dim.key] = existingBreakdown.dimensionScores[dim.key]
+            } else {
+              const legacyKey = dim.key as keyof typeof existingBreakdown
+              const legacyVal = existingBreakdown?.[legacyKey]
+              initialValues[dim.key] = typeof legacyVal === "number" ? legacyVal : defaultVal
+            }
           }
           setSliderValues(initialValues)
+
+          if (tags && existingBreakdown?.dimensionTags?.[tags.key]) {
+            setSelectedTags(existingBreakdown.dimensionTags[tags.key])
+          } else if (existingBreakdown?.breakdown_tags) {
+            setSelectedTags(existingBreakdown.breakdown_tags)
+          }
         }
       } catch (error) {
         console.error("Error fetching dimensions:", error)
@@ -113,10 +131,15 @@ export function InlineBreakdownFlow({
   useEffect(() => {
     if (isActive) {
       setCurrentStep(0)
+      setVisitedDimensions(new Set())
       setTouchedDimensions(new Set())
       setIsCollapsed(false)
       setIsComplete(false)
-      setSelectedTags(existingBreakdown?.breakdown_tags || [])
+      const existingTags =
+        tagDimension && existingBreakdown?.dimensionTags?.[tagDimension.key]
+          ? existingBreakdown.dimensionTags[tagDimension.key]
+          : existingBreakdown?.breakdown_tags || []
+      setSelectedTags(existingTags)
       resetIdleTimer()
     }
     return () => {
@@ -124,7 +147,7 @@ export function InlineBreakdownFlow({
         clearTimeout(idleTimerRef.current)
       }
     }
-  }, [isActive, existingBreakdown])
+  }, [isActive, existingBreakdown, tagDimension])
 
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current) {
@@ -143,7 +166,7 @@ export function InlineBreakdownFlow({
   }
 
   const saveAllDimensions = async () => {
-    const hasSliderData = touchedDimensions.size > 0
+    const hasSliderData = visitedDimensions.size > 0
     const hasTagData = selectedTags.length > 0
 
     if (!hasSliderData && !hasTagData) {
@@ -153,9 +176,8 @@ export function InlineBreakdownFlow({
 
     setIsSaving(true)
     try {
-      // Build dimension scores from touched sliders
       const dimensionScores: Record<string, number> = {}
-      for (const key of touchedDimensions) {
+      for (const key of visitedDimensions) {
         dimensionScores[key] = sliderValues[key]
       }
 
@@ -165,6 +187,10 @@ export function InlineBreakdownFlow({
         dimensionTags[tagDimension.key] = selectedTags
       }
 
+      console.log("[v0] Saving breakdown - dimensionScores:", dimensionScores)
+      console.log("[v0] Saving breakdown - dimensionTags:", dimensionTags)
+      console.log("[v0] Saving breakdown - selectedTags:", selectedTags)
+
       const response = await fetch("/api/ratings/breakdown", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -172,10 +198,10 @@ export function InlineBreakdownFlow({
           mediaType,
           tmdbId,
           // Legacy fields for backwards compatibility
-          emotionalImpact: touchedDimensions.has("emotional_impact") ? sliderValues.emotional_impact : undefined,
-          pacing: touchedDimensions.has("pacing") ? sliderValues.pacing : undefined,
-          aesthetic: touchedDimensions.has("aesthetic") ? sliderValues.aesthetic : undefined,
-          rewatchability: touchedDimensions.has("rewatchability") ? sliderValues.rewatchability : undefined,
+          emotionalImpact: visitedDimensions.has("emotional_impact") ? sliderValues.emotional_impact : undefined,
+          pacing: visitedDimensions.has("pacing") ? sliderValues.pacing : undefined,
+          aesthetic: visitedDimensions.has("aesthetic") ? sliderValues.aesthetic : undefined,
+          rewatchability: visitedDimensions.has("rewatchability") ? sliderValues.rewatchability : undefined,
           breakdownTags: selectedTags.length > 0 ? selectedTags : undefined,
           // New dynamic fields
           dimensionScores: Object.keys(dimensionScores).length > 0 ? dimensionScores : undefined,
@@ -185,15 +211,25 @@ export function InlineBreakdownFlow({
 
       if (!response.ok) {
         const errorData = await safeJsonParse(response)
+        console.error("[v0] Breakdown save error:", errorData)
         throw new Error(errorData?.error || "Failed to save breakdown")
       }
+
+      const result = await safeJsonParse(response)
+      console.log("[v0] Breakdown save result:", result)
 
       setIsComplete(true)
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current)
       }
+
+      const savedBreakdown = {
+        dimensionScores: Object.keys(dimensionScores).length > 0 ? dimensionScores : undefined,
+        dimensionTags: Object.keys(dimensionTags).length > 0 ? dimensionTags : undefined,
+      }
+
       setTimeout(() => {
-        onComplete()
+        onComplete(savedBreakdown)
       }, 2000)
     } catch (error) {
       console.error("Error saving breakdown:", error)
@@ -233,6 +269,9 @@ export function InlineBreakdownFlow({
 
   const handleNext = () => {
     resetIdleTimer()
+    if (!isTagStep && sliderDimensions[currentStep]) {
+      setVisitedDimensions((prev) => new Set(prev).add(sliderDimensions[currentStep].key))
+    }
     if (!isLastStep) {
       setCurrentStep(currentStep + 1)
     } else {

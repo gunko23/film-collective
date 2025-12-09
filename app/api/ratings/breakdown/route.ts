@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     const {
       mediaType,
       tmdbId,
+      // Legacy individual fields (for backwards compatibility)
       emotionalImpact,
       pacing,
       aesthetic,
@@ -30,18 +31,42 @@ export async function POST(request: NextRequest) {
       breakdownTags,
       breakdownNotes,
       skipBreakdownNextTime,
+      // New dynamic dimension fields
+      dimensionScores,
+      dimensionTags,
     } = body
 
     if (!tmdbId || !mediaType) {
       return NextResponse.json({ error: "tmdbId and mediaType are required" }, { status: 400 })
     }
 
-    // Validate dimension values
-    const dimensions = [emotionalImpact, pacing, aesthetic, rewatchability]
-    for (const dim of dimensions) {
-      if (dim !== undefined && (dim < 1 || dim > 5)) {
-        return NextResponse.json({ error: "Dimension values must be between 1 and 5" }, { status: 400 })
+    let finalDimensionScores: Record<string, number> = {}
+
+    // If new format provided, use it
+    if (dimensionScores && Object.keys(dimensionScores).length > 0) {
+      finalDimensionScores = { ...dimensionScores }
+    } else {
+      // Otherwise, build from legacy fields
+      if (emotionalImpact !== undefined) finalDimensionScores.emotional_impact = emotionalImpact
+      if (pacing !== undefined) finalDimensionScores.pacing = pacing
+      if (aesthetic !== undefined) finalDimensionScores.aesthetic = aesthetic
+      if (rewatchability !== undefined) finalDimensionScores.rewatchability = rewatchability
+    }
+
+    // Validate dimension values (must be between 1 and 5)
+    for (const [key, value] of Object.entries(finalDimensionScores)) {
+      if (value < 1 || value > 5) {
+        return NextResponse.json({ error: `Dimension ${key} must be between 1 and 5` }, { status: 400 })
       }
+    }
+
+    let finalDimensionTags: Record<string, string[]> = {}
+
+    if (dimensionTags && Object.keys(dimensionTags).length > 0) {
+      finalDimensionTags = { ...dimensionTags }
+    } else if (breakdownTags && breakdownTags.length > 0) {
+      // Legacy: store under 'vibes' key
+      finalDimensionTags.vibes = breakdownTags
     }
 
     // Update the rating with breakdown data
@@ -56,16 +81,12 @@ export async function POST(request: NextRequest) {
 
       const movieId = movieResult[0].id
 
-      // Update the existing rating with breakdown
       await sql`
         UPDATE user_movie_ratings
         SET 
-          emotional_impact = ${emotionalImpact},
-          pacing = ${pacing},
-          aesthetic = ${aesthetic},
-          rewatchability = ${rewatchability},
-          breakdown_tags = ${JSON.stringify(breakdownTags || [])}::jsonb,
-          breakdown_notes = ${breakdownNotes || null},
+          dimension_scores = COALESCE(dimension_scores, '{}'::jsonb) || ${JSON.stringify(finalDimensionScores)}::jsonb,
+          dimension_tags = COALESCE(dimension_tags, '{}'::jsonb) || ${JSON.stringify(finalDimensionTags)}::jsonb,
+          extra_notes = COALESCE(${breakdownNotes || null}, extra_notes),
           updated_at = NOW()
         WHERE user_id = ${user.id}::uuid AND movie_id = ${movieId}::uuid
       `
@@ -74,12 +95,9 @@ export async function POST(request: NextRequest) {
       await sql`
         UPDATE user_tv_show_ratings
         SET 
-          emotional_impact = ${emotionalImpact},
-          pacing = ${pacing},
-          aesthetic = ${aesthetic},
-          rewatchability = ${rewatchability},
-          breakdown_tags = ${JSON.stringify(breakdownTags || [])}::jsonb,
-          breakdown_notes = ${breakdownNotes || null},
+          dimension_scores = COALESCE(dimension_scores, '{}'::jsonb) || ${JSON.stringify(finalDimensionScores)}::jsonb,
+          dimension_tags = COALESCE(dimension_tags, '{}'::jsonb) || ${JSON.stringify(finalDimensionTags)}::jsonb,
+          extra_notes = COALESCE(${breakdownNotes || null}, extra_notes),
           updated_at = NOW()
         WHERE user_id = ${user.id}::uuid AND tv_show_id = ${tmdbId}
       `

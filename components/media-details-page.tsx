@@ -74,6 +74,18 @@ interface MediaDetailsPageProps {
   }
 }
 
+interface ExistingBreakdown {
+  dimensionScores?: Record<string, number>
+  dimensionTags?: Record<string, string[]>
+  // Legacy fields kept for backwards compatibility
+  emotional_impact?: number
+  pacing?: number
+  aesthetic?: number
+  rewatchability?: number
+  breakdown_tags?: string[]
+  breakdown_notes?: string
+}
+
 function formatCurrency(amount: number): string {
   if (amount >= 1_000_000_000) {
     return `$${(amount / 1_000_000_000).toFixed(1)}B`
@@ -94,22 +106,13 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
   const [userComment, setUserComment] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [isEditMode, setIsEditMode] = useState(false)
   const [selectedSeason, setSelectedSeason] = useState<string>("")
   const [isMuted, setIsMuted] = useState(true)
   const [showVideo, setShowVideo] = useState(true)
   const [showBreakdownFlow, setShowBreakdownFlow] = useState(false)
   const [skipBreakdown, setSkipBreakdown] = useState(false)
-  const [existingBreakdown, setExistingBreakdown] = useState<
-    | {
-        emotional_impact?: number
-        pacing?: number
-        aesthetic?: number
-        rewatchability?: number
-        breakdown_tags?: string[]
-        breakdown_notes?: string
-      }
-    | undefined
-  >(undefined)
+  const [existingBreakdown, setExistingBreakdown] = useState<ExistingBreakdown | undefined>(undefined)
   const [existingRatingId, setExistingRatingId] = useState<string | null>(null)
 
   const isMovie = mediaType === "movie"
@@ -168,20 +171,30 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
             setUserComment(data.userRating.user_comment || data.userRating.userComment || "")
             setExistingRatingId(data.userRating.id || null)
             // Set existing breakdown if available
-            if (
-              data.userRating.emotional_impact ||
-              data.userRating.pacing ||
-              data.userRating.aesthetic ||
-              data.userRating.rewatchability
-            ) {
-              setExistingBreakdown({
-                emotional_impact: data.userRating.emotional_impact,
-                pacing: data.userRating.pacing,
-                aesthetic: data.userRating.aesthetic,
-                rewatchability: data.userRating.rewatchability,
-                breakdown_tags: data.userRating.breakdown_tags,
-                breakdown_notes: data.userRating.breakdown_notes,
-              })
+            const breakdown: ExistingBreakdown = {}
+
+            // Check for new JSON format first
+            if (data.userRating.dimensionScores && Object.keys(data.userRating.dimensionScores).length > 0) {
+              breakdown.dimensionScores = data.userRating.dimensionScores
+            }
+            if (data.userRating.dimensionTags && Object.keys(data.userRating.dimensionTags).length > 0) {
+              breakdown.dimensionTags = data.userRating.dimensionTags
+            }
+
+            // Fallback to legacy fields if no new format data
+            if (!breakdown.dimensionScores) {
+              if (data.userRating.emotional_impact) breakdown.emotional_impact = data.userRating.emotional_impact
+              if (data.userRating.pacing) breakdown.pacing = data.userRating.pacing
+              if (data.userRating.aesthetic) breakdown.aesthetic = data.userRating.aesthetic
+              if (data.userRating.rewatchability) breakdown.rewatchability = data.userRating.rewatchability
+            }
+            if (!breakdown.dimensionTags && data.userRating.breakdown_tags) {
+              breakdown.breakdown_tags = data.userRating.breakdown_tags
+            }
+            if (data.userRating.breakdown_notes) breakdown.breakdown_notes = data.userRating.breakdown_notes
+
+            if (Object.keys(breakdown).length > 0) {
+              setExistingBreakdown(breakdown)
             }
           }
         }
@@ -225,12 +238,30 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
       }
 
       if (existingBreakdown) {
-        bodyData.emotional_impact = existingBreakdown.emotional_impact
-        bodyData.pacing = existingBreakdown.pacing
-        bodyData.aesthetic = existingBreakdown.aesthetic
-        bodyData.rewatchability = existingBreakdown.rewatchability
-        bodyData.breakdown_tags = existingBreakdown.breakdown_tags
-        bodyData.breakdown_notes = existingBreakdown.breakdown_notes
+        if (existingBreakdown.dimensionScores) {
+          bodyData.dimensionScores = existingBreakdown.dimensionScores
+        }
+        if (existingBreakdown.dimensionTags) {
+          bodyData.dimensionTags = existingBreakdown.dimensionTags
+        }
+        if (existingBreakdown.emotional_impact) {
+          bodyData.emotional_impact = existingBreakdown.emotional_impact
+        }
+        if (existingBreakdown.pacing) {
+          bodyData.pacing = existingBreakdown.pacing
+        }
+        if (existingBreakdown.aesthetic) {
+          bodyData.aesthetic = existingBreakdown.aesthetic
+        }
+        if (existingBreakdown.rewatchability) {
+          bodyData.rewatchability = existingBreakdown.rewatchability
+        }
+        if (existingBreakdown.breakdown_tags) {
+          bodyData.breakdown_tags = existingBreakdown.breakdown_tags
+        }
+        if (existingBreakdown.breakdown_notes) {
+          bodyData.breakdown_notes = existingBreakdown.breakdown_notes
+        }
       }
 
       const res = await fetch("/api/ratings", {
@@ -248,6 +279,7 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
         setShowBreakdownFlow(true)
       } else {
         setSaveMessage("Saved")
+        setIsEditMode(false)
         setTimeout(() => setSaveMessage(null), 3000)
       }
     } catch (error) {
@@ -264,11 +296,33 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
     }
   }
 
-  const handleBreakdownComplete = () => {
+  const handleBreakdownComplete = (savedBreakdown?: {
+    dimensionScores?: Record<string, number>
+    dimensionTags?: Record<string, string[]>
+  }) => {
     setShowBreakdownFlow(false)
     setSaveMessage("Rating saved with breakdown!")
+    setIsEditMode(false)
+
+    // Update existingBreakdown state with newly saved data
+    if (savedBreakdown) {
+      setExistingBreakdown((prev) => ({
+        ...prev,
+        dimensionScores: {
+          ...(prev?.dimensionScores || {}),
+          ...(savedBreakdown.dimensionScores || {}),
+        },
+        dimensionTags: {
+          ...(prev?.dimensionTags || {}),
+          ...(savedBreakdown.dimensionTags || {}),
+        },
+      }))
+    }
+
     setTimeout(() => setSaveMessage(null), 3000)
   }
+
+  const hasExistingRating = existingRatingId !== null && userRating > 0
 
   return (
     <div className="relative min-h-screen bg-background overflow-hidden">
@@ -645,11 +699,18 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
                   <>
                     {!showBreakdownFlow ? (
                       <>
-                        <SimpleStarRating
-                          value={userRating}
-                          onChange={setUserRating}
-                          disabled={isSaving || isRateLimited}
-                        />
+                        {!hasExistingRating || isEditMode ? (
+                          <SimpleStarRating
+                            value={userRating}
+                            onChange={setUserRating}
+                            disabled={isSaving || isRateLimited}
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <SimpleStarRating value={userRating} onChange={() => {}} disabled={true} />
+                            <span className="text-xs text-muted-foreground">({userRating}/5)</span>
+                          </div>
+                        )}
                         <div className="space-y-2">
                           <label className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                             Notes
@@ -659,17 +720,36 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
                             value={userComment}
                             onChange={(e) => setUserComment(e.target.value)}
                             className="min-h-[60px] sm:min-h-[80px] resize-none bg-background text-xs sm:text-sm"
-                            disabled={isSaving || isRateLimited}
+                            disabled={isSaving || isRateLimited || (hasExistingRating && !isEditMode)}
                           />
                         </div>
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
-                          <Button
-                            onClick={handleSaveRating}
-                            disabled={isSaving || userRating === 0 || isRateLimited}
-                            className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs sm:text-sm w-full sm:w-auto"
-                          >
-                            {isSaving ? "Saving..." : "Save Rating"}
-                          </Button>
+                          {hasExistingRating && !isEditMode ? (
+                            <Button
+                              onClick={() => setIsEditMode(true)}
+                              disabled={isRateLimited}
+                              className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs sm:text-sm w-full sm:w-auto"
+                            >
+                              Update Rating
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={handleSaveRating}
+                              disabled={isSaving || userRating === 0 || isRateLimited}
+                              className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs sm:text-sm w-full sm:w-auto"
+                            >
+                              {isSaving ? "Saving..." : "Save Rating"}
+                            </Button>
+                          )}
+                          {isEditMode && (
+                            <Button
+                              onClick={() => setIsEditMode(false)}
+                              variant="outline"
+                              className="text-xs sm:text-sm w-full sm:w-auto"
+                            >
+                              Cancel
+                            </Button>
+                          )}
                           {saveMessage && (
                             <span
                               className={`text-xs sm:text-sm text-center sm:text-left ${saveMessage === "Saved" ? "text-green-500" : "text-red-500"}`}
@@ -682,30 +762,59 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
                           <div className="mt-4 pt-4 border-t border-border">
                             <p className="text-sm text-muted-foreground mb-2">Your breakdown:</p>
                             <div className="flex flex-wrap gap-2 text-xs">
-                              {existingBreakdown.emotional_impact && (
-                                <span className="px-2 py-1 bg-muted rounded">
-                                  Emotional: {existingBreakdown.emotional_impact}/5
-                                </span>
+                              {existingBreakdown.dimensionScores &&
+                                Object.entries(existingBreakdown.dimensionScores).map(([key, value]) => (
+                                  <span key={key} className="px-2 py-1 bg-muted rounded capitalize">
+                                    {key.replace(/_/g, " ")}: {value}/5
+                                  </span>
+                                ))}
+                              {!existingBreakdown.dimensionScores && (
+                                <>
+                                  {existingBreakdown.emotional_impact && (
+                                    <span className="px-2 py-1 bg-muted rounded">
+                                      Emotional: {existingBreakdown.emotional_impact}/5
+                                    </span>
+                                  )}
+                                  {existingBreakdown.pacing && (
+                                    <span className="px-2 py-1 bg-muted rounded">
+                                      Pacing: {existingBreakdown.pacing}/5
+                                    </span>
+                                  )}
+                                  {existingBreakdown.aesthetic && (
+                                    <span className="px-2 py-1 bg-muted rounded">
+                                      Aesthetic: {existingBreakdown.aesthetic}/5
+                                    </span>
+                                  )}
+                                  {existingBreakdown.rewatchability && (
+                                    <span className="px-2 py-1 bg-muted rounded">
+                                      Rewatchability: {existingBreakdown.rewatchability}/5
+                                    </span>
+                                  )}
+                                </>
                               )}
-                              {existingBreakdown.pacing && (
-                                <span className="px-2 py-1 bg-muted rounded">Pacing: {existingBreakdown.pacing}/5</span>
-                              )}
-                              {existingBreakdown.aesthetic && (
-                                <span className="px-2 py-1 bg-muted rounded">
-                                  Aesthetic: {existingBreakdown.aesthetic}/5
-                                </span>
-                              )}
-                              {existingBreakdown.rewatchability && (
-                                <span className="px-2 py-1 bg-muted rounded">
-                                  Rewatchability: {existingBreakdown.rewatchability}/5
-                                </span>
-                              )}
+                              {existingBreakdown.dimensionTags &&
+                                Object.entries(existingBreakdown.dimensionTags).map(([dimKey, tags]) =>
+                                  tags.map((tag) => (
+                                    <span
+                                      key={`${dimKey}-${tag}`}
+                                      className="px-2 py-1 bg-accent/20 text-accent rounded capitalize"
+                                    >
+                                      {tag.replace(/_/g, " ")}
+                                    </span>
+                                  )),
+                                )}
+                              {!existingBreakdown.dimensionTags &&
+                                existingBreakdown.breakdown_tags?.map((tag) => (
+                                  <span key={tag} className="px-2 py-1 bg-accent/20 text-accent rounded capitalize">
+                                    {tag.replace(/_/g, " ")}
+                                  </span>
+                                ))}
                             </div>
                             <Button
                               variant="link"
                               size="sm"
                               onClick={() => setShowBreakdownFlow(true)}
-                              className="text-accent p-0 h-auto mt-2"
+                              className="mt-2 h-auto p-0 text-accent"
                             >
                               Edit breakdown
                             </Button>
