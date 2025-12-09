@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
@@ -28,6 +27,7 @@ import { MembersModal } from "@/components/members-modal"
 import { StarRatingDisplay } from "@/components/star-rating-display"
 import { EnhancedComments } from "@/components/enhanced-comments"
 import { getImageUrl } from "@/lib/tmdb/image"
+import { MessageCircle } from "lucide-react" // Import MessageCircle
 
 type MovieStat = {
   tmdb_id: string
@@ -134,6 +134,19 @@ const sectionConfig: { value: Section; label: string; icon: React.ReactNode }[] 
   { value: "messageboard", label: "Message Board", icon: <MessageSquare className="h-4 w-4" /> },
 ]
 
+const REACTION_EMOJI_MAP: Record<string, string> = {
+  thumbsup: "👍",
+  heart: "❤️",
+  laugh: "😂",
+  fire: "🔥",
+  sad: "😢",
+  celebrate: "🎉",
+}
+
+const getReactionEmoji = (type: string): string => {
+  return REACTION_EMOJI_MAP[type] || type
+}
+
 export function CollectivePageClient({
   collectiveId,
   currentUserId,
@@ -154,6 +167,30 @@ export function CollectivePageClient({
   const [feedTotal, setFeedTotal] = useState(0)
   const [feedLoading, setFeedLoading] = useState(false)
   const FEED_LIMIT = 10
+
+  const [recentActivity, setRecentActivity] = useState<any[]>([])
+  const [activityLoading, setActivityLoading] = useState(false)
+
+  useEffect(() => {
+    if (activeSection === "dashboard") {
+      fetchRecentActivity()
+    }
+  }, [activeSection, collectiveId])
+
+  const fetchRecentActivity = async () => {
+    setActivityLoading(true)
+    try {
+      const res = await fetch(`/api/collectives/${collectiveId}/activity?limit=5`)
+      if (res.ok) {
+        const data = await res.json()
+        setRecentActivity(data.activity || [])
+      }
+    } catch (error) {
+      console.error("Error fetching activity:", error)
+    } finally {
+      setActivityLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (activeSection === "feed") {
@@ -361,7 +398,7 @@ export function CollectivePageClient({
                   <Link
                     key={episode.episode_id}
                     href={`/tv/${episode.tv_show_id}/season/${episode.season_number}`}
-                    className="block p-4 rounded-xl bg-card/50 border border-border/50 hover:border-accent/30 transition-all"
+                    className="block p-4 rounded-xl bg-card/50 border border-border/50 hover:border-accent/50 transition-all"
                   >
                     {/* Top row: Rank + Image + Rating */}
                     <div className="flex items-center gap-3 mb-3">
@@ -419,6 +456,99 @@ export function CollectivePageClient({
               <p className="text-muted-foreground">No ratings yet. Start rating movies and TV shows!</p>
             </div>
           )}
+
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Activity className="h-5 w-5 text-accent" />
+                Recent Activity
+              </h2>
+              <button onClick={() => setActiveSection("feed")} className="text-sm text-accent hover:underline">
+                View All
+              </button>
+            </div>
+
+            {activityLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent"></div>
+              </div>
+            ) : recentActivity.length === 0 ? (
+              <div className="text-center py-8 rounded-xl bg-card/30 border border-border/50">
+                <MessageCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No activity yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentActivity.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={`/collectives/${collectiveId}/conversation/${item.rating_id}`}
+                    className="flex items-start gap-3 p-3 rounded-xl bg-card/50 border border-border/50 hover:border-accent/30 transition-all group"
+                  >
+                    {/* User Avatar */}
+                    <div className="h-9 w-9 rounded-full bg-accent/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {item.user_avatar ? (
+                        <Image
+                          src={item.user_avatar || "/placeholder.svg"}
+                          alt={item.user_name || "User"}
+                          width={36}
+                          height={36}
+                          className="object-cover"
+                        />
+                      ) : (
+                        <span className="text-sm font-medium text-accent">
+                          {(item.user_name || "U")[0].toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Activity Content */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground">
+                        <span className="font-medium">{item.user_name || "Someone"}</span>
+                        {item.activity_type === "comment" ? (
+                          <>
+                            {" "}
+                            commented on <span className="font-medium">{item.rating_owner_name || "a"}</span>'s review
+                          </>
+                        ) : (
+                          <>
+                            {" "}
+                            reacted <span className="text-base">{getReactionEmoji(item.reaction_type)}</span> to{" "}
+                            <span className="font-medium">{item.rating_owner_name || "a"}</span>'s review
+                          </>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {item.media_title && (
+                          <>
+                            <span className="capitalize">{item.media_type}</span>: {item.media_title}
+                          </>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground/70 mt-1">
+                        {new Date(item.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+
+                    {/* Activity Icon */}
+                    <div className="flex-shrink-0">
+                      {item.activity_type === "comment" ? (
+                        <MessageCircle className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
+                      ) : (
+                        <span className="text-base">{getReactionEmoji(item.reaction_type)}</span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -427,7 +557,7 @@ export function CollectivePageClient({
 
       {/* Feed Section */}
       {activeSection === "feed" && (
-        <div className="mb-8">
+        <div className="mb-8 overflow-x-hidden">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground">Activity Feed</h2>
             <p className="text-sm text-muted-foreground">
@@ -447,7 +577,7 @@ export function CollectivePageClient({
             </div>
           ) : (
             <>
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-hidden">
                 {feedItems.map((item) => {
                   const score = Number(item.overall_score) / 20
                   const posterUrl =
@@ -459,7 +589,7 @@ export function CollectivePageClient({
                   return (
                     <div
                       key={`${item.media_type}-${item.rating_id}`}
-                      className="border border-border/50 rounded-xl bg-card/50 backdrop-blur-sm p-4 hover:border-accent/30 transition-colors"
+                      className="border border-border/50 rounded-xl bg-card/50 backdrop-blur-sm p-4 hover:border-accent/30 transition-colors overflow-hidden"
                     >
                       {/* User info */}
                       <div className="flex items-center gap-3 mb-4">

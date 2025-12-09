@@ -63,6 +63,8 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const normalizedCurrentUserId = currentUserId?.toLowerCase()
+
   // Fetch comments
   useEffect(() => {
     async function fetchComments() {
@@ -176,7 +178,7 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
             {/* Messages */}
             <div className="space-y-3">
               {dayComments.map((comment, i) => {
-                const isOwnComment = comment.user_id === currentUserId
+                const isOwnComment = comment.user_id?.toLowerCase() === normalizedCurrentUserId
                 const prevComment = dayComments[i - 1]
                 const showAvatar = !prevComment || prevComment.user_id !== comment.user_id
 

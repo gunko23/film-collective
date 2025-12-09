@@ -85,6 +85,8 @@ export function EnhancedComments({
   const [showReactionPicker, setShowReactionPicker] = useState(false)
   const commentInputRef = useRef<HTMLInputElement>(null)
 
+  const normalizedCurrentUserId = currentUserId?.toLowerCase()
+
   // Fetch reactions and comments
   useEffect(() => {
     async function fetchData() {
@@ -140,7 +142,9 @@ export function EnhancedComments({
         if (data.action === "added") {
           setReactions((prev) => [...prev, { id: data.id, user_id: currentUserId, reaction_type: type }])
         } else {
-          setReactions((prev) => prev.filter((r) => !(r.user_id === currentUserId && r.reaction_type === type)))
+          setReactions((prev) =>
+            prev.filter((r) => !(r.user_id?.toLowerCase() === normalizedCurrentUserId && r.reaction_type === type)),
+          )
         }
       }
     } catch (error) {
@@ -195,16 +199,18 @@ export function EnhancedComments({
     {} as Record<string, number>,
   )
 
-  const userReactions = reactions.filter((r) => r.user_id === currentUserId).map((r) => r.reaction_type)
+  const userReactions = reactions
+    .filter((r) => r.user_id?.toLowerCase() === normalizedCurrentUserId)
+    .map((r) => r.reaction_type)
   const hasEnoughForConversation = comments.length >= 3
   const displayedComments = hasEnoughForConversation ? comments.slice(-3) : comments
 
   return (
-    <div className="mt-4 pt-4 border-t border-border/30">
+    <div className="mt-4 pt-4 border-t border-border/30 overflow-hidden">
       {/* Reaction bar */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap overflow-x-auto">
         {/* Quick reactions display */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {Object.entries(reactionCounts).map(([type, count]) => {
             const reactionData = EMOJI_REACTIONS.find((r) => r.type === type)
             const hasReacted = userReactions.includes(type)
@@ -213,7 +219,7 @@ export function EnhancedComments({
                 key={type}
                 onClick={() => handleReaction(type)}
                 className={cn(
-                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm transition-all",
+                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm transition-all flex-shrink-0",
                   hasReacted
                     ? "bg-accent/20 border border-accent/40 scale-105"
                     : "bg-muted/50 hover:bg-muted border border-transparent hover:scale-105",
@@ -272,20 +278,20 @@ export function EnhancedComments({
 
       {/* Comments section */}
       {showComments && (
-        <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
           {/* View all link for 3+ comments */}
           {hasEnoughForConversation && (
             <Link
               href={`/collectives/${collectiveId}/conversation/${ratingId}`}
               className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-accent/10 to-accent/5 border border-accent/20 hover:border-accent/40 transition-colors group"
             >
-              <div className="flex items-center gap-2">
-                <MessageCircle className="h-4 w-4 text-accent" />
-                <span className="text-sm font-medium text-foreground">
+              <div className="flex items-center gap-2 min-w-0">
+                <MessageCircle className="h-4 w-4 text-accent flex-shrink-0" />
+                <span className="text-sm font-medium text-foreground truncate">
                   View full conversation ({comments.length} messages)
                 </span>
               </div>
-              <ChevronRight className="h-4 w-4 text-accent group-hover:translate-x-1 transition-transform" />
+              <ChevronRight className="h-4 w-4 text-accent group-hover:translate-x-1 transition-transform flex-shrink-0" />
             </Link>
           )}
 
@@ -293,7 +299,7 @@ export function EnhancedComments({
           {displayedComments.length > 0 && (
             <div className="space-y-2">
               {displayedComments.map((comment) => {
-                const isOwnComment = comment.user_id === currentUserId
+                const isOwnComment = comment.user_id?.toLowerCase() === normalizedCurrentUserId
                 return (
                   <div key={comment.id} className={cn("flex gap-2", isOwnComment ? "flex-row-reverse" : "flex-row")}>
                     {/* Avatar */}
@@ -429,7 +435,7 @@ export function EnhancedComments({
           )}
 
           {/* Add comment form - messaging style */}
-          <form onSubmit={handleAddComment} className="flex items-center gap-2 w-full">
+          <form onSubmit={handleAddComment} className="flex items-center gap-2 w-full overflow-hidden">
             <div className="flex-1 min-w-0 flex items-center gap-2 bg-muted/50 border border-border/50 rounded-full pl-3 pr-1 py-1">
               <button
                 type="button"
@@ -449,7 +455,7 @@ export function EnhancedComments({
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="Send a message..."
-                className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none py-2"
+                className="flex-1 min-w-0 w-full bg-transparent text-sm focus:outline-none py-2"
               />
               <Button
                 type="submit"
