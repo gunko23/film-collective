@@ -706,10 +706,7 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
                             disabled={isSaving || isRateLimited}
                           />
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <SimpleStarRating value={userRating} onChange={() => {}} disabled={true} />
-                            <span className="text-xs text-muted-foreground">({userRating}/5)</span>
-                          </div>
+                          <SimpleStarRating value={userRating} onChange={() => {}} readonly={true} />
                         )}
                         <div className="space-y-2">
                           <label className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-muted-foreground">

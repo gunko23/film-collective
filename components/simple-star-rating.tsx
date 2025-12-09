@@ -10,14 +10,23 @@ interface SimpleStarRatingProps {
   value: number
   onChange: (value: number) => void
   disabled?: boolean
+  readonly?: boolean
+  hideValue?: boolean
 }
 
-export function SimpleStarRating({ value, onChange, disabled = false }: SimpleStarRatingProps) {
+export function SimpleStarRating({
+  value,
+  onChange,
+  disabled = false,
+  readonly = false,
+  hideValue = false,
+}: SimpleStarRatingProps) {
   const [hoverValue, setHoverValue] = useState<number | null>(null)
 
   const displayValue = hoverValue ?? value
 
   const handleMouseMove = (star: number, e: React.MouseEvent<HTMLButtonElement>) => {
+    if (readonly) return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const isLeftHalf = x < rect.width / 2
@@ -25,6 +34,7 @@ export function SimpleStarRating({ value, onChange, disabled = false }: SimpleSt
   }
 
   const handleClick = (star: number, e: React.MouseEvent<HTMLButtonElement>) => {
+    if (readonly) return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const isLeftHalf = x < rect.width / 2
@@ -50,43 +60,46 @@ export function SimpleStarRating({ value, onChange, disabled = false }: SimpleSt
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-center sm:justify-start gap-1 sm:gap-2">
+      <div className="flex items-center justify-center gap-1 sm:gap-2">
         {[1, 2, 3, 4, 5].map((star) => (
           <button
             key={star}
             type="button"
-            disabled={disabled}
+            disabled={disabled || readonly}
             onClick={(e) => handleClick(star, e)}
             onMouseMove={(e) => handleMouseMove(star, e)}
             onMouseLeave={() => setHoverValue(null)}
             className={cn(
               "p-0.5 sm:p-1 transition-all duration-150",
-              disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:scale-110",
+              disabled || readonly ? "cursor-default" : "cursor-pointer hover:scale-110",
+              disabled && "opacity-50",
             )}
           >
             {renderStar(star)}
           </button>
         ))}
       </div>
-      <div className="flex items-center justify-center sm:justify-between gap-2 flex-wrap">
-        <span className="text-xl sm:text-2xl font-bold text-foreground">
-          {value > 0 ? value : "—"}
-          <span className="text-sm sm:text-base font-normal text-muted-foreground">/5</span>
-        </span>
-        {value > 0 && (
-          <span className="text-xs sm:text-sm text-muted-foreground">
-            {value <= 1
-              ? "Poor"
-              : value <= 2
-                ? "Below Average"
-                : value <= 3
-                  ? "Average"
-                  : value <= 4
-                    ? "Great"
-                    : "Masterpiece"}
+      {!hideValue && (
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          <span className="text-xl sm:text-2xl font-bold text-foreground">
+            {value > 0 ? value : "—"}
+            <span className="text-sm sm:text-base font-normal text-muted-foreground">/5</span>
           </span>
-        )}
-      </div>
+          {value > 0 && (
+            <span className="text-xs sm:text-sm text-muted-foreground">
+              {value <= 1
+                ? "Poor"
+                : value <= 2
+                  ? "Below Average"
+                  : value <= 3
+                    ? "Average"
+                    : value <= 4
+                      ? "Great"
+                      : "Masterpiece"}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
