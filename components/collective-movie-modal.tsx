@@ -32,6 +32,19 @@ type Props = {
   onClose: () => void
 }
 
+async function safeJsonParse(response: Response) {
+  const text = await response.text()
+  if (!text || text.trim() === "") {
+    return null
+  }
+  try {
+    return JSON.parse(text)
+  } catch (e) {
+    console.error("Failed to parse JSON:", text.substring(0, 100))
+    return null
+  }
+}
+
 export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
   const [ratings, setRatings] = useState<MovieRating[]>([])
   const [loading, setLoading] = useState(false)
@@ -62,12 +75,12 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
       setLoading(true)
 
       Promise.all([
-        fetch(`/api/collectives/${collectiveId}/movie/${movie.tmdb_id}`).then((res) => res.json()),
-        fetch(`/api/ratings?tmdbId=${movie.tmdb_id}`).then((res) => res.json()),
+        fetch(`/api/collectives/${collectiveId}/movie/${movie.tmdb_id}`).then(safeJsonParse),
+        fetch(`/api/ratings?tmdbId=${movie.tmdb_id}`).then(safeJsonParse),
       ])
         .then(([collectiveData, userRatingData]) => {
-          setRatings(collectiveData.ratings || [])
-          if (userRatingData.userRating) {
+          setRatings(collectiveData?.ratings || [])
+          if (userRatingData?.userRating) {
             setUserRating(userRatingData.userRating.score)
             setHasExistingRating(true)
             setExistingBreakdown({
@@ -102,13 +115,13 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
         }),
       })
 
-      if (!response.ok) throw new Error("Failed to save rating")
+      if (!response.ok) {
+        const errorData = await safeJsonParse(response)
+        throw new Error(errorData?.error || "Failed to save rating")
+      }
 
-      // Refresh the collective ratings list
-      const collectiveData = await fetch(`/api/collectives/${collectiveId}/movie/${movie.tmdb_id}`).then((res) =>
-        res.json(),
-      )
-      setRatings(collectiveData.ratings || [])
+      const collectiveData = await fetch(`/api/collectives/${collectiveId}/movie/${movie.tmdb_id}`).then(safeJsonParse)
+      setRatings(collectiveData?.ratings || [])
       setHasExistingRating(true)
       setRatingSaved(true)
       setShowBreakdownFlow(true)
@@ -122,12 +135,9 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
 
   const handleBreakdownComplete = async () => {
     setShowBreakdownFlow(false)
-    // Refresh ratings to show updated breakdown
     if (movie) {
-      const collectiveData = await fetch(`/api/collectives/${collectiveId}/movie/${movie.tmdb_id}`).then((res) =>
-        res.json(),
-      )
-      setRatings(collectiveData.ratings || [])
+      const collectiveData = await fetch(`/api/collectives/${collectiveId}/movie/${movie.tmdb_id}`).then(safeJsonParse)
+      setRatings(collectiveData?.ratings || [])
     }
   }
 

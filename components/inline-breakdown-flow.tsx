@@ -61,12 +61,25 @@ export function InlineBreakdownFlow({
   const [isLoading, setIsLoading] = useState(true)
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  async function safeJsonParse(response: Response) {
+    const text = await response.text()
+    if (!text || text.trim() === "") {
+      return null
+    }
+    try {
+      return JSON.parse(text)
+    } catch (e) {
+      console.error("Failed to parse JSON:", text.substring(0, 100))
+      return null
+    }
+  }
+
   useEffect(() => {
     async function fetchDimensions() {
       try {
         const res = await fetch("/api/dimensions")
-        if (res.ok) {
-          const data = await res.json()
+        const data = await safeJsonParse(res)
+        if (data) {
           setDimensions(data.dimensions || [])
 
           const sliders = (data.dimensions || []).filter((d: RatingDimension) => d.uiType === "slider")
@@ -152,7 +165,7 @@ export function InlineBreakdownFlow({
         dimensionTags[tagDimension.key] = selectedTags
       }
 
-      await fetch("/api/ratings/breakdown", {
+      const response = await fetch("/api/ratings/breakdown", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -169,6 +182,11 @@ export function InlineBreakdownFlow({
           dimensionTags: Object.keys(dimensionTags).length > 0 ? dimensionTags : undefined,
         }),
       })
+
+      if (!response.ok) {
+        const errorData = await safeJsonParse(response)
+        throw new Error(errorData?.error || "Failed to save breakdown")
+      }
 
       setIsComplete(true)
       if (idleTimerRef.current) {
