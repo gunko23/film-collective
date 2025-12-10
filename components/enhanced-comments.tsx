@@ -84,6 +84,21 @@ async function searchGifs(query: string): Promise<{ url: string; preview: string
   }
 }
 
+// Safe date formatting helper function
+function formatCommentTime(dateString: string | undefined | null): string {
+  if (!dateString) return ""
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return ""
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  } catch {
+    return ""
+  }
+}
+
 export function EnhancedComments({
   ratingId,
   currentUserId,
@@ -294,6 +309,8 @@ export function EnhancedComments({
     setSendingMessage(true)
     setLoading(true)
 
+    const currentTimestamp = new Date().toISOString()
+
     // Optimistic update
     const optimisticComment: Comment = {
       id: `temp-${Date.now()}`,
@@ -301,7 +318,7 @@ export function EnhancedComments({
       gif_url: selectedGif,
       user_id: currentUserId,
       user_name: currentUserName || "Unknown",
-      created_at: new Date().toISOString(),
+      created_at: currentTimestamp,
       reactions: [],
     }
 
@@ -336,7 +353,17 @@ export function EnhancedComments({
       if (res.ok) {
         const savedComment = await res.json()
         console.log("[v0] EnhancedComments - Comment saved:", savedComment)
-        setComments((prev) => prev.map((c) => (c.id === optimisticComment.id ? { ...savedComment, reactions: [] } : c)))
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === optimisticComment.id
+              ? {
+                  ...savedComment,
+                  created_at: savedComment.created_at || currentTimestamp,
+                  reactions: [],
+                }
+              : c,
+          ),
+        )
         onCommentAdded?.()
       } else {
         const errorText = await res.text()
@@ -554,10 +581,7 @@ export function EnhancedComments({
                           )}
                         >
                           <span className={cn("text-[9px]", isOwnComment ? "text-zinc-400" : "text-muted-foreground")}>
-                            {new Date(comment.created_at).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            {formatCommentTime(comment.created_at)}
                           </span>
                           {isOwnComment && (
                             <span className="text-zinc-400 text-[9px]">

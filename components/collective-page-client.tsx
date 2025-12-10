@@ -216,14 +216,19 @@ export function CollectivePageClient({
 
   const totalFeedPages = Math.ceil(feedTotal / FEED_LIMIT)
 
-  const getMediaLink = (item: FeedItemWithEngagement) => {
-    if (item.media_type === "movie") {
-      return `/movies/${item.tmdb_id}`
-    } else if (item.media_type === "tv") {
-      return `/tv/${item.tv_show_id}`
-    } else {
-      return `/tv/${item.tv_show_id}/season/${item.season_number}`
+  const getActivityConversationLink = (item: any) => {
+    if (!item.tmdb_id) {
+      // Fallback to old rating-based link if tmdb_id not available
+      return `/collectives/${collectiveId}/conversation/${item.rating_id}`
     }
+    const mediaType = item.media_type === "movie" ? "movie" : "tv"
+    return `/collectives/${collectiveId}/movie/${item.tmdb_id}/conversation?type=${mediaType}`
+  }
+
+  const getConversationLink = (item: FeedItemWithEngagement) => {
+    const mediaType = item.media_type === "movie" ? "movie" : "tv"
+    const tmdbId = item.media_type === "movie" ? item.tmdb_id : item.tv_show_id
+    return `/collectives/${collectiveId}/movie/${tmdbId}/conversation?type=${mediaType}`
   }
 
   const getMediaIcon = (type: string) => {
@@ -482,7 +487,7 @@ export function CollectivePageClient({
                 {recentActivity.map((item) => (
                   <Link
                     key={item.id}
-                    href={`/collectives/${collectiveId}/conversation/${item.rating_id}`}
+                    href={getActivityConversationLink(item)}
                     className="flex items-start gap-3 p-3 rounded-xl bg-card/50 border border-border/50 hover:border-accent/30 transition-all group"
                   >
                     {/* User Avatar */}
@@ -655,7 +660,7 @@ export function CollectivePageClient({
                             )}
                           </button>
                         ) : (
-                          <Link href={getMediaLink(item)} className="flex-shrink-0">
+                          <Link href={getConversationLink(item)} className="flex-shrink-0">
                             {posterUrl ? (
                               <Image
                                 src={posterUrl || "/placeholder.svg"}
@@ -692,7 +697,7 @@ export function CollectivePageClient({
                               <h3 className="font-semibold text-foreground truncate">{item.title}</h3>
                             </button>
                           ) : (
-                            <Link href={getMediaLink(item)} className="hover:text-accent transition-colors">
+                            <Link href={getConversationLink(item)} className="hover:text-accent transition-colors">
                               <h3 className="font-semibold text-foreground truncate">{item.title}</h3>
                             </Link>
                           )}

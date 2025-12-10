@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { X, Star, Film, ExternalLink, UserIcon } from "lucide-react"
+import { X, Star, Film, ExternalLink, UserIcon, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StarRating } from "@/components/star-rating"
 import { InlineBreakdownFlow } from "@/components/inline-breakdown-flow"
@@ -302,7 +302,13 @@ export function CollectiveMovieModal({ movie, collectiveId, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border shrink-0">
+        <div className="p-4 border-t border-border shrink-0 space-y-2">
+          <Link href={`/collectives/${collectiveId}/movie/${movie.tmdb_id}/conversation`} onClick={onClose}>
+            <Button variant="default" className="w-full gap-2 mb-1.5">
+              <MessageCircle className="h-4 w-4" />
+              Open Conversation
+            </Button>
+          </Link>
           <Link href={`/movies/${movie.tmdb_id}`} onClick={onClose}>
             <Button variant="outline" className="w-full gap-2 bg-transparent">
               <ExternalLink className="h-4 w-4" />

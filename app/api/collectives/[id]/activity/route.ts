@@ -20,6 +20,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         u.name as user_name,
         u.avatar_url as user_avatar,
         'comment' as activity_type,
+        NULL as reaction_type,
         -- Get the rating owner info
         COALESCE(
           (SELECT u2.name FROM users u2 
@@ -44,6 +45,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
            JOIN user_episode_ratings uer ON uer.episode_id = te.id 
            WHERE uer.id = fc.rating_id)
         ) as media_title,
+        -- Get tmdb_id for linking to movie conversation
+        COALESCE(
+          (SELECT m.tmdb_id FROM movies m 
+           JOIN user_movie_ratings umr ON umr.movie_id = m.id 
+           WHERE umr.id = fc.rating_id),
+          (SELECT ts.id FROM tv_shows ts 
+           JOIN user_tv_show_ratings utsr ON utsr.tv_show_id = ts.id 
+           WHERE utsr.id = fc.rating_id),
+          (SELECT te.tv_show_id FROM tv_episodes te 
+           JOIN user_episode_ratings uer ON uer.episode_id = te.id 
+           WHERE uer.id = fc.rating_id)
+        )::int as tmdb_id,
         -- Get media type
         CASE 
           WHEN EXISTS (SELECT 1 FROM user_movie_ratings WHERE id = fc.rating_id) THEN 'movie'
@@ -61,13 +74,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const reactions = await sql`
       SELECT 
         fr.id,
-        fr.reaction_type,
+        NULL as content,
         fr.created_at,
         fr.rating_id,
         fr.user_id,
         u.name as user_name,
         u.avatar_url as user_avatar,
         'reaction' as activity_type,
+        fr.reaction_type,
         -- Get the rating owner info
         COALESCE(
           (SELECT u2.name FROM users u2 
@@ -92,6 +106,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
            JOIN user_episode_ratings uer ON uer.episode_id = te.id 
            WHERE uer.id = fr.rating_id)
         ) as media_title,
+        -- Get tmdb_id for linking to movie conversation
+        COALESCE(
+          (SELECT m.tmdb_id FROM movies m 
+           JOIN user_movie_ratings umr ON umr.movie_id = m.id 
+           WHERE umr.id = fr.rating_id),
+          (SELECT ts.id FROM tv_shows ts 
+           JOIN user_tv_show_ratings utsr ON utsr.tv_show_id = ts.id 
+           WHERE utsr.id = fr.rating_id),
+          (SELECT te.tv_show_id FROM tv_episodes te 
+           JOIN user_episode_ratings uer ON uer.episode_id = te.id 
+           WHERE uer.id = fr.rating_id)
+        )::int as tmdb_id,
         -- Get media type
         CASE 
           WHEN EXISTS (SELECT 1 FROM user_movie_ratings WHERE id = fr.rating_id) THEN 'movie'
