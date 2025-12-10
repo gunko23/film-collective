@@ -366,16 +366,11 @@ export function MovieConversationThread({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Messages container */}
-      <div
-        ref={messagesContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-2 py-4 space-y-3"
-        style={{ minHeight: 0 }}
-      >
+      <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
         {comments.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center h-full min-h-[200px]">
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-zinc-800/50 flex items-center justify-center mx-auto mb-4">
                 <span className="text-3xl">💬</span>
@@ -539,9 +534,9 @@ export function MovieConversationThread({
       </div>
 
       {/* Input bar */}
-      <div className="flex-shrink-0 p-3 border-t border-border/30 bg-background/80 backdrop-blur-sm">
-        <form onSubmit={handleSubmit} className="w-full overflow-hidden">
-          <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all min-w-0">
+      <div className="flex-shrink-0 p-3 border-t border-border/30 bg-background/95 backdrop-blur-sm">
+        <form onSubmit={handleSubmit} className="w-full">
+          <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
             {/* Emoji/GIF button */}
             <div className="relative" ref={pickerRef}>
               <button
@@ -635,8 +630,7 @@ export function MovieConversationThread({
               }}
               placeholder="Type a message..."
               rows={1}
-              className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none resize-none max-h-24 overflow-y-auto min-w-0"
-              style={{ height: "auto" }}
+              className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none resize-none max-h-24 overflow-y-auto min-w-0 py-1 leading-5"
             />
 
             {/* Send button */}

@@ -304,8 +304,6 @@ export function EnhancedComments({
     e.preventDefault()
     if ((!newComment.trim() && !selectedGif) || loading) return
 
-    console.log("[v0] EnhancedComments - Submitting comment:", { newComment, selectedGif })
-
     setSendingMessage(true)
     setLoading(true)
 
@@ -332,12 +330,9 @@ export function EnhancedComments({
     // Reset textarea height
     if (commentInputRef.current) {
       commentInputRef.current.style.height = "auto"
-      // Keep focus on input to prevent keyboard from closing
-      commentInputRef.current.focus()
     }
 
     try {
-      console.log("[v0] EnhancedComments - Making API call")
       const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -348,11 +343,8 @@ export function EnhancedComments({
         }),
       })
 
-      console.log("[v0] EnhancedComments - API response status:", res.status)
-
       if (res.ok) {
         const savedComment = await res.json()
-        console.log("[v0] EnhancedComments - Comment saved:", savedComment)
         setComments((prev) =>
           prev.map((c) =>
             c.id === optimisticComment.id
@@ -366,13 +358,10 @@ export function EnhancedComments({
         )
         onCommentAdded?.()
       } else {
-        const errorText = await res.text()
-        console.error("[v0] EnhancedComments - Failed to save comment:", errorText)
-        setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id))
+        console.error("Failed to save comment, status:", res.status)
       }
     } catch (error) {
-      console.error("[v0] EnhancedComments - Error posting comment:", error)
-      setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id))
+      console.error("Error posting comment:", error)
     } finally {
       setLoading(false)
       setTimeout(() => setSendingMessage(false), 200)
@@ -405,7 +394,7 @@ export function EnhancedComments({
   const displayedComments = hasEnoughForConversation ? comments.slice(-3) : comments
 
   return (
-    <div className="mt-4 pt-4 border-t border-border/30 overflow-hidden">
+    <div className="space-y-3 overflow-hidden">
       {/* Reaction bar */}
       <div className="flex items-center gap-3 flex-wrap overflow-x-auto">
         {/* Quick reactions display */}
@@ -745,8 +734,8 @@ export function EnhancedComments({
             </div>
           )}
 
-          <form onSubmit={handleAddComment} className="flex items-end gap-2 w-full overflow-hidden">
-            <div className="flex-1 min-w-0 flex items-end gap-1 bg-muted/50 border border-border/50 rounded-2xl pl-2 pr-1 py-1 focus-within:border-blue-500/50 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-200">
+          <form onSubmit={handleAddComment} className="w-full overflow-hidden">
+            <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all min-w-0">
               <button
                 type="button"
                 onClick={() => setShowPicker(!showPicker)}
@@ -769,27 +758,19 @@ export function EnhancedComments({
                     handleAddComment(e)
                   }
                 }}
-                placeholder="Send a message..."
+                placeholder="Type a message..."
                 rows={1}
-                className="flex-1 min-w-0 w-full bg-transparent text-sm focus:outline-none py-2 resize-none overflow-y-auto"
-                style={{ maxHeight: "96px" }}
+                className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none resize-none max-h-24 overflow-y-auto min-w-0 py-1 leading-5"
               />
               <Button
                 type="submit"
                 size="icon"
                 disabled={(!newComment.trim() && !selectedGif) || loading}
-                className={cn(
-                  "flex-shrink-0 rounded-full h-9 w-9 bg-blue-600 hover:bg-blue-700 transition-all duration-200 self-end mb-0.5",
-                  sendingMessage && "scale-90",
-                )}
+                className={`h-8 w-8 rounded-full bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 flex-shrink-0 transition-all ${
+                  sendingMessage ? "scale-90" : "active:scale-95"
+                }`}
               >
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send
-                    className={cn("h-4 w-4 transition-transform", sendingMessage && "translate-x-1 -translate-y-1")}
-                  />
-                )}
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
           </form>

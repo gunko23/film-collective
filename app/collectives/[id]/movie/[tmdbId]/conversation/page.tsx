@@ -187,7 +187,7 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
   const mediaLink = mediaType === "tv" ? `/tv/${mediaInfo.tmdb_id}` : `/movies/${mediaInfo.tmdb_id}`
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
       <Header />
 
       {/* Background effects */}
@@ -196,10 +196,10 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
       </div>
 
-      <main className="relative z-10 pt-20 flex-1 flex flex-col min-h-0">
-        <div className="mx-auto max-w-2xl px-4 w-full flex-1 flex flex-col min-h-0">
-          {/* Sticky header */}
-          <div className="flex-shrink-0 flex items-center gap-4 py-4 bg-background/80 backdrop-blur-sm">
+      <main className="relative z-10 pt-20 flex-1 flex flex-col overflow-hidden">
+        <div className="mx-auto max-w-2xl px-4 w-full flex-1 flex flex-col overflow-hidden">
+          {/* Sticky header with back button */}
+          <div className="flex-shrink-0 flex items-center gap-4 py-3 bg-background/95 backdrop-blur-sm border-b border-border/30">
             <Link href={`/collectives/${collectiveId}`} className="p-2 rounded-full hover:bg-muted transition-colors">
               <ArrowLeft className="h-5 w-5" />
             </Link>
@@ -213,66 +213,66 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
           </div>
 
           {/* Sticky media card */}
-          <div className="flex-shrink-0 bg-card/50 border border-border/50 rounded-xl p-4 mb-2 backdrop-blur-sm">
-            <div className="flex gap-4">
+          <div className="flex-shrink-0 bg-card/50 border border-border/50 rounded-xl p-3 my-2 backdrop-blur-sm">
+            <div className="flex gap-3">
               <Link href={mediaLink} className="flex-shrink-0">
                 {posterUrl ? (
                   <Image
                     src={posterUrl || "/placeholder.svg"}
                     alt={mediaInfo.title}
-                    width={60}
-                    height={90}
+                    width={50}
+                    height={75}
                     className="rounded-lg object-cover"
                   />
                 ) : (
-                  <div className="w-[60px] h-[90px] bg-muted rounded-lg flex items-center justify-center">
+                  <div className="w-[50px] h-[75px] bg-muted rounded-lg flex items-center justify-center">
                     <span className="text-xs text-muted-foreground">No image</span>
                   </div>
                 )}
               </Link>
               <div className="flex-1 min-w-0">
                 <Link href={mediaLink} className="hover:text-accent transition-colors">
-                  <h2 className="font-semibold text-foreground">{mediaInfo.title}</h2>
+                  <h2 className="font-semibold text-foreground text-sm">{mediaInfo.title}</h2>
                 </Link>
                 {mediaInfo.release_date && (
-                  <p className="text-sm text-muted-foreground">{new Date(mediaInfo.release_date).getFullYear()}</p>
+                  <p className="text-xs text-muted-foreground">{new Date(mediaInfo.release_date).getFullYear()}</p>
                 )}
 
                 {/* Collective rating stats */}
                 {ratingStats.rating_count > 0 ? (
-                  <div className="mt-2">
-                    <div className="flex items-center gap-2">
-                      <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                      <span className="font-semibold text-foreground">{ratingStats.avg_score?.toFixed(1)}</span>
-                      <span className="text-sm text-muted-foreground">
+                  <div className="mt-1">
+                    <div className="flex items-center gap-1.5">
+                      <Star className="h-3.5 w-3.5 text-yellow-400 fill-yellow-400" />
+                      <span className="font-semibold text-foreground text-sm">{ratingStats.avg_score?.toFixed(1)}</span>
+                      <span className="text-xs text-muted-foreground">
                         ({ratingStats.rating_count} {ratingStats.rating_count === 1 ? "rating" : "ratings"})
                       </span>
                     </div>
-                    <div className="flex -space-x-2 mt-2">
+                    <div className="flex -space-x-1.5 mt-1.5">
                       {ratingStats.raters.slice(0, 5).map((rater, i) => (
                         <div
                           key={i}
-                          className="h-6 w-6 rounded-full bg-accent/20 flex items-center justify-center overflow-hidden border-2 border-background"
+                          className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center overflow-hidden border-2 border-background"
                           title={`${rater.user_name}: ${(rater.score / 20).toFixed(1)}`}
                         >
                           {rater.user_avatar ? (
                             <Image
                               src={rater.user_avatar || "/placeholder.svg"}
                               alt={rater.user_name}
-                              width={24}
-                              height={24}
+                              width={20}
+                              height={20}
                               className="object-cover"
                             />
                           ) : (
-                            <span className="text-[8px] font-medium text-accent">
+                            <span className="text-[7px] font-medium text-accent">
                               {rater.user_name[0].toUpperCase()}
                             </span>
                           )}
                         </div>
                       ))}
                       {ratingStats.rating_count > 5 && (
-                        <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center border-2 border-background">
-                          <span className="text-[8px] font-medium text-muted-foreground">
+                        <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center border-2 border-background">
+                          <span className="text-[7px] font-medium text-muted-foreground">
                             +{ratingStats.rating_count - 5}
                           </span>
                         </div>
@@ -280,14 +280,14 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground mt-2">No ratings yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">No ratings yet</p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Conversation thread */}
-          <div className="flex-1 min-h-0 flex flex-col">
+          {/* Conversation thread - takes remaining space */}
+          <div className="flex-1 overflow-hidden">
             <MovieConversationThread
               collectiveId={collectiveId}
               tmdbId={Number.parseInt(tmdbId)}
