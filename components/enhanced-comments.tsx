@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Send, ImageIcon, X, MessageCircle, ChevronRight, Loader2, Smile } from "lucide-react"
+import { Send, ImageIcon, X, MessageCircle, ChevronRight, Loader2, Smile, CheckCheck } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -62,6 +62,8 @@ type Props = {
   mediaTitle?: string
   initialCommentCount?: number
   mediaType?: "movie" | "tv" | "episode"
+  currentUserName?: string
+  onCommentAdded?: () => void
 }
 
 async function searchGifs(query: string): Promise<{ url: string; preview: string }[]> {
@@ -89,6 +91,8 @@ export function EnhancedComments({
   mediaTitle,
   initialCommentCount = 0,
   mediaType,
+  currentUserName,
+  onCommentAdded,
 }: Props) {
   const [reactions, setReactions] = useState<Reaction[]>([])
   const [comments, setComments] = useState<Comment[]>([])
@@ -101,11 +105,11 @@ export function EnhancedComments({
   const [gifs, setGifs] = useState<{ url: string; preview: string }[]>([])
   const [selectedGif, setSelectedGif] = useState<string | null>(null)
   const [searchingGifs, setSearchingGifs] = useState(false)
-  const [showReactionPicker, setShowReactionPicker] = useState(false)
-  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
-  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null)
   const [showCommentReactions, setShowCommentReactions] = useState<string | null>(null)
   const [sendingMessage, setSendingMessage] = useState(false)
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
+  const [showReactionPicker, setShowReactionPicker] = useState(false)
+  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null)
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastTypingUpdateRef = useRef<number>(0)
@@ -283,57 +287,71 @@ export function EnhancedComments({
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("[v0] EnhancedComments handleAddComment called", { newComment, selectedGif, loading })
-    if ((!newComment.trim() && !selectedGif) || loading) {
-      console.log("[v0] EnhancedComments early return - empty or loading")
-      return
-    }
+    if ((!newComment.trim() && !selectedGif) || loading) return
 
-    updateTypingIndicator(false)
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current)
-    }
+    console.log("[v0] EnhancedComments - Submitting comment:", { newComment, selectedGif })
 
-    setLoading(true)
     setSendingMessage(true)
-    setShowPicker(false)
+    setLoading(true)
+
+    // Optimistic update
+    const optimisticComment: Comment = {
+      id: `temp-${Date.now()}`,
+      content: newComment.trim(),
+      gif_url: selectedGif,
+      user_id: currentUserId,
+      user_name: currentUserName || "Unknown",
+      created_at: new Date().toISOString(),
+      reactions: [],
+    }
+
+    setComments((prev) => [...prev, optimisticComment])
+
+    const messageContent = newComment.trim()
+    const gifContent = selectedGif
+    setNewComment("")
+    setSelectedGif(null)
+
+    // Reset textarea height
+    if (commentInputRef.current) {
+      commentInputRef.current.style.height = "auto"
+      // Keep focus on input to prevent keyboard from closing
+      commentInputRef.current.focus()
+    }
 
     try {
-      console.log("[v0] Sending comment to API", {
-        collectiveId,
-        ratingId,
-        content: newComment.trim(),
-        gifUrl: selectedGif,
-        mediaType,
-      })
+      console.log("[v0] EnhancedComments - Making API call")
       const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: newComment.trim(),
-          gifUrl: selectedGif,
+          content: messageContent,
+          gifUrl: gifContent,
           mediaType,
         }),
       })
 
-      console.log("[v0] API response status:", res.status)
+      console.log("[v0] EnhancedComments - API response status:", res.status)
+
       if (res.ok) {
-        const data = await res.json()
-        console.log("[v0] Comment saved successfully", data)
-        // Add with animation flag
-        setComments((prev) => [...prev, { ...data.comment, isNew: true }])
-        setNewComment("")
-        setSelectedGif(null)
+        const savedComment = await res.json()
+        console.log("[v0] EnhancedComments - Comment saved:", savedComment)
+        setComments((prev) => prev.map((c) => (c.id === optimisticComment.id ? { ...savedComment, reactions: [] } : c)))
+        onCommentAdded?.()
       } else {
         const errorText = await res.text()
-        console.log("[v0] API error:", errorText)
+        console.error("[v0] EnhancedComments - Failed to save comment:", errorText)
+        setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id))
       }
     } catch (error) {
-      console.log("[v0] Exception sending comment:", error)
+      console.error("[v0] EnhancedComments - Error posting comment:", error)
+      setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id))
     } finally {
       setLoading(false)
-      // Delay removing sending state for animation
-      setTimeout(() => setSendingMessage(false), 300)
+      setTimeout(() => setSendingMessage(false), 200)
+      requestAnimationFrame(() => {
+        commentInputRef.current?.focus()
+      })
     }
   }
 
@@ -399,14 +417,14 @@ export function EnhancedComments({
 
           {/* Reaction picker popup */}
           {showReactionPicker && (
-            <div className="absolute bottom-full left-0 mb-2 p-2 bg-card/95 backdrop-blur-sm border border-border/50 rounded-2xl shadow-2xl flex gap-1 z-50 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200">
+            <div className="absolute bottom-full left-0 mb-2 p-1.5 bg-card/95 backdrop-blur-sm border border-border/50 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 grid grid-cols-5 gap-0.5 w-[150px]">
               {EMOJI_REACTIONS.map((reaction) => (
                 <button
                   key={reaction.type}
                   onClick={() => handleReaction(reaction.type)}
                   className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all duration-200 hover:scale-125 hover:bg-muted",
-                    userReactions.includes(reaction.type) && "bg-blue-500/20",
+                    "w-7 h-7 rounded-lg flex items-center justify-center text-base transition-all duration-200 hover:scale-110 hover:bg-muted",
+                    userReactions.includes(reaction.type) && "bg-zinc-500/20",
                   )}
                   title={reaction.label}
                 >
@@ -503,15 +521,17 @@ export function EnhancedComments({
                     <div className="relative max-w-[75%]">
                       <div
                         className={cn(
-                          "rounded-2xl p-3 transition-all duration-200",
+                          "rounded-2xl px-2.5 py-1.5 transition-all duration-200",
                           isOwnComment
-                            ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-md shadow-lg shadow-blue-500/20"
+                            ? "bg-gradient-to-br from-zinc-600 to-zinc-700 text-white rounded-br-md shadow-md shadow-zinc-900/20"
                             : "bg-muted/80 text-foreground rounded-bl-md shadow-sm",
                         )}
                       >
-                        {!isOwnComment && <p className="text-xs font-semibold mb-1 opacity-70">{comment.user_name}</p>}
+                        {!isOwnComment && (
+                          <p className="text-[10px] font-semibold mb-0.5 opacity-70">{comment.user_name}</p>
+                        )}
                         {comment.gif_url && (
-                          <div className="mb-2 rounded-lg overflow-hidden">
+                          <div className="mb-1.5 rounded-lg overflow-hidden">
                             <Image
                               src={comment.gif_url || "/placeholder.svg"}
                               alt="GIF"
@@ -522,78 +542,30 @@ export function EnhancedComments({
                             />
                           </div>
                         )}
-                        {comment.content && <p className="text-sm leading-relaxed">{comment.content}</p>}
-                        <p className={cn("text-[10px] mt-1", isOwnComment ? "opacity-60" : "text-muted-foreground")}>
-                          {new Date(comment.created_at).toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      </div>
-
-                      {/* Comment reactions display */}
-                      {Object.keys(commentReactionCounts).length > 0 && (
+                        {comment.content && (
+                          <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                            {comment.content}
+                          </p>
+                        )}
                         <div
                           className={cn(
-                            "absolute -bottom-2 flex gap-0.5 px-1.5 py-0.5 bg-card/95 backdrop-blur-sm rounded-full border border-border/50 shadow-sm",
-                            isOwnComment ? "left-2" : "right-2",
+                            "flex items-center gap-1 mt-0.5",
+                            isOwnComment ? "justify-end" : "justify-start",
                           )}
                         >
-                          {Object.entries(commentReactionCounts)
-                            .slice(0, 3)
-                            .map(([type, count]) => {
-                              const emoji = EMOJI_REACTIONS.find((r) => r.type === type)?.emoji || "👍"
-                              return (
-                                <span key={type} className="text-xs flex items-center gap-0.5">
-                                  {emoji}
-                                  {count > 1 && <span className="text-[10px] text-muted-foreground">{count}</span>}
-                                </span>
-                              )
+                          <span className={cn("text-[9px]", isOwnComment ? "text-zinc-400" : "text-muted-foreground")}>
+                            {new Date(comment.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
                             })}
-                        </div>
-                      )}
-
-                      {/* Reaction button on hover */}
-                      {hoveredCommentId === comment.id && (
-                        <div
-                          className={cn(
-                            "absolute top-1/2 -translate-y-1/2 z-10",
-                            isOwnComment ? "-left-8" : "-right-8",
-                          )}
-                        >
-                          <button
-                            onClick={() =>
-                              setShowCommentReactions(showCommentReactions === comment.id ? null : comment.id)
-                            }
-                            className="w-6 h-6 rounded-full bg-card/95 backdrop-blur-sm border border-border/50 shadow-sm flex items-center justify-center text-xs hover:scale-110 transition-transform"
-                          >
-                            😊
-                          </button>
-
-                          {/* Comment reaction picker */}
-                          {showCommentReactions === comment.id && (
-                            <div
-                              className={cn(
-                                "absolute top-full mt-1 p-1.5 bg-card/95 backdrop-blur-sm border border-border/50 rounded-xl shadow-xl flex gap-0.5 z-50 animate-in fade-in zoom-in-95 duration-150",
-                                isOwnComment ? "right-0" : "left-0",
-                              )}
-                            >
-                              {EMOJI_REACTIONS.slice(0, 6).map((reaction) => (
-                                <button
-                                  key={reaction.type}
-                                  onClick={() => handleCommentReaction(comment.id, reaction.type)}
-                                  className={cn(
-                                    "w-8 h-8 rounded-lg flex items-center justify-center text-base hover:scale-125 hover:bg-muted transition-all",
-                                    userCommentReactions.includes(reaction.type) && "bg-blue-500/20",
-                                  )}
-                                >
-                                  {reaction.emoji}
-                                </button>
-                              ))}
-                            </div>
+                          </span>
+                          {isOwnComment && (
+                            <span className="text-zinc-400 text-[9px]">
+                              <CheckCheck className="h-2.5 w-2.5 inline" />
+                            </span>
                           )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 )
@@ -691,10 +663,7 @@ export function EnhancedComments({
                     <input
                       type="text"
                       value={gifSearch}
-                      onChange={(e) => {
-                        setGifSearch(e.target.value)
-                        searchGifs(e.target.value)
-                      }}
+                      onChange={(e) => setGifSearch(e.target.value)}
                       placeholder="Search GIFs..."
                       className="w-full bg-muted/50 border border-border/50 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all"
                     />

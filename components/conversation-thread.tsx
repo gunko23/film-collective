@@ -7,18 +7,92 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-const EMOJI_REACTIONS = [
-  { emoji: "👍", type: "thumbsup", label: "Like" },
-  { emoji: "❤️", type: "heart", label: "Love" },
-  { emoji: "😂", type: "laugh", label: "Haha" },
-  { emoji: "🔥", type: "fire", label: "Fire" },
-  { emoji: "😢", type: "sad", label: "Sad" },
-  { emoji: "🎉", type: "celebrate", label: "Celebrate" },
-  { emoji: "😍", type: "heart_eyes", label: "Heart Eyes" },
-  { emoji: "🤯", type: "mind_blown", label: "Mind Blown" },
+// TODO: These should be fetched dynamically or from a config
+const MESSAGE_REACTIONS = ["👍", "❤️", "😂", "🔥", "😢", "🎉", "😍", "🤯"]
+const EMOJI_LIST = [
+  "😀",
+  "😂",
+  "❤️",
+  "🔥",
+  "👍",
+  "🎬",
+  "🍿",
+  "⭐",
+  "😍",
+  "🤔",
+  "😭",
+  "🙌",
+  "💀",
+  "😅",
+  "🥹",
+  "✨",
+  "🚀",
+  "💡",
+  "🎉",
+  "💯",
+  "🙏",
+  "👀",
+  "🤯",
+  "🤷",
+  "🙄",
+  "👋",
+  "👏",
+  "💖",
+  "💔",
+  "💯",
+  "💯",
+  "💯",
 ]
-
-const QUICK_EMOJIS = ["😀", "😂", "❤️", "🔥", "👍", "🎬", "🍿", "⭐", "😍", "🤔", "😭", "🙌", "💀", "😅", "🥹", "✨"]
+const GIF_PREVIEWS = [
+  {
+    id: "1",
+    title: "Celebration",
+    url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmJmNGFhMmIxN2VlYzIxNWE2YTk3NDhkMTJmNGRiYzY4N2IwMWQyYiZlcD12MV9pbnRlcm5hbCZjdD1n/3o7TKs6T66O3Zt8gTK/giphy.gif",
+    preview:
+      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmJmNGFhMmIxN2VlYzIxNWE2YTk3NDhkMTJmNGRiYzY4N2IwMWQyYiZlcD12MV9pbnRlcm5hbCZjdD1n/3o7TKs6T66O3Zt8gTK/giphy.gif",
+    keywords: ["celebrate", "party", "yay"],
+  },
+  {
+    id: "2",
+    title: "Applause",
+    url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNDRhYTZjNjQwMjEwZWY3OTRkMWMwMzYxNjdlYzJlODc3ZGNjNDg4MCZlcD12MV9pbnRlcm5hbCZjdD1n/3ov9jWu7aH1M0BvUHu/giphy.gif",
+    preview:
+      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNDRhYTZjNjQwMjEwZWY3OTRkMWMwMzYxNjdlYzJlODc3ZGNjNDg4MCZlcD12MV9pbnRlcm5hbCZjdD1n/3ov9jWu7aH1M0BvUHu/giphy.gif",
+    keywords: ["clap", "applause", "yay"],
+  },
+  {
+    id: "3",
+    title: "Thinking",
+    url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZWI5NDdmZTk0ZTBlZTVmZTI2NjgxMWYyODc3ZjcwZmNhOGY4NTBiMCZlcD12MV9pbnRlcm5hbCZjdD1n/Tg0mP78LwVjKk/giphy.gif",
+    preview:
+      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZWI5NDdmZTk0ZTBlZTVmZTI2NjgxMWYyODc3ZjcwZmNhOGY4NTBiMCZlcD12MV9pbnRlcm5hbCZjdD1n/Tg0mP78LwVjKk/giphy.gif",
+    keywords: ["think", "thinking", "hmm"],
+  },
+  {
+    id: "4",
+    title: "Laughing",
+    url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMjhmNTcxMmRiODhiYzgwNGFjMDViZGE1NDZmN2I1YzI3YzQyODk3OCZlcD12MV9pbnRlcm5hbCZjdD1n/3oKIPn3K0wXJjW3W9y/giphy.gif",
+    preview:
+      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMjhmNTcxMmRiODhiYzgwNGFjMDViZGE1NDZmN2I1YzI3YzQyODk3OCZlcD12MV9pbnRlcm5hbCZjdD1n/3oKIPn3K0wXJjW3W9y/giphy.gif",
+    keywords: ["laugh", "lol", "funny"],
+  },
+  {
+    id: "5",
+    title: "Mind Blown",
+    url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZTE2ZWRiYjE1YTA1NjIyYTAzNDc3MDZjZjUyYjZkZTkxNjAwZjQ1OSZlcD12MV9pbnRlcm5hbCZjdD1n/1guRptf8fTKhF1WTRo/giphy.gif",
+    preview:
+      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZTE2ZWRiYjE1YTA1NjIyYTAzNDc3MDZjZjUyYjZkZTkxNjAwZjQ1OSZlcD12MV9pbnRlcm5hbCZjdD1n/1guRptf8fTKhF1WTRo/giphy.gif",
+    keywords: ["mind blown", "wow", "amazing"],
+  },
+  {
+    id: "6",
+    title: "Fire",
+    url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGUxN2IzNTAxZTJkMzUzYTg2MTYyZTJkOTI5Mzk3OTNiMWExZmZlYyZlcD12MV9pbnRlcm5hbCZjdD1n/3ohzdIJK1SCfH255q8/giphy.gif",
+    preview:
+      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGUxN2IzNTAxZTJkMzUzYTg2MTYyZTJkOTI5Mzk3OTNiMWExZmZlYyZlcD12MV9pbnRlcm5hbCZjdD1n/3ohzdIJK1SCfH255q8/giphy.gif",
+    keywords: ["fire", "hot", "awesome"],
+  },
+]
 
 type CommentReaction = {
   id: string
@@ -44,10 +118,12 @@ type TypingUser = {
   user_name: string
 }
 
-type Props = {
+interface ConversationThreadProps {
   ratingId: string
-  currentUserId: string
   collectiveId: string
+  currentUserId: string
+  mediaType?: "movie" | "tv"
+  initialComments?: Comment[]
 }
 
 async function searchGifs(query: string): Promise<{ url: string; preview: string }[]> {
@@ -70,28 +146,60 @@ async function searchGifs(query: string): Promise<{ url: string; preview: string
 
 type PickerTab = "emoji" | "gif"
 
-export function ConversationThread({ ratingId, currentUserId, collectiveId }: Props) {
-  const [comments, setComments] = useState<Comment[]>([])
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "🔥", "😢", "🎉", "😍", "🤯"]
+const EMOJI_REACTIONS = [
+  { type: "like", emoji: "👍", label: "Like" },
+  { type: "love", emoji: "❤️", label: "Love" },
+  { type: "funny", emoji: "😂", label: "Funny" },
+  { type: "hot", emoji: "🔥", label: "Hot" },
+  { type: "sad", emoji: "😢", label: "Sad" },
+  { type: "party", emoji: "🎉", label: "Party" },
+  { type: "love", emoji: "😍", label: "Love" },
+  { type: "amazed", emoji: "🤯", label: "Amazed" },
+]
+
+export function ConversationThread({
+  collectiveId,
+  ratingId,
+  initialComments = [],
+  currentUserId,
+  currentUserName,
+  mediaType = "movie",
+}: ConversationThreadProps) {
+  const [comments, setComments] = useState<Comment[]>(initialComments)
   const [newComment, setNewComment] = useState("")
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [showPicker, setShowPicker] = useState(false)
   const [pickerTab, setPickerTab] = useState<PickerTab>("emoji")
-  const [gifSearch, setGifSearch] = useState("")
-  const [gifs, setGifs] = useState<{ url: string; preview: string }[]>([])
+  const [gifSearchQuery, setGifSearchQuery] = useState("")
   const [selectedGif, setSelectedGif] = useState<string | null>(null)
   const [searchingGifs, setSearchingGifs] = useState(false)
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
   const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null)
-  const [showCommentReactions, setShowCommentReactions] = useState<string | null>(null)
+  const [reactingToComment, setReactingToComment] = useState<string | null>(null)
   const [sendingMessage, setSendingMessage] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastTypingUpdateRef = useRef<number>(0)
-  const [mediaType, setMediaType] = useState<string | null>(null)
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [gifs, setGifs] = useState<{ url: string; preview: string }[]>([])
 
   const normalizedCurrentUserId = currentUserId?.toLowerCase()
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setShowPicker(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
   useEffect(() => {
     async function fetchComments() {
@@ -107,8 +215,12 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
         setInitialLoading(false)
       }
     }
-    fetchComments()
-  }, [ratingId, collectiveId])
+    if (!initialComments || initialComments.length === 0) {
+      fetchComments()
+    } else {
+      setInitialLoading(false)
+    }
+  }, [ratingId, collectiveId, initialComments])
 
   useEffect(() => {
     const pollTyping = async () => {
@@ -135,23 +247,23 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
         behavior: "smooth",
       })
     }
-  }, [comments])
+  }, [comments, typingUsers])
 
   useEffect(() => {
-    if (!gifSearch.trim()) {
-      setGifs([])
+    if (!gifSearchQuery.trim()) {
+      setGifs([]) // Clear previous GIFs if search query is empty
       return
     }
 
     const timer = setTimeout(async () => {
       setSearchingGifs(true)
-      const results = await searchGifs(gifSearch)
+      const results = await searchGifs(gifSearchQuery)
       setGifs(results)
       setSearchingGifs(false)
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [gifSearch])
+  }, [gifSearchQuery])
 
   const updateTypingIndicator = useCallback(
     async (isTyping: boolean) => {
@@ -184,7 +296,7 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
 
     if (inputRef.current) {
       inputRef.current.style.height = "auto"
-      const maxHeight = 96
+      const maxHeight = 96 // Corresponds to roughly 4 lines of text
       inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, maxHeight) + "px"
     }
   }
@@ -205,11 +317,13 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
 
             const reactions = comment.reactions || []
             if (data.action === "added") {
+              // Add reaction
               return {
                 ...comment,
                 reactions: [...reactions, { id: data.id, user_id: currentUserId, reaction_type: type }],
               }
             } else {
+              // Remove reaction
               return {
                 ...comment,
                 reactions: reactions.filter(
@@ -221,7 +335,7 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
         )
       }
     } catch {}
-    setShowCommentReactions(null)
+    setReactingToComment(null) // Close the picker after reacting
   }
 
   const insertEmoji = (emoji: string) => {
@@ -231,76 +345,89 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("[v0] handleAddComment called", { newComment, selectedGif, loading })
     if ((!newComment.trim() && !selectedGif) || loading) {
-      console.log("[v0] Early return - empty comment or loading")
       return
     }
 
-    updateTypingIndicator(false)
+    console.log("[v0] Submitting comment:", { newComment, selectedGif, collectiveId, ratingId })
+
+    updateTypingIndicator(false) // Stop typing indicator when sending
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current)
     }
 
     setLoading(true)
     setSendingMessage(true)
-    setShowPicker(false)
+    setShowPicker(false) // Close picker on send
 
+    // Optimistic update
     const optimisticComment: Comment = {
       id: `temp-${Date.now()}`,
-      user_id: currentUserId,
-      user_name: "You",
       content: newComment.trim(),
-      gif_url: selectedGif || undefined,
+      gif_url: selectedGif || undefined, // Ensure gif_url is undefined if null
+      user_id: currentUserId,
+      user_name: currentUserName,
       created_at: new Date().toISOString(),
-      isNew: true,
       reactions: [],
+      isNew: true, // Mark as new for animation
     }
 
     setComments((prev) => [...prev, optimisticComment])
-    const savedComment = newComment.trim()
-    const savedGif = selectedGif
+
+    const messageContent = newComment.trim()
+    const gifContent = selectedGif
     setNewComment("")
     setSelectedGif(null)
+
+    // Reset textarea height and keep focus
     if (inputRef.current) {
       inputRef.current.style.height = "auto"
+      inputRef.current.focus() // Keep focus on input
     }
 
     try {
-      console.log("[v0] Sending comment to API", { collectiveId, ratingId, savedComment, savedGif, mediaType })
+      console.log("[v0] Making API call to:", `/api/collectives/${collectiveId}/feed/${ratingId}/comments`)
       const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: savedComment,
-          gifUrl: savedGif,
+          content: messageContent,
+          gifUrl: gifContent,
           mediaType,
         }),
       })
 
       console.log("[v0] API response status:", res.status)
+
       if (res.ok) {
-        const data = await res.json()
-        console.log("[v0] Comment saved successfully", data)
-        setComments((prev) => prev.map((c) => (c.id === optimisticComment.id ? { ...data.comment, isNew: true } : c)))
+        const savedComment = await res.json()
+        console.log("[v0] Comment saved:", savedComment)
+        // Replace optimistic comment with real one
+        setComments((prev) =>
+          prev.map((c) => (c.id === optimisticComment.id ? { ...savedComment.comment, isNew: true } : c)),
+        ) // Ensure isNew is preserved if needed for animation
       } else {
         const errorText = await res.text()
-        console.log("[v0] API error:", errorText)
+        console.error("[v0] Failed to save comment:", errorText)
+        // Remove optimistic comment on error
         setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id))
       }
     } catch (error) {
-      console.log("[v0] Exception sending comment:", error)
+      console.error("[v0] Error posting comment:", error)
       setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id))
     } finally {
       setLoading(false)
-      setTimeout(() => setSendingMessage(false), 300)
+      setTimeout(() => setSendingMessage(false), 200)
+      requestAnimationFrame(() => {
+        inputRef.current?.focus()
+      })
     }
   }
 
   const selectGif = (url: string) => {
     setSelectedGif(url)
     setShowPicker(false)
-    setGifSearch("")
+    setGifSearchQuery("") // Clear search query
     inputRef.current?.focus()
   }
 
@@ -330,8 +457,8 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-6 pb-4 scroll-smooth">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-6 scroll-smooth px-2 py-4 min-h-0">
         {Object.entries(groupedComments).map(([date, dayComments]) => (
           <div key={date}>
             <div className="flex items-center gap-4 my-6">
@@ -370,7 +497,10 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
                     onMouseEnter={() => setHoveredCommentId(comment.id)}
                     onMouseLeave={() => {
                       setHoveredCommentId(null)
-                      setShowCommentReactions(null)
+                      // Only close reaction picker if not currently reacting
+                      if (reactingToComment !== comment.id) {
+                        setReactingToComment(null)
+                      }
                     }}
                   >
                     <div className={cn("flex-shrink-0 w-8", !showAvatar && "invisible")}>
@@ -395,18 +525,20 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
 
                     <div className="max-w-[75%] relative">
                       {showAvatar && !isOwnComment && (
-                        <p className="text-xs font-semibold text-muted-foreground mb-1 ml-3">{comment.user_name}</p>
+                        <p className="text-[10px] font-semibold text-muted-foreground mb-0.5 ml-2">
+                          {comment.user_name}
+                        </p>
                       )}
                       <div
                         className={cn(
-                          "rounded-2xl p-3 transition-all duration-200",
+                          "rounded-2xl px-2.5 py-1.5 transition-all duration-200",
                           isOwnComment
-                            ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-md shadow-lg shadow-blue-500/20"
+                            ? "bg-gradient-to-br from-zinc-600 to-zinc-700 text-white rounded-br-md shadow-md shadow-zinc-900/20"
                             : "bg-muted/80 text-foreground rounded-bl-md shadow-sm",
                         )}
                       >
                         {comment.gif_url && (
-                          <div className="mb-2 rounded-xl overflow-hidden">
+                          <div className="mb-1.5 rounded-xl overflow-hidden">
                             <Image
                               src={comment.gif_url || "/placeholder.svg"}
                               alt="GIF"
@@ -418,20 +550,22 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
                           </div>
                         )}
                         {comment.content && (
-                          <p className="text-sm whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+                          <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                            {comment.content}
+                          </p>
                         )}
                         <div
                           className={cn(
-                            "flex items-center gap-1.5 mt-1",
+                            "flex items-center gap-1 mt-0.5",
                             isOwnComment ? "justify-end" : "justify-start",
                           )}
                         >
-                          <p className={cn("text-[10px]", isOwnComment ? "opacity-60" : "text-muted-foreground")}>
+                          <span className={cn("text-[9px]", isOwnComment ? "text-zinc-400" : "text-muted-foreground")}>
                             {new Date(comment.created_at).toLocaleTimeString([], {
                               hour: "numeric",
                               minute: "2-digit",
                             })}
-                          </p>
+                          </span>
                           {isOwnComment && (
                             <Check
                               className={cn(
@@ -468,22 +602,21 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
                         <div
                           className={cn(
                             "absolute top-1/2 -translate-y-1/2 z-10",
-                            isOwnComment ? "-left-10" : "-right-10",
+                            isOwnComment ? "-left-8" : "-right-8",
                           )}
                         >
                           <button
-                            onClick={() =>
-                              setShowCommentReactions(showCommentReactions === comment.id ? null : comment.id)
-                            }
-                            className="w-7 h-7 rounded-full bg-card/95 backdrop-blur-sm border border-border/50 shadow-md flex items-center justify-center text-sm hover:scale-110 transition-all duration-200"
+                            onClick={() => setReactingToComment(reactingToComment === comment.id ? null : comment.id)}
+                            className="w-6 h-6 rounded-full bg-card/95 backdrop-blur-sm border border-border/50 shadow-md flex items-center justify-center text-xs hover:scale-110 transition-all duration-200"
                           >
                             😊
                           </button>
 
-                          {showCommentReactions === comment.id && (
+                          {reactingToComment === comment.id && (
                             <div
                               className={cn(
-                                "absolute top-full mt-2 p-2 bg-card/95 backdrop-blur-sm border border-border/50 rounded-2xl shadow-2xl flex gap-1 z-50 animate-in fade-in zoom-in-95 duration-200",
+                                "absolute top-full mt-1 p-1.5 bg-card/95 backdrop-blur-sm border border-border/50 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200",
+                                "grid grid-cols-4 gap-0.5 w-[120px]",
                                 isOwnComment ? "right-0" : "left-0",
                               )}
                             >
@@ -492,8 +625,8 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
                                   key={reaction.type}
                                   onClick={() => handleCommentReaction(comment.id, reaction.type)}
                                   className={cn(
-                                    "w-9 h-9 rounded-xl flex items-center justify-center text-lg hover:scale-125 hover:bg-muted transition-all duration-200",
-                                    userCommentReactions.includes(reaction.type) && "bg-blue-500/20",
+                                    "w-7 h-7 rounded-lg flex items-center justify-center text-base hover:scale-110 hover:bg-muted transition-all duration-200",
+                                    userCommentReactions.includes(reaction.type) && "bg-zinc-500/20",
                                   )}
                                   title={reaction.label}
                                 >
@@ -511,51 +644,21 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
             </div>
           </div>
         ))}
-
+        {/* Typing indicator */}
         {typingUsers.length > 0 && (
-          <div className="flex items-center gap-2 px-2 animate-in fade-in slide-in-from-left-2 duration-200">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-              <span className="text-xs font-semibold text-blue-400">
-                {typingUsers[0].user_name?.[0]?.toUpperCase() || "?"}
-              </span>
-            </div>
-            <div className="flex items-center gap-1 px-4 py-3 bg-muted/80 rounded-2xl rounded-bl-md shadow-sm">
-              <div className="flex gap-1">
-                <span
-                  className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce"
-                  style={{ animationDelay: "0ms", animationDuration: "600ms" }}
-                />
-                <span
-                  className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce"
-                  style={{ animationDelay: "150ms", animationDuration: "600ms" }}
-                />
-                <span
-                  className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce"
-                  style={{ animationDelay: "300ms", animationDuration: "600ms" }}
-                />
+          <div className="flex items-center gap-2 px-4 py-2 border-t border-border/30">
+            {typingUsers.map((user) => (
+              <div key={user.user_id} className="flex items-center gap-1">
+                <span className="text-sm font-medium text-foreground">{user.user_name}</span>
+                <span className="text-sm text-muted-foreground">is typing...</span>
               </div>
-            </div>
-            <span className="text-xs text-muted-foreground animate-pulse">
-              {typingUsers.length === 1
-                ? `${typingUsers[0].user_name} is typing`
-                : `${typingUsers.length} people typing`}
-            </span>
-          </div>
-        )}
-
-        {comments.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center">
-              <span className="text-3xl">💬</span>
-            </div>
-            <p className="text-foreground font-medium">No messages yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Start the conversation!</p>
+            ))}
           </div>
         )}
       </div>
 
       {showPicker && (
-        <div className="bg-card/95 backdrop-blur-sm border border-border/50 rounded-2xl p-4 mb-3 animate-in fade-in slide-in-from-bottom-3 duration-200 shadow-xl">
+        <div className="flex-shrink-0 border-t border-border/30 bg-card/95 backdrop-blur-sm p-3">
           <div className="flex items-center gap-2 mb-3 border-b border-border/50 pb-2">
             <button
               type="button"
@@ -612,13 +715,13 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
               <div className="relative">
                 <input
                   type="text"
-                  value={gifSearch}
+                  value={gifSearchQuery}
                   onChange={(e) => {
-                    setGifSearch(e.target.value)
-                    searchGifs(e.target.value)
+                    setGifSearchQuery(e.target.value)
+                    // No need to call searchGifs here, useEffect handles it
                   }}
                   placeholder="Search GIFs..."
-                  className="w-full bg-muted/50 border border-border/50 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  className="w-full bg-muted/50 border border-border/50 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
                 />
                 {searchingGifs && (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
@@ -629,11 +732,8 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
                   <button
                     key={i}
                     type="button"
-                    onClick={() => {
-                      setSelectedGif(gif.url)
-                      setShowPicker(false)
-                    }}
-                    className="relative aspect-square rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all"
+                    onClick={() => selectGif(gif.url)}
+                    className="relative aspect-square rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all duration-200"
                   >
                     <Image
                       src={gif.preview || "/placeholder.svg"}
@@ -653,29 +753,9 @@ export function ConversationThread({ ratingId, currentUserId, collectiveId }: Pr
         </div>
       )}
 
-      {selectedGif && (
-        <div className="relative inline-block mb-3 animate-in fade-in zoom-in-95 duration-200">
-          <Image
-            src={selectedGif || "/placeholder.svg"}
-            alt="Selected GIF"
-            width={140}
-            height={100}
-            className="rounded-xl shadow-lg"
-            unoptimized
-          />
-          <button
-            type="button"
-            onClick={() => setSelectedGif(null)}
-            className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </div>
-      )}
-
       <form
         onSubmit={handleAddComment}
-        className="flex items-end gap-2 pt-3 border-t border-border/30 w-full overflow-hidden"
+        className="flex-shrink-0 flex items-end gap-2 p-3 border-t border-border/30 w-full overflow-hidden bg-background/80 backdrop-blur-sm"
       >
         <div className="flex-1 min-w-0 flex items-end gap-1 bg-muted/50 border border-border/50 rounded-2xl pl-2 pr-1 py-1 focus-within:border-blue-500/50 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-200">
           <button

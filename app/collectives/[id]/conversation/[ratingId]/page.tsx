@@ -182,7 +182,7 @@ export default async function ConversationPage({ params }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       <Header />
 
       {/* Background effects */}
@@ -191,10 +191,9 @@ export default async function ConversationPage({ params }: Props) {
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
       </div>
 
-      <main className="relative z-10 pt-28 pb-4 flex-1 flex flex-col">
-        <div className="mx-auto max-w-2xl px-4 w-full flex-1 flex flex-col">
-          {/* Header */}
-          <div className="flex items-center gap-4 mb-4">
+      <main className="relative z-10 pt-20 flex-1 flex flex-col overflow-hidden">
+        <div className="mx-auto max-w-2xl px-4 w-full flex-1 flex flex-col overflow-hidden">
+          <div className="flex-shrink-0 flex items-center gap-4 py-4 bg-background/80 backdrop-blur-sm">
             <Link href={`/collectives/${collectiveId}`} className="p-2 rounded-full hover:bg-muted transition-colors">
               <ArrowLeft className="h-5 w-5" />
             </Link>
@@ -202,13 +201,12 @@ export default async function ConversationPage({ params }: Props) {
               <h1 className="text-lg font-semibold text-foreground truncate">{ratingInfo.title}</h1>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 {getMediaIcon()}
-                <span>{ratingInfo.user_name}'s rating</span>
+                <span>{ratingInfo.user_name}&apos;s rating</span>
               </div>
             </div>
           </div>
 
-          {/* Rating card - fixed at top */}
-          <div className="bg-card/50 border border-border/50 rounded-xl p-4 mb-4 backdrop-blur-sm">
+          <div className="flex-shrink-0 bg-card/50 border border-border/50 rounded-xl p-4 mb-2 backdrop-blur-sm">
             <div className="flex gap-4">
               <Link href={getMediaLink()} className="flex-shrink-0">
                 {posterUrl ? (
@@ -258,8 +256,7 @@ export default async function ConversationPage({ params }: Props) {
             </div>
           </div>
 
-          {/* Conversation thread - scrollable */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <ConversationThread ratingId={ratingId} currentUserId={user.id} collectiveId={collectiveId} />
           </div>
         </div>
