@@ -196,8 +196,8 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
       </div>
 
-      <main className="relative z-10 pt-20 flex-1 flex flex-col overflow-hidden">
-        <div className="mx-auto max-w-2xl px-4 w-full flex-1 flex flex-col overflow-hidden">
+      <main className="relative z-10 pt-20 flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="mx-auto max-w-2xl px-4 w-full flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* Sticky header with back button */}
           <div className="flex-shrink-0 flex items-center gap-4 py-3 bg-background/95 backdrop-blur-sm border-b border-border/30">
             <Link href={`/collectives/${collectiveId}`} className="p-2 rounded-full hover:bg-muted transition-colors">
@@ -287,7 +287,7 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
           </div>
 
           {/* Conversation thread - takes remaining space */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <MovieConversationThread
               collectiveId={collectiveId}
               tmdbId={Number.parseInt(tmdbId)}

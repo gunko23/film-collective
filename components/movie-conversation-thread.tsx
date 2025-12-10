@@ -366,9 +366,14 @@ export function MovieConversationThread({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
       {/* Messages container */}
-      <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-3"
+        style={{ minHeight: 0 }}
+      >
         {comments.length === 0 ? (
           <div className="flex items-center justify-center h-full min-h-[200px]">
             <div className="text-center">
@@ -533,7 +538,7 @@ export function MovieConversationThread({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input bar */}
+      {/* Input area - sticky at bottom */}
       <div className="flex-shrink-0 p-3 border-t border-border/30 bg-background/95 backdrop-blur-sm">
         <form onSubmit={handleSubmit} className="w-full">
           <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
