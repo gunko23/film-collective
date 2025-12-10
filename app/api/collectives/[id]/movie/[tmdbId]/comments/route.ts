@@ -20,14 +20,14 @@ export async function GET(request: NextRequest, { params }: Props) {
         mc.gif_url,
         mc.created_at,
         mc.user_id,
-        u.name as user_name,
+        COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
         u.avatar_url as user_avatar,
         COALESCE(
           (SELECT json_agg(json_build_object(
             'id', mcr.id,
             'reaction_type', mcr.reaction_type,
             'user_id', mcr.user_id,
-            'user_name', ru.name
+            'user_name', COALESCE(ru.name, SPLIT_PART(ru.email, '@', 1), 'User')
           ))
           FROM movie_comment_reactions mcr
           JOIN users ru ON ru.id = mcr.user_id

@@ -8,12 +8,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const { id: collectiveId, ratingId } = await params
 
-    // Fetch comments with their reactions
     const comments = await sql`
       SELECT 
         fc.id,
         fc.user_id,
-        u.name as user_name,
+        COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
         u.avatar_url as user_avatar,
         fc.content,
         fc.gif_url,
@@ -22,7 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           (SELECT json_agg(json_build_object(
             'id', cr.id,
             'user_id', cr.user_id,
-            'user_name', ru.name,
+            'user_name', COALESCE(ru.name, SPLIT_PART(ru.email, '@', 1), 'User'),
             'reaction_type', cr.reaction_type
           ))
           FROM comment_reactions cr
@@ -49,119 +48,126 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     console.log("[v0] POST comments - collectiveId:", collectiveId, "ratingId:", ratingId)
 
     const { user, isRateLimited } = await getSafeUser()
+    console.log("[v0] User:", user?.id, "isRateLimited:", isRateLimited)
 
     if (isRateLimited) {
-      console.log("[v0] User rate limited")
       return NextResponse.json({ error: "Rate limited, please try again" }, { status: 429 })
     }
 
     if (!user) {
-      console.log("[v0] User not authenticated")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    console.log("[v0] User authenticated:", user.id)
+    console.log("[v0] Calling ensureUserExists")
     const dbUser = await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
-    console.log("[v0] DB user:", dbUser.id)
+    console.log("[v0] dbUser:", dbUser?.id)
 
     // Verify user is a member of the collective
+    console.log("[v0] Checking membership")
     const membership = await sql`
       SELECT id FROM collective_memberships 
       WHERE collective_id = ${collectiveId} AND user_id = ${dbUser.id}
     `
+    console.log("[v0] Membership count:", membership.length)
 
     if (membership.length === 0) {
-      console.log("[v0] User not a member of collective")
       return NextResponse.json({ error: "Not a member of this collective" }, { status: 403 })
     }
 
-    const { content, gifUrl, mediaType } = await request.json()
-    console.log("[v0] Comment data:", { content, gifUrl, mediaType })
+    const body = await request.json()
+    const { content, gifUrl, mediaType } = body
+    console.log("[v0] Request body - content:", content?.substring(0, 20), "gifUrl:", !!gifUrl, "mediaType:", mediaType)
 
     if ((!content || content.trim().length === 0) && !gifUrl) {
-      console.log("[v0] Empty comment")
       return NextResponse.json({ error: "Comment content or GIF is required" }, { status: 400 })
     }
 
     // Insert comment
+    console.log("[v0] Inserting comment")
     const result = await sql`
       INSERT INTO feed_comments (id, rating_id, collective_id, user_id, content, gif_url, created_at, updated_at)
       VALUES (gen_random_uuid(), ${ratingId}, ${collectiveId}, ${dbUser.id}, ${content?.trim() || ""}, ${gifUrl || null}, NOW(), NOW())
       RETURNING id, user_id, content, gif_url, created_at
     `
-    console.log("[v0] Comment inserted:", result[0])
+    console.log("[v0] Comment inserted:", result[0]?.id)
 
     const comment = {
       ...result[0],
-      user_name: user.displayName || "Anonymous",
+      user_name: user.displayName || dbUser.name || "Anonymous",
       user_avatar: user.profileImageUrl || null,
       reactions: [],
     }
 
-    // Add user to thread participants
-    await sql`
-      INSERT INTO thread_participants (rating_id, collective_id, user_id, joined_at, last_read_at)
-      VALUES (${ratingId}, ${collectiveId}, ${dbUser.id}, NOW(), NOW())
-      ON CONFLICT (rating_id, collective_id, user_id)
-      DO UPDATE SET last_read_at = NOW()
-    `
-
-    // Clear typing indicator
-    await sql`
-      DELETE FROM typing_indicators
-      WHERE rating_id = ${ratingId} AND collective_id = ${collectiveId} AND user_id = ${dbUser.id}
-    `.catch(() => {}) // Ignore if table doesn't exist yet
-
-    // Notify rating owner
-    if (mediaType) {
-      const ratingOwnerId = await getRatingOwner(ratingId, mediaType)
-      const mediaInfo = await getRatingMediaInfo(ratingId, mediaType)
-
-      if (ratingOwnerId && mediaInfo) {
-        // Notify rating owner if not the commenter
-        if (ratingOwnerId !== dbUser.id) {
-          await createNotification({
-            userId: ratingOwnerId,
-            actorId: dbUser.id,
-            type: "comment",
-            ratingId,
-            collectiveId,
-            content: content?.trim().substring(0, 100) || (gifUrl ? "sent a GIF" : ""),
-            mediaType,
-            mediaTitle: mediaInfo.title,
-            mediaPoster: mediaInfo.poster || undefined,
-          })
-        }
-
-        // Notify other thread participants
-        const otherParticipants = await sql`
-          SELECT DISTINCT user_id FROM thread_participants
-          WHERE rating_id = ${ratingId} 
-            AND collective_id = ${collectiveId}
-            AND user_id != ${dbUser.id}
-            AND user_id != ${ratingOwnerId || "00000000-0000-0000-0000-000000000000"}
-        `.catch(() => []) // Ignore if table doesn't exist yet
-
-        for (const participant of otherParticipants) {
-          await createNotification({
-            userId: participant.user_id,
-            actorId: dbUser.id,
-            type: "thread_reply",
-            ratingId,
-            collectiveId,
-            content: content?.trim().substring(0, 100) || (gifUrl ? "sent a GIF" : ""),
-            mediaType,
-            mediaTitle: mediaInfo.title,
-            mediaPoster: mediaInfo.poster || undefined,
-          })
-        }
-      }
+    try {
+      await sql`
+        INSERT INTO thread_participants (rating_id, collective_id, user_id, joined_at, last_read_at)
+        VALUES (${ratingId}, ${collectiveId}, ${dbUser.id}, NOW(), NOW())
+        ON CONFLICT (rating_id, collective_id, user_id)
+        DO UPDATE SET last_read_at = NOW()
+      `
+    } catch (e) {
+      console.error("Error adding thread participant:", e)
     }
 
-    console.log("[v0] Returning comment:", comment)
+    try {
+      await sql`
+        DELETE FROM typing_indicators
+        WHERE rating_id = ${ratingId} AND collective_id = ${collectiveId} AND user_id = ${dbUser.id}
+      `
+    } catch (e) {
+      // Ignore
+    }
+
+    try {
+      if (mediaType) {
+        const ratingOwnerId = await getRatingOwner(ratingId, mediaType)
+        const mediaInfo = await getRatingMediaInfo(ratingId, mediaType)
+
+        if (ratingOwnerId && mediaInfo) {
+          if (ratingOwnerId !== dbUser.id) {
+            await createNotification({
+              userId: ratingOwnerId,
+              actorId: dbUser.id,
+              type: "comment",
+              ratingId,
+              collectiveId,
+              content: content?.trim().substring(0, 100) || (gifUrl ? "sent a GIF" : ""),
+              mediaType,
+              mediaTitle: mediaInfo.title,
+              mediaPoster: mediaInfo.poster || undefined,
+            })
+          }
+
+          const otherParticipants = await sql`
+            SELECT DISTINCT user_id FROM thread_participants
+            WHERE rating_id = ${ratingId} 
+              AND collective_id = ${collectiveId}
+              AND user_id != ${dbUser.id}
+              AND user_id != ${ratingOwnerId || "00000000-0000-0000-0000-000000000000"}
+          `.catch(() => [])
+
+          for (const participant of otherParticipants) {
+            await createNotification({
+              userId: participant.user_id,
+              actorId: dbUser.id,
+              type: "thread_reply",
+              ratingId,
+              collectiveId,
+              content: content?.trim().substring(0, 100) || (gifUrl ? "sent a GIF" : ""),
+              mediaType,
+              mediaTitle: mediaInfo.title,
+              mediaPoster: mediaInfo.poster || undefined,
+            })
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error sending notifications:", e)
+    }
+
     return NextResponse.json({ comment })
   } catch (error) {
-    console.error("[v0] Error adding comment:", error)
+    console.error("Error adding comment:", error)
     return NextResponse.json({ error: "Failed to add comment" }, { status: 500 })
   }
 }

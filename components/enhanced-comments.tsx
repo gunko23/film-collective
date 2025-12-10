@@ -99,6 +99,49 @@ function formatCommentTime(dateString: string | undefined | null): string {
   }
 }
 
+// Date formatting helper for date dividers
+const formatMessageDate = (dateString: string) => {
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return ""
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    if (date.toDateString() === today.toDateString()) {
+      return "Today"
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return "Yesterday"
+    } else {
+      return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })
+    }
+  } catch {
+    return ""
+  }
+}
+
+const shouldShowDateDivider = (currentComment: Comment, previousComment: Comment | undefined) => {
+  if (!previousComment) return true
+  try {
+    const currentDate = new Date(currentComment.created_at).toDateString()
+    const previousDate = new Date(previousComment.created_at).toDateString()
+    return currentDate !== previousDate
+  } catch {
+    return false
+  }
+}
+
+// Group reactions by type
+const groupReactions = (
+  reactions: CommentReaction[],
+): { type: string; emoji: string; count: number; userReacted: boolean }[] => {
+  return EMOJI_REACTIONS.map((reaction) => {
+    const count = reactions.filter((r) => r.reaction_type === reaction.type).length
+    const userReacted = reactions.some((r) => r.reaction_type === reaction.type)
+    return { ...reaction, count, userReacted }
+  })
+}
+
 export function EnhancedComments({
   ratingId,
   currentUserId,
@@ -114,7 +157,7 @@ export function EnhancedComments({
   const [showComments, setShowComments] = useState(false)
   const [newComment, setNewComment] = useState("")
   const [loading, setLoading] = useState(false)
-  const [showPicker, setShowPicker] = useState(false)
+  const [showEmojiGifPicker, setShowEmojiGifPicker] = useState(false)
   const [pickerTab, setPickerTab] = useState<"emoji" | "gif">("emoji")
   const [gifSearch, setGifSearch] = useState("")
   const [gifs, setGifs] = useState<{ url: string; preview: string }[]>([])
@@ -125,7 +168,7 @@ export function EnhancedComments({
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
   const [showReactionPicker, setShowReactionPicker] = useState(false)
   const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null)
-  const commentInputRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastTypingUpdateRef = useRef<number>(0)
 
@@ -229,10 +272,10 @@ export function EnhancedComments({
       updateTypingIndicator(false)
     }, 3000)
 
-    if (commentInputRef.current) {
-      commentInputRef.current.style.height = "auto"
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto"
       const maxHeight = 96 // 4 rows * ~24px line height
-      commentInputRef.current.style.height = Math.min(commentInputRef.current.scrollHeight, maxHeight) + "px"
+      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, maxHeight) + "px"
     }
   }
 
@@ -297,11 +340,10 @@ export function EnhancedComments({
 
   const insertEmoji = (emoji: string) => {
     setNewComment((prev) => prev + emoji)
-    commentInputRef.current?.focus()
+    inputRef.current?.focus()
   }
 
-  const handleAddComment = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSendComment = async () => {
     if ((!newComment.trim() && !selectedGif) || loading) return
 
     setSendingMessage(true)
@@ -328,8 +370,8 @@ export function EnhancedComments({
     setSelectedGif(null)
 
     // Reset textarea height
-    if (commentInputRef.current) {
-      commentInputRef.current.style.height = "auto"
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto"
     }
 
     try {
@@ -370,19 +412,18 @@ export function EnhancedComments({
       setLoading(false)
       setTimeout(() => setSendingMessage(false), 200)
       requestAnimationFrame(() => {
-        commentInputRef.current?.focus()
+        inputRef.current?.focus()
       })
     }
   }
 
   const selectGif = (url: string) => {
     setSelectedGif(url)
-    setShowPicker(false)
+    setShowEmojiGifPicker(false)
     setGifSearch("")
-    commentInputRef.current?.focus()
+    inputRef.current?.focus()
   }
 
-  // Group reactions by type
   const reactionCounts = reactions.reduce(
     (acc, r) => {
       acc[r.reaction_type] = (acc[r.reaction_type] || 0) + 1
@@ -491,97 +532,159 @@ export function EnhancedComments({
           {displayedComments.length > 0 && (
             <div className="space-y-2">
               {displayedComments.map((comment, index) => {
-                const isOwnComment = comment.user_id?.toLowerCase() === normalizedCurrentUserId
-                const commentReactions = comment.reactions || []
-                const commentReactionCounts = commentReactions.reduce(
-                  (acc, r) => {
-                    acc[r.reaction_type] = (acc[r.reaction_type] || 0) + 1
-                    return acc
-                  },
-                  {} as Record<string, number>,
-                )
-                const userCommentReactions = commentReactions
-                  .filter((r) => r.user_id?.toLowerCase() === normalizedCurrentUserId)
-                  .map((r) => r.reaction_type)
+                const isOwnComment = comment.user_id === currentUserId
+                const groupedReactions = groupReactions(comment.reactions || [])
+                const showDateDivider = shouldShowDateDivider(comment, displayedComments[index - 1])
+                const showAvatar =
+                  !isOwnComment && (index === 0 || displayedComments[index - 1]?.user_id !== comment.user_id)
 
                 return (
-                  <div
-                    key={comment.id}
-                    className={cn(
-                      "flex gap-2 group",
-                      isOwnComment ? "flex-row-reverse" : "flex-row",
-                      "animate-in fade-in duration-300",
-                      index === displayedComments.length - 1 && "slide-in-from-bottom-2",
-                    )}
-                    style={{ animationDelay: `${index * 50}ms` }}
-                    onMouseEnter={() => setHoveredCommentId(comment.id)}
-                    onMouseLeave={() => {
-                      setHoveredCommentId(null)
-                      setShowCommentReactions(null)
-                    }}
-                  >
-                    {/* Avatar */}
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center overflow-hidden ring-2 ring-background">
-                      {comment.user_avatar ? (
-                        <Image
-                          src={comment.user_avatar || "/placeholder.svg"}
-                          alt={comment.user_name}
-                          width={32}
-                          height={32}
-                          className="object-cover"
-                        />
-                      ) : (
-                        <span className="text-xs font-medium bg-gradient-to-br from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                          {comment.user_name?.[0]?.toUpperCase() || "?"}
+                  <div key={comment.id}>
+                    {showDateDivider && (
+                      <div className="flex items-center justify-center my-4">
+                        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+                        <span className="px-3 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">
+                          {formatMessageDate(comment.created_at)}
                         </span>
-                      )}
-                    </div>
+                        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+                      </div>
+                    )}
 
-                    {/* Message bubble */}
-                    <div className="relative max-w-[75%]">
-                      <div
-                        className={cn(
-                          "rounded-2xl px-2.5 py-1.5 transition-all duration-200",
-                          isOwnComment
-                            ? "bg-gradient-to-br from-zinc-600 to-zinc-700 text-white rounded-br-md shadow-md shadow-zinc-900/20"
-                            : "bg-muted/80 text-foreground rounded-bl-md shadow-sm",
-                        )}
-                      >
-                        {!isOwnComment && (
-                          <p className="text-[10px] font-semibold mb-0.5 opacity-70">{comment.user_name}</p>
-                        )}
-                        {comment.gif_url && (
-                          <div className="mb-1.5 rounded-lg overflow-hidden">
-                            <Image
-                              src={comment.gif_url || "/placeholder.svg"}
-                              alt="GIF"
-                              width={200}
-                              height={150}
-                              className="object-cover"
-                              unoptimized
-                            />
-                          </div>
-                        )}
-                        {comment.content && (
-                          <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
-                            {comment.content}
-                          </p>
-                        )}
-                        <div
-                          className={cn(
-                            "flex items-center gap-1 mt-0.5",
-                            isOwnComment ? "justify-end" : "justify-start",
-                          )}
-                        >
-                          <span className={cn("text-[9px]", isOwnComment ? "text-zinc-400" : "text-muted-foreground")}>
-                            {formatCommentTime(comment.created_at)}
-                          </span>
-                          {isOwnComment && (
-                            <span className="text-zinc-400 text-[9px]">
-                              <CheckCheck className="h-2.5 w-2.5 inline" />
-                            </span>
+                    <div
+                      className={cn(
+                        "flex gap-2 group",
+                        isOwnComment ? "justify-end" : "justify-start",
+                        "animate-in fade-in duration-300",
+                        index === displayedComments.length - 1 && "slide-in-from-bottom-2",
+                      )}
+                      style={{ animationDelay: `${index * 50}ms` }}
+                      onMouseEnter={() => setHoveredCommentId(comment.id)}
+                      onMouseLeave={() => {
+                        setHoveredCommentId(null)
+                        setShowCommentReactions(null)
+                      }}
+                    >
+                      {/* Avatar */}
+                      {!isOwnComment && (
+                        <div className="w-7 flex-shrink-0">
+                          {showAvatar && (
+                            <div className="h-7 w-7 rounded-full bg-emerald-600/20 flex items-center justify-center overflow-hidden">
+                              {comment.user_avatar ? (
+                                <Image
+                                  src={comment.user_avatar || "/placeholder.svg"}
+                                  alt={comment.user_name}
+                                  width={28}
+                                  height={28}
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <span className="text-[10px] font-medium text-emerald-400">
+                                  {comment.user_name?.[0]?.toUpperCase() || "?"}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
+                      )}
+
+                      {/* Message bubble */}
+                      <div className={`max-w-[75%] ${isOwnComment ? "items-end" : "items-start"}`}>
+                        {!isOwnComment && showAvatar && (
+                          <p className="text-[10px] text-muted-foreground mb-0.5 ml-1">{comment.user_name}</p>
+                        )}
+
+                        <div className="relative">
+                          <div
+                            className={cn(
+                              "rounded-2xl px-2.5 py-1.5 transition-all duration-200",
+                              isOwnComment
+                                ? "bg-gradient-to-br from-zinc-700 to-zinc-800 text-white rounded-br-md shadow-lg"
+                                : "bg-card/80 border border-border/50 text-foreground rounded-bl-md",
+                            )}
+                          >
+                            {comment.gif_url && (
+                              <div className="mb-1.5 rounded-lg overflow-hidden">
+                                <Image
+                                  src={comment.gif_url || "/placeholder.svg"}
+                                  alt="GIF"
+                                  width={200}
+                                  height={150}
+                                  className="object-cover"
+                                  unoptimized
+                                />
+                              </div>
+                            )}
+                            {comment.content && (
+                              <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                                {comment.content}
+                              </p>
+                            )}
+                            <div
+                              className={cn(
+                                "flex items-center gap-1 mt-0.5",
+                                isOwnComment ? "justify-end" : "justify-start",
+                              )}
+                            >
+                              <span
+                                className={cn("text-[9px]", isOwnComment ? "text-zinc-400" : "text-muted-foreground")}
+                              >
+                                {formatCommentTime(comment.created_at)}
+                              </span>
+                              {isOwnComment && <CheckCheck className="h-3 w-3 text-emerald-400/70" />}
+                            </div>
+                          </div>
+
+                          {/* Reaction button */}
+                          <button
+                            onClick={() =>
+                              setShowCommentReactions(showCommentReactions === comment.id ? null : comment.id)
+                            }
+                            className={cn(
+                              "absolute -right-1 top-1/2 -translate-y-1/2 p-1 rounded-full",
+                              "bg-zinc-800/90 text-zinc-400 hover:text-white",
+                              "opacity-0 group-hover:opacity-100 transition-all duration-200",
+                              "shadow-lg hover:scale-110",
+                            )}
+                          >
+                            <Smile className="h-3 w-3" />
+                          </button>
+
+                          {/* Reaction picker */}
+                          {showCommentReactions === comment.id && (
+                            <div className="absolute -top-10 right-0 bg-zinc-800/95 backdrop-blur-sm rounded-lg p-1.5 shadow-xl border border-zinc-700/50 z-10 grid grid-cols-5 gap-1 w-[140px]">
+                              {EMOJI_REACTIONS.slice(0, 10).map((reaction) => (
+                                <button
+                                  key={reaction.type}
+                                  onClick={() => handleCommentReaction(comment.id, reaction.type)}
+                                  className="p-1 hover:bg-zinc-700/50 rounded transition-colors text-base hover:scale-125"
+                                  title={reaction.label}
+                                >
+                                  {reaction.emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Display reactions */}
+                        {groupedReactions.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {groupedReactions.map((reaction) => (
+                              <button
+                                key={reaction.type}
+                                onClick={() => handleCommentReaction(comment.id, reaction.type)}
+                                className={cn(
+                                  "flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px]",
+                                  "bg-zinc-800/80 hover:bg-zinc-700/80 transition-colors",
+                                  reaction.userReacted && "ring-1 ring-emerald-500/50",
+                                )}
+                              >
+                                <span>{reaction.emoji}</span>
+                                <span className="text-zinc-400">{reaction.count}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -618,7 +721,7 @@ export function EnhancedComments({
           )}
 
           {/* Combined Emoji & GIF Picker */}
-          {showPicker && (
+          {showEmojiGifPicker && (
             <div className="bg-card/95 backdrop-blur-sm border border-border/50 rounded-xl p-3 animate-in fade-in slide-in-from-bottom-2 duration-200 shadow-xl">
               {/* Tabs */}
               <div className="flex items-center gap-2 mb-3 border-b border-border/50 pb-2">
@@ -650,7 +753,7 @@ export function EnhancedComments({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowPicker(false)}
+                  onClick={() => setShowEmojiGifPicker(false)}
                   className="ml-auto p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <X className="h-4 w-4" />
@@ -695,7 +798,7 @@ export function EnhancedComments({
                         type="button"
                         onClick={() => {
                           setSelectedGif(gif.url)
-                          setShowPicker(false)
+                          setShowEmojiGifPicker(false)
                         }}
                         className="relative aspect-square rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all"
                       >
@@ -738,41 +841,46 @@ export function EnhancedComments({
             </div>
           )}
 
-          <form onSubmit={handleAddComment} className="w-full overflow-hidden">
-            <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all min-w-0">
+          <form onSubmit={handleSendComment} className="w-full overflow-hidden">
+            <div className="relative flex-1 flex items-center gap-1 bg-muted/50 rounded-full px-3 border border-transparent focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all min-w-0">
               <button
                 type="button"
-                onClick={() => setShowPicker(!showPicker)}
+                onClick={() => setShowEmojiGifPicker(!showEmojiGifPicker)}
                 className={cn(
-                  "flex-shrink-0 p-2 rounded-full transition-all duration-200 self-end mb-0.5",
-                  showPicker
-                    ? "bg-blue-500/20 text-blue-400"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted",
+                  "p-1.5 rounded-full transition-colors flex-shrink-0",
+                  showEmojiGifPicker
+                    ? "text-emerald-400 bg-emerald-500/10"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Smile className="h-5 w-5" />
               </button>
+
               <textarea
-                ref={commentInputRef}
+                ref={inputRef}
+                placeholder="Write a message..."
                 value={newComment}
-                onChange={handleInputChange}
+                onChange={(e) => {
+                  setNewComment(e.target.value)
+                  // Auto-resize
+                  e.target.style.height = "auto"
+                  e.target.style.height = Math.min(e.target.scrollHeight, 96) + "px"
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault()
-                    handleAddComment(e)
+                    handleSendComment()
                   }
                 }}
-                placeholder="Type a message..."
+                className="flex-1 bg-transparent border-0 focus:ring-0 focus:outline-none text-sm py-2 leading-5 resize-none min-h-[36px] max-h-[96px] overflow-y-auto placeholder:text-muted-foreground/60"
                 rows={1}
-                className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none resize-none max-h-24 overflow-y-auto min-w-0 py-1 leading-5"
               />
+
               <Button
                 type="submit"
                 size="icon"
                 disabled={(!newComment.trim() && !selectedGif) || loading}
-                className={`h-8 w-8 rounded-full bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 flex-shrink-0 transition-all ${
-                  sendingMessage ? "scale-90" : "active:scale-95"
-                }`}
+                className="h-8 w-8 rounded-full bg-zinc-700 hover:bg-zinc-600 text-white flex-shrink-0 transition-all duration-200 active:scale-95"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>

@@ -39,6 +39,37 @@ const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "🔥", "👏", "💯
 
 const QUICK_EMOJIS = ["😀", "😂", "❤️", "🔥", "👏", "🎬", "🍿", "⭐", "💯", "😮", "😢", "🤔", "👀", "✨", "🎉", "👍"]
 
+const shouldShowDateDivider = (currentComment: Comment, previousComment: Comment | undefined) => {
+  if (!previousComment) return true
+  try {
+    const currentDate = new Date(currentComment.created_at).toDateString()
+    const previousDate = new Date(previousComment.created_at).toDateString()
+    return currentDate !== previousDate
+  } catch {
+    return false
+  }
+}
+
+const formatMessageDate = (dateString: string) => {
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return ""
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    if (date.toDateString() === today.toDateString()) {
+      return "Today"
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return "Yesterday"
+    } else {
+      return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })
+    }
+  } catch {
+    return ""
+  }
+}
+
 export function MovieConversationThread({
   collectiveId,
   tmdbId,
@@ -396,114 +427,129 @@ export function MovieConversationThread({
             const isOwn = isOwnMessage(comment.user_id)
             const showAvatar = !isOwn && (index === 0 || comments[index - 1]?.user_id !== comment.user_id)
             const groupedReactions = groupReactions(comment.reactions)
+            const previousComment = comments[index - 1]
+            const showDateDivider = shouldShowDateDivider(comment, previousComment)
 
             return (
-              <div
-                key={comment.id}
-                className={`flex ${isOwn ? "justify-end" : "justify-start"} group animate-in fade-in slide-in-from-bottom-2 duration-300`}
-              >
-                {/* Avatar for others */}
-                {!isOwn && (
-                  <div className="w-7 mr-2 flex-shrink-0">
-                    {showAvatar && (
-                      <div className="h-7 w-7 rounded-full bg-emerald-600/20 flex items-center justify-center overflow-hidden">
-                        {comment.user_avatar ? (
-                          <Image
-                            src={comment.user_avatar || "/placeholder.svg"}
-                            alt={comment.user_name}
-                            width={28}
-                            height={28}
-                            className="object-cover"
-                          />
-                        ) : (
-                          <span className="text-[10px] font-medium text-emerald-400">
-                            {comment.user_name?.[0]?.toUpperCase() || "?"}
-                          </span>
-                        )}
-                      </div>
-                    )}
+              <div key={comment.id}>
+                {showDateDivider && (
+                  <div className="flex items-center justify-center my-4">
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+                    <span className="px-3 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">
+                      {formatMessageDate(comment.created_at)}
+                    </span>
+                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
                   </div>
                 )}
 
-                <div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
-                  {/* Username for others */}
-                  {!isOwn && showAvatar && (
-                    <p className="text-[10px] text-muted-foreground mb-0.5 ml-1">{comment.user_name}</p>
+                <div
+                  className={`flex ${isOwn ? "justify-end" : "justify-start"} group animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                >
+                  {/* Avatar for others */}
+                  {!isOwn && (
+                    <div className="w-7 mr-2 flex-shrink-0">
+                      {showAvatar && (
+                        <div className="h-7 w-7 rounded-full bg-emerald-600/20 flex items-center justify-center overflow-hidden">
+                          {comment.user_avatar ? (
+                            <Image
+                              src={comment.user_avatar || "/placeholder.svg"}
+                              alt={comment.user_name}
+                              width={28}
+                              height={28}
+                              className="object-cover"
+                            />
+                          ) : (
+                            <span className="text-[10px] font-medium text-emerald-400">
+                              {comment.user_name?.[0]?.toUpperCase() || "?"}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
 
-                  {/* Message bubble */}
-                  <div className="relative">
-                    <div
-                      className={`px-2.5 py-1.5 rounded-2xl ${
-                        isOwn
-                          ? "bg-gradient-to-br from-zinc-700 to-zinc-800 text-white rounded-br-md shadow-lg"
-                          : "bg-card/80 border border-border/50 text-foreground rounded-bl-md"
-                      }`}
-                    >
-                      {comment.gif_url ? (
-                        <img
-                          src={comment.gif_url || "/placeholder.svg"}
-                          alt="GIF"
-                          className="max-w-[200px] rounded-lg"
-                        />
-                      ) : (
-                        <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{comment.content}</p>
-                      )}
-                      <div className={`flex items-center gap-1 mt-0.5 ${isOwn ? "justify-end" : "justify-start"}`}>
-                        <span className="text-[9px] text-muted-foreground/70">
-                          {formatCommentTime(comment.created_at)}
-                        </span>
-                        {isOwn && <CheckCheck className="h-3 w-3 text-emerald-400/70" />}
+                  <div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
+                    {/* Username for others */}
+                    {!isOwn && showAvatar && (
+                      <p className="text-[10px] text-muted-foreground mb-0.5 ml-1">{comment.user_name}</p>
+                    )}
+
+                    {/* Message bubble */}
+                    <div className="relative">
+                      <div
+                        className={`px-2.5 py-1.5 rounded-2xl ${
+                          isOwn
+                            ? "bg-gradient-to-br from-zinc-700 to-zinc-800 text-white rounded-br-md shadow-lg"
+                            : "bg-card/80 border border-border/50 text-foreground rounded-bl-md"
+                        }`}
+                      >
+                        {comment.gif_url ? (
+                          <img
+                            src={comment.gif_url || "/placeholder.svg"}
+                            alt="GIF"
+                            className="max-w-[200px] rounded-lg"
+                          />
+                        ) : (
+                          <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                            {comment.content}
+                          </p>
+                        )}
+                        <div className={`flex items-center gap-1 mt-0.5 ${isOwn ? "justify-end" : "justify-start"}`}>
+                          <span className="text-[9px] text-muted-foreground/70">
+                            {formatCommentTime(comment.created_at)}
+                          </span>
+                          {isOwn && <CheckCheck className="h-3 w-3 text-emerald-400/70" />}
+                        </div>
                       </div>
+
+                      {/* Reaction button */}
+                      <button
+                        type="button"
+                        onClick={() => setActiveReactionPicker(activeReactionPicker === comment.id ? null : comment.id)}
+                        className={`absolute ${isOwn ? "-left-6" : "-right-6"} top-1/2 -translate-y-1/2 p-1 rounded-full bg-zinc-800/80 opacity-0 group-hover:opacity-100 hover:bg-zinc-700 transition-all`}
+                      >
+                        <Smile className="h-3 w-3 text-zinc-400" />
+                      </button>
+
+                      {/* Reaction picker */}
+                      {activeReactionPicker === comment.id && (
+                        <div
+                          className={`absolute ${isOwn ? "right-0" : "left-0"} bottom-full mb-1 bg-zinc-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-zinc-700/50 p-1.5 z-50`}
+                        >
+                          <div className="grid grid-cols-4 gap-1 w-[120px]">
+                            {REACTION_EMOJIS.map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => handleReactionToggle(comment.id, emoji)}
+                                className="p-1 rounded hover:bg-zinc-700/50 transition-colors text-base"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Reaction button */}
-                    <button
-                      type="button"
-                      onClick={() => setActiveReactionPicker(activeReactionPicker === comment.id ? null : comment.id)}
-                      className={`absolute ${isOwn ? "-left-6" : "-right-6"} top-1/2 -translate-y-1/2 p-1 rounded-full bg-zinc-800/80 opacity-0 group-hover:opacity-100 hover:bg-zinc-700 transition-all`}
-                    >
-                      <Smile className="h-3 w-3 text-zinc-400" />
-                    </button>
-
-                    {/* Reaction picker */}
-                    {activeReactionPicker === comment.id && (
-                      <div
-                        className={`absolute ${isOwn ? "right-0" : "left-0"} bottom-full mb-1 bg-zinc-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-zinc-700/50 p-1.5 z-50`}
-                      >
-                        <div className="grid grid-cols-4 gap-1 w-[120px]">
-                          {REACTION_EMOJIS.map((emoji) => (
-                            <button
-                              key={emoji}
-                              type="button"
-                              onClick={() => handleReactionToggle(comment.id, emoji)}
-                              className="p-1 rounded hover:bg-zinc-700/50 transition-colors text-base"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
+                    {/* Reactions display */}
+                    {Object.keys(groupedReactions).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {Object.entries(groupedReactions).map(([emoji, data]) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => handleReactionToggle(comment.id, emoji)}
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-zinc-800/50 hover:bg-zinc-700/50 transition-colors text-xs"
+                            title={data.users.join(", ")}
+                          >
+                            <span>{emoji}</span>
+                            <span className="text-zinc-400">{data.count}</span>
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
-
-                  {/* Reactions display */}
-                  {Object.keys(groupedReactions).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {Object.entries(groupedReactions).map(([emoji, data]) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => handleReactionToggle(comment.id, emoji)}
-                          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-zinc-800/50 hover:bg-zinc-700/50 transition-colors text-xs"
-                          title={data.users.join(", ")}
-                        >
-                          <span>{emoji}</span>
-                          <span className="text-zinc-400">{data.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
             )
