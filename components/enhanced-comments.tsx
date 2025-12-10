@@ -359,7 +359,7 @@ export function EnhancedComments({
       user_id: currentUserId,
       user_name: currentUserName || "Unknown",
       created_at: currentTimestamp,
-      reactions: [],
+      reactions: [], // Ensure reactions is empty array, not undefined
     }
 
     setComments((prev) => [...prev, optimisticComment])
@@ -373,6 +373,11 @@ export function EnhancedComments({
     if (inputRef.current) {
       inputRef.current.style.height = "auto"
     }
+
+    // Keep keyboard open
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+    })
 
     try {
       const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`, {
@@ -396,7 +401,7 @@ export function EnhancedComments({
                 ? {
                     ...savedComment,
                     created_at: savedComment.created_at || currentTimestamp,
-                    reactions: savedComment.reactions || [],
+                    reactions: savedComment.reactions || [], // Ensure reactions array
                   }
                 : c,
             ),
@@ -408,12 +413,10 @@ export function EnhancedComments({
       }
     } catch (error) {
       console.error("Error posting comment:", error)
+      // Keep optimistic comment visible
     } finally {
       setLoading(false)
       setTimeout(() => setSendingMessage(false), 200)
-      requestAnimationFrame(() => {
-        inputRef.current?.focus()
-      })
     }
   }
 

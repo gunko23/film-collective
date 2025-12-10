@@ -501,7 +501,7 @@ export function ConversationThread({
               {dayComments.map((comment, i) => {
                 const isOwnComment = comment.user_id?.toLowerCase() === normalizedCurrentUserId
                 const prevComment = dayComments[i - 1]
-                const showAvatar = !prevComment || prevComment.user_id !== comment.user_id
+                const showAvatar = !isOwnComment && (!prevComment || prevComment.user_id !== comment.user_id)
                 const commentReactions = comment.reactions || []
                 const commentReactionCounts = commentReactions.reduce(
                   (acc, r) => {
@@ -525,31 +525,32 @@ export function ConversationThread({
                     onMouseEnter={() => setHoveredCommentId(comment.id)}
                     onMouseLeave={() => {
                       setHoveredCommentId(null)
-                      // Only close reaction picker if not currently reacting
                       if (reactingToComment !== comment.id) {
                         setReactingToComment(null)
                       }
                     }}
                   >
-                    <div className={cn("flex-shrink-0 w-8", !showAvatar && "invisible")}>
-                      {showAvatar && (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center overflow-hidden ring-2 ring-background shadow-sm">
-                          {comment.user_avatar ? (
-                            <Image
-                              src={comment.user_avatar || "/placeholder.svg"}
-                              alt={comment.user_name}
-                              width={32}
-                              height={32}
-                              className="object-cover"
-                            />
-                          ) : (
-                            <span className="text-xs font-semibold bg-gradient-to-br from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                              {comment.user_name?.[0]?.toUpperCase() || "?"}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    {!isOwnComment && (
+                      <div className={cn("flex-shrink-0 w-8", !showAvatar && "invisible")}>
+                        {showAvatar && (
+                          <div className="w-8 h-8 rounded-full bg-emerald-600/20 flex items-center justify-center overflow-hidden ring-2 ring-background shadow-sm">
+                            {comment.user_avatar ? (
+                              <Image
+                                src={comment.user_avatar || "/placeholder.svg"}
+                                alt={comment.user_name}
+                                width={32}
+                                height={32}
+                                className="object-cover"
+                              />
+                            ) : (
+                              <span className="text-xs font-semibold text-emerald-400">
+                                {comment.user_name?.[0]?.toUpperCase() || "?"}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="max-w-[75%] relative">
                       {showAvatar && !isOwnComment && (
@@ -561,8 +562,8 @@ export function ConversationThread({
                         className={cn(
                           "rounded-2xl px-2.5 py-1.5 transition-all duration-200",
                           isOwnComment
-                            ? "bg-gradient-to-br from-zinc-600 to-zinc-700 text-white rounded-br-md shadow-md shadow-zinc-900/20"
-                            : "bg-muted/80 text-foreground rounded-bl-md shadow-sm",
+                            ? "bg-gradient-to-br from-zinc-700 to-zinc-800 text-white rounded-br-md shadow-lg"
+                            : "bg-card/80 border border-border/50 text-foreground rounded-bl-md",
                         )}
                       >
                         {comment.gif_url && (
@@ -594,14 +595,7 @@ export function ConversationThread({
                               minute: "2-digit",
                             })}
                           </span>
-                          {isOwnComment && (
-                            <Check
-                              className={cn(
-                                "h-3 w-3",
-                                comment.id.startsWith("temp-") ? "opacity-40" : "opacity-70 text-blue-200",
-                              )}
-                            />
-                          )}
+                          {isOwnComment && <Check className={cn("h-3 w-3", "text-emerald-400/70")} />}
                         </div>
                       </div>
 
