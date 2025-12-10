@@ -232,17 +232,17 @@ export function MovieConversationThread({
         setComments((prev) =>
           prev.map((c) =>
             c.id === optimisticComment.id
-              ? { ...savedComment, reactions: [], created_at: savedComment.created_at || optimisticComment.created_at }
+              ? {
+                  ...savedComment,
+                  reactions: savedComment.reactions || [],
+                  created_at: savedComment.created_at || optimisticComment.created_at,
+                }
               : c,
           ),
         )
-        clearTypingIndicator()
-      } else {
-        setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id))
       }
     } catch (error) {
-      console.error("Error sending message:", error)
-      setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id))
+      console.error("Error sending comment:", error)
     } finally {
       setIsSubmitting(false)
     }

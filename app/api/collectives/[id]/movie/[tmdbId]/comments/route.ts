@@ -53,7 +53,12 @@ export async function POST(request: NextRequest, { params }: Props) {
   const { id: collectiveId, tmdbId } = await params
 
   try {
-    const user = await getSafeUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Rate limited, please try again" }, { status: 429 })
+    }
+
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

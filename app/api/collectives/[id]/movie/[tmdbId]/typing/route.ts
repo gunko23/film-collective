@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: Props) {
   const mediaType = searchParams.get("mediaType") || "movie"
 
   try {
-    const user = await getSafeUser()
+    const { user } = await getSafeUser()
     if (!user) {
       return NextResponse.json([])
     }
@@ -40,7 +40,12 @@ export async function POST(request: NextRequest, { params }: Props) {
   const { id: collectiveId, tmdbId } = await params
 
   try {
-    const user = await getSafeUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Rate limited" }, { status: 429 })
+    }
+
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -68,7 +73,7 @@ export async function DELETE(request: NextRequest, { params }: Props) {
   const { id: collectiveId, tmdbId } = await params
 
   try {
-    const user = await getSafeUser()
+    const { user } = await getSafeUser()
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -76,12 +81,14 @@ export async function DELETE(request: NextRequest, { params }: Props) {
     const { searchParams } = new URL(request.url)
     const mediaType = searchParams.get("mediaType") || "movie"
 
+    const dbUser = await ensureUserExists(user.id, user.displayName || "User", user.primaryEmail || "")
+
     await sql`
       DELETE FROM movie_typing_indicators
       WHERE collective_id = ${collectiveId}
         AND tmdb_id = ${Number.parseInt(tmdbId)}
         AND media_type = ${mediaType}
-        AND user_id = ${user.id}
+        AND user_id = ${dbUser.id}
     `
 
     return NextResponse.json({ success: true })

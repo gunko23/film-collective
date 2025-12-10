@@ -313,7 +313,7 @@ export function EnhancedComments({
     const optimisticComment: Comment = {
       id: `temp-${Date.now()}`,
       content: newComment.trim(),
-      gif_url: selectedGif,
+      gif_url: selectedGif || undefined,
       user_id: currentUserId,
       user_name: currentUserName || "Unknown",
       created_at: currentTimestamp,
@@ -344,18 +344,22 @@ export function EnhancedComments({
       })
 
       if (res.ok) {
-        const savedComment = await res.json()
-        setComments((prev) =>
-          prev.map((c) =>
-            c.id === optimisticComment.id
-              ? {
-                  ...savedComment,
-                  created_at: savedComment.created_at || currentTimestamp,
-                  reactions: [],
-                }
-              : c,
-          ),
-        )
+        const data = await res.json()
+        const savedComment = data.comment
+
+        if (savedComment) {
+          setComments((prev) =>
+            prev.map((c) =>
+              c.id === optimisticComment.id
+                ? {
+                    ...savedComment,
+                    created_at: savedComment.created_at || currentTimestamp,
+                    reactions: savedComment.reactions || [],
+                  }
+                : c,
+            ),
+          )
+        }
         onCommentAdded?.()
       } else {
         console.error("Failed to save comment, status:", res.status)
