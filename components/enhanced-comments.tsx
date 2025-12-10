@@ -134,12 +134,17 @@ const shouldShowDateDivider = (currentComment: Comment, previousComment: Comment
 // Group reactions by type
 const groupReactions = (
   reactions: CommentReaction[],
+  currentUserId?: string,
 ): { type: string; emoji: string; count: number; userReacted: boolean }[] => {
+  const normalizedUserId = currentUserId?.toLowerCase()
   return EMOJI_REACTIONS.map((reaction) => {
-    const count = reactions.filter((r) => r.reaction_type === reaction.type).length
-    const userReacted = reactions.some((r) => r.reaction_type === reaction.type)
+    const matchingReactions = reactions.filter((r) => r.reaction_type === reaction.type)
+    const count = matchingReactions.length
+    const userReacted = normalizedUserId
+      ? matchingReactions.some((r) => r.user_id?.toLowerCase() === normalizedUserId)
+      : false
     return { ...reaction, count, userReacted }
-  })
+  }).filter((r) => r.count > 0) // Only return reactions that have been used
 }
 
 export function EnhancedComments({
@@ -536,7 +541,7 @@ export function EnhancedComments({
             <div className="space-y-2">
               {displayedComments.map((comment, index) => {
                 const isOwnComment = comment.user_id === currentUserId
-                const groupedReactions = groupReactions(comment.reactions || [])
+                const groupedReactions = groupReactions(comment.reactions || [], currentUserId)
                 const showDateDivider = shouldShowDateDivider(comment, displayedComments[index - 1])
                 const showAvatar =
                   !isOwnComment && (index === 0 || displayedComments[index - 1]?.user_id !== comment.user_id)
