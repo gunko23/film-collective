@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const dbUser = await ensureUserExists(user.id, user.displayName || "User", user.primaryEmail || "")
+    const dbUser = await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
 
     const body = await request.json()
     const { mediaType = "movie" } = body
@@ -81,7 +81,7 @@ export async function DELETE(request: NextRequest, { params }: Props) {
     const { searchParams } = new URL(request.url)
     const mediaType = searchParams.get("mediaType") || "movie"
 
-    const dbUser = await ensureUserExists(user.id, user.displayName || "User", user.primaryEmail || "")
+    const dbUser = await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
 
     await sql`
       DELETE FROM movie_typing_indicators

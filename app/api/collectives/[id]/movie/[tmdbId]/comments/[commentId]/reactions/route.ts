@@ -11,12 +11,12 @@ export async function POST(request: NextRequest, { params }: Props) {
   const { id: collectiveId, commentId } = await params
 
   try {
-    const user = await getSafeUser()
+    const { user } = await getSafeUser()
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const dbUser = await ensureUserExists(user.id, user.displayName || "User", user.primaryEmail || "")
+    const dbUser = await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
 
     const body = await request.json()
     const { reactionType } = body
