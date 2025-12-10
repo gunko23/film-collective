@@ -15,7 +15,7 @@ export async function getCollectiveFeedWithInteractions(collectiveId: string, li
         SELECT 
           umr.id as rating_id,
           umr.user_id,
-          u.name as user_name,
+          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
           u.avatar_url as user_avatar,
           umr.overall_score,
           umr.user_comment,
@@ -42,7 +42,7 @@ export async function getCollectiveFeedWithInteractions(collectiveId: string, li
         SELECT 
           utr.id as rating_id,
           utr.user_id,
-          u.name as user_name,
+          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
           u.avatar_url as user_avatar,
           utr.overall_score,
           NULL as user_comment,
@@ -69,7 +69,7 @@ export async function getCollectiveFeedWithInteractions(collectiveId: string, li
         SELECT 
           uer.id as rating_id,
           uer.user_id,
-          u.name as user_name,
+          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
           u.avatar_url as user_avatar,
           uer.overall_score,
           NULL as user_comment,
@@ -111,7 +111,7 @@ export async function getFeedItemComments(ratingId: string) {
       fc.content,
       fc.created_at,
       fc.user_id,
-      u.name as user_name,
+      COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
       u.avatar_url as user_avatar
     FROM feed_comments fc
     JOIN users u ON fc.user_id = u.id

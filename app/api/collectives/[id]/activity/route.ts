@@ -17,19 +17,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         fc.created_at,
         fc.rating_id,
         fc.user_id,
-        u.name as user_name,
+        -- Fall back to email username if name is null
+        COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
         u.avatar_url as user_avatar,
         'comment' as activity_type,
         NULL as reaction_type,
         -- Get the rating owner info
         COALESCE(
-          (SELECT u2.name FROM users u2 
+          (SELECT COALESCE(u2.name, SPLIT_PART(u2.email, '@', 1), 'User') FROM users u2 
            JOIN user_movie_ratings umr ON umr.user_id = u2.id 
            WHERE umr.id = fc.rating_id),
-          (SELECT u2.name FROM users u2 
+          (SELECT COALESCE(u2.name, SPLIT_PART(u2.email, '@', 1), 'User') FROM users u2 
            JOIN user_tv_show_ratings utsr ON utsr.user_id = u2.id 
            WHERE utsr.id = fc.rating_id),
-          (SELECT u2.name FROM users u2 
+          (SELECT COALESCE(u2.name, SPLIT_PART(u2.email, '@', 1), 'User') FROM users u2 
            JOIN user_episode_ratings uer ON uer.user_id = u2.id 
            WHERE uer.id = fc.rating_id)
         ) as rating_owner_name,
@@ -78,19 +79,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         fr.created_at,
         fr.rating_id,
         fr.user_id,
-        u.name as user_name,
+        -- Fall back to email username if name is null
+        COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
         u.avatar_url as user_avatar,
         'reaction' as activity_type,
         fr.reaction_type,
         -- Get the rating owner info
         COALESCE(
-          (SELECT u2.name FROM users u2 
+          (SELECT COALESCE(u2.name, SPLIT_PART(u2.email, '@', 1), 'User') FROM users u2 
            JOIN user_movie_ratings umr ON umr.user_id = u2.id 
            WHERE umr.id = fr.rating_id),
-          (SELECT u2.name FROM users u2 
+          (SELECT COALESCE(u2.name, SPLIT_PART(u2.email, '@', 1), 'User') FROM users u2 
            JOIN user_tv_show_ratings utsr ON utsr.user_id = u2.id 
            WHERE utsr.id = fr.rating_id),
-          (SELECT u2.name FROM users u2 
+          (SELECT COALESCE(u2.name, SPLIT_PART(u2.email, '@', 1), 'User') FROM users u2 
            JOIN user_episode_ratings uer ON uer.user_id = u2.id 
            WHERE uer.id = fr.rating_id)
         ) as rating_owner_name,
