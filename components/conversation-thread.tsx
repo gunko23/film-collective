@@ -186,6 +186,8 @@ export function ConversationThread({
   const pickerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [gifs, setGifs] = useState<{ url: string; preview: string }[]>([])
+  const [isNearBottom, setIsNearBottom] = useState(true)
+  const [hasInitiallyScrolled, setHasInitiallyScrolled] = useState(false)
 
   const normalizedCurrentUserId = currentUserId?.toLowerCase()
 
@@ -241,13 +243,14 @@ export function ConversationThread({
   }, [collectiveId, ratingId, normalizedCurrentUserId])
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (!hasInitiallyScrolled && comments.length > 0 && scrollRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
-        behavior: "smooth",
+        behavior: "instant",
       })
+      setHasInitiallyScrolled(true)
     }
-  }, [comments, typingUsers])
+  }, [comments.length, hasInitiallyScrolled])
 
   useEffect(() => {
     if (!gifSearchQuery.trim()) {
@@ -421,6 +424,9 @@ export function ConversationThread({
       requestAnimationFrame(() => {
         inputRef.current?.focus()
       })
+      if (isNearBottom) {
+        scrollToBottomIfNeeded()
+      }
     }
   }
 
@@ -430,6 +436,23 @@ export function ConversationThread({
     setGifSearchQuery("") // Clear search query
     inputRef.current?.focus()
   }
+
+  const scrollToBottomIfNeeded = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth",
+      })
+    }
+  }, [])
+
+  const handleScroll = useCallback(() => {
+    if (scrollRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
+      const threshold = 100
+      setIsNearBottom(scrollHeight - scrollTop - clientHeight < threshold)
+    }
+  }, [])
 
   const groupedComments = comments.reduce(
     (groups, comment) => {
@@ -460,6 +483,7 @@ export function ConversationThread({
     <div className="flex flex-col h-full overflow-hidden">
       <div
         ref={scrollRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto space-y-6 scroll-smooth px-2 py-4"
         style={{ minHeight: 0 }}
       >
