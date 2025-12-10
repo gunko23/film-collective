@@ -458,7 +458,11 @@ export function ConversationThread({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-6 scroll-smooth px-2 py-4 min-h-0">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto space-y-6 scroll-smooth px-2 py-4"
+        style={{ minHeight: 0 }}
+      >
         {Object.entries(groupedComments).map(([date, dayComments]) => (
           <div key={date}>
             <div className="flex items-center gap-4 my-6">
@@ -757,14 +761,14 @@ export function ConversationThread({
         onSubmit={handleAddComment}
         className="flex-shrink-0 flex items-end gap-2 p-3 border-t border-border/30 w-full overflow-hidden bg-background/80 backdrop-blur-sm"
       >
-        <div className="flex-1 min-w-0 flex items-end gap-1 bg-muted/50 border border-border/50 rounded-2xl pl-2 pr-1 py-1 focus-within:border-blue-500/50 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-200">
+        <div className="flex-1 min-w-0 flex items-end gap-1 bg-muted/50 border border-border/50 rounded-2xl pl-2 pr-1 py-1 focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all duration-200">
           <button
             type="button"
             onClick={() => setShowPicker(!showPicker)}
             className={cn(
               "flex-shrink-0 p-2 rounded-full transition-all duration-200 self-end mb-0.5",
               showPicker
-                ? "bg-blue-500/20 text-blue-400"
+                ? "bg-emerald-500/20 text-emerald-400"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted",
             )}
           >
@@ -790,7 +794,7 @@ export function ConversationThread({
             size="icon"
             disabled={(!newComment.trim() && !selectedGif) || loading}
             className={cn(
-              "flex-shrink-0 rounded-full h-9 w-9 bg-blue-600 hover:bg-blue-700 transition-all duration-200 self-end mb-0.5",
+              "flex-shrink-0 rounded-full h-9 w-9 bg-zinc-700 hover:bg-zinc-600 transition-all duration-200 self-end mb-0.5",
               sendingMessage && "scale-90",
             )}
           >
