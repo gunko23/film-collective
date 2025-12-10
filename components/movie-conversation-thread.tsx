@@ -173,6 +173,14 @@ export function MovieConversationThread({
     }, 3000)
   }
 
+  // Handle key down
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit(e)
+    }
+  }
+
   // Format time
   const formatCommentTime = (dateString: string) => {
     try {
@@ -366,13 +374,12 @@ export function MovieConversationThread({
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      {/* Messages container */}
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Messages container - this is the ONLY scrollable area */}
       <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-3"
-        style={{ minHeight: 0 }}
+        className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-3"
       >
         {comments.length === 0 ? (
           <div className="flex items-center justify-center h-full min-h-[200px]">
@@ -452,10 +459,9 @@ export function MovieConversationThread({
 
                     {/* Reaction button */}
                     <button
+                      type="button"
                       onClick={() => setActiveReactionPicker(activeReactionPicker === comment.id ? null : comment.id)}
-                      className={`absolute -right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full bg-zinc-800/90 hover:bg-zinc-700 ${
-                        isOwn ? "-left-1 -right-auto" : "-right-1"
-                      }`}
+                      className={`absolute ${isOwn ? "-left-6" : "-right-6"} top-1/2 -translate-y-1/2 p-1 rounded-full bg-zinc-800/80 opacity-0 group-hover:opacity-100 hover:bg-zinc-700 transition-all`}
                     >
                       <Smile className="h-3 w-3 text-zinc-400" />
                     </button>
@@ -463,18 +469,15 @@ export function MovieConversationThread({
                     {/* Reaction picker */}
                     {activeReactionPicker === comment.id && (
                       <div
-                        className={`absolute z-20 ${
-                          isOwn ? "right-0" : "left-0"
-                        } bottom-full mb-1 bg-zinc-800/95 backdrop-blur-sm rounded-xl p-1.5 shadow-xl border border-zinc-700/50`}
+                        className={`absolute ${isOwn ? "right-0" : "left-0"} bottom-full mb-1 bg-zinc-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-zinc-700/50 p-1.5 z-50`}
                       >
-                        <div className="grid grid-cols-4 gap-1 w-[140px]">
+                        <div className="grid grid-cols-4 gap-1 w-[120px]">
                           {REACTION_EMOJIS.map((emoji) => (
                             <button
                               key={emoji}
+                              type="button"
                               onClick={() => handleReactionToggle(comment.id, emoji)}
-                              className={`p-1.5 rounded-lg hover:bg-zinc-700/50 transition-colors text-base ${
-                                hasUserReacted(comment.reactions, emoji) ? "bg-emerald-600/20" : ""
-                              }`}
+                              className="p-1 rounded hover:bg-zinc-700/50 transition-colors text-base"
                             >
                               {emoji}
                             </button>
@@ -486,16 +489,13 @@ export function MovieConversationThread({
 
                   {/* Reactions display */}
                   {Object.keys(groupedReactions).length > 0 && (
-                    <div className={`flex flex-wrap gap-1 mt-1 ${isOwn ? "justify-end" : "justify-start"}`}>
+                    <div className="flex flex-wrap gap-1 mt-1">
                       {Object.entries(groupedReactions).map(([emoji, data]) => (
                         <button
                           key={emoji}
+                          type="button"
                           onClick={() => handleReactionToggle(comment.id, emoji)}
-                          className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] transition-colors ${
-                            hasUserReacted(comment.reactions, emoji)
-                              ? "bg-emerald-600/20 border border-emerald-500/30"
-                              : "bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-700/50"
-                          }`}
+                          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-zinc-800/50 hover:bg-zinc-700/50 transition-colors text-xs"
                           title={data.users.join(", ")}
                         >
                           <span>{emoji}</span>
@@ -538,8 +538,8 @@ export function MovieConversationThread({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area - sticky at bottom */}
-      <div className="flex-shrink-0 p-3 border-t border-border/30 bg-background/95 backdrop-blur-sm">
+      {/* Input area - fixed at bottom, never scrolls */}
+      <div className="flex-shrink-0 p-3 border-t border-border/30 bg-background">
         <form onSubmit={handleSubmit} className="w-full">
           <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
             {/* Emoji/GIF button */}
@@ -601,18 +601,35 @@ export function MovieConversationThread({
                         ))}
                       </div>
                     ) : (
-                      <div>
+                      <div className="space-y-2">
                         <input
                           type="text"
                           value={gifSearch}
                           onChange={(e) => setGifSearch(e.target.value)}
                           placeholder="Search GIFs..."
-                          className="w-full bg-zinc-800/50 border border-zinc-700/50 rounded-lg px-3 py-2 text-sm placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50 mb-2"
+                          className="w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500"
                         />
-                        {gifSearch && (
-                          <div className="text-center py-4">
-                            <ImageIcon className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
-                            <p className="text-xs text-zinc-500">GIF search coming soon</p>
+                        {gifs.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-1 max-h-[150px] overflow-y-auto">
+                            {gifs.map((gif, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => handleGifSelect(gif.url)}
+                                className="rounded overflow-hidden hover:opacity-80 transition-opacity"
+                              >
+                                <img
+                                  src={gif.preview || "/placeholder.svg"}
+                                  alt="GIF"
+                                  className="w-full h-16 object-cover"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 text-zinc-500 text-xs">
+                            <ImageIcon className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                            Search for GIFs
                           </div>
                         )}
                       </div>
@@ -622,28 +639,24 @@ export function MovieConversationThread({
               )}
             </div>
 
-            {/* Input */}
+            {/* Text input */}
             <textarea
               ref={inputRef}
               value={newComment}
               onChange={handleInputChange}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSubmit(e)
-                }
-              }}
+              onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={1}
-              className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none resize-none max-h-24 overflow-y-auto min-w-0 py-1 leading-5"
+              className="flex-1 bg-transparent border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 resize-none py-1 leading-5 max-h-24 overflow-y-auto"
+              style={{ minHeight: "24px" }}
             />
 
             {/* Send button */}
             <Button
               type="submit"
               size="icon"
-              disabled={!newComment.trim() || isSubmitting}
-              className="h-8 w-8 rounded-full bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 flex-shrink-0 transition-all active:scale-95"
+              disabled={(!newComment.trim() && !isSubmitting) || isSubmitting}
+              className="h-8 w-8 rounded-full bg-zinc-700 hover:bg-zinc-600 flex-shrink-0 disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
             </Button>

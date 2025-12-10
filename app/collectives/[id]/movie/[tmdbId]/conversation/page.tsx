@@ -187,19 +187,20 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
   const mediaLink = mediaType === "tv" ? `/tv/${mediaInfo.tmdb_id}` : `/movies/${mediaInfo.tmdb_id}`
 
   return (
-    <div className="h-[100dvh] bg-background flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-background flex flex-col">
       <Header />
 
       {/* Background effects */}
-      <div className="fixed inset-0 pointer-events-none">
+      <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-20 left-1/4 w-[500px] h-[500px] rounded-full bg-accent/5 blur-[100px]" />
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
       </div>
 
-      <main className="relative z-10 pt-20 flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="mx-auto max-w-2xl px-4 w-full flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* Sticky header with back button */}
-          <div className="flex-shrink-0 flex items-center gap-4 py-3 bg-background/95 backdrop-blur-sm border-b border-border/30">
+      {/* Main content area - fixed height container */}
+      <div className="relative z-10 pt-20 flex-1 flex flex-col overflow-hidden">
+        <div className="mx-auto max-w-2xl px-4 w-full flex-1 flex flex-col overflow-hidden">
+          {/* Sticky header with back button - fixed at top of content */}
+          <div className="flex-shrink-0 flex items-center gap-4 py-3 bg-background border-b border-border/30">
             <Link href={`/collectives/${collectiveId}`} className="p-2 rounded-full hover:bg-muted transition-colors">
               <ArrowLeft className="h-5 w-5" />
             </Link>
@@ -212,7 +213,7 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
             </div>
           </div>
 
-          {/* Sticky media card */}
+          {/* Sticky media card - fixed below header */}
           <div className="flex-shrink-0 bg-card/50 border border-border/50 rounded-xl p-3 my-2 backdrop-blur-sm">
             <div className="flex gap-3">
               <Link href={mediaLink} className="flex-shrink-0">
@@ -286,8 +287,8 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
             </div>
           </div>
 
-          {/* Conversation thread - takes remaining space */}
-          <div className="flex-1 min-h-0 overflow-hidden">
+          {/* Conversation thread - fills remaining space with internal scroll */}
+          <div className="flex-1 overflow-hidden">
             <MovieConversationThread
               collectiveId={collectiveId}
               tmdbId={Number.parseInt(tmdbId)}
@@ -297,7 +298,7 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
             />
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }
