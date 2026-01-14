@@ -85,7 +85,7 @@ function UserContent() {
           <DropdownMenuSeparator />
           <div className="md:hidden">
             <DropdownMenuItem asChild>
-              <Link href="/" className="flex items-center gap-2 cursor-pointer">
+              <Link href="/discover" className="flex items-center gap-2 cursor-pointer">
                 <Compass className="h-4 w-4" />
                 Discover
               </Link>
@@ -173,7 +173,7 @@ function MobileMenuContent({ onClose }: { onClose: () => void }) {
         </Link>
       )}
       <Link
-        href="/"
+        href="/discover"
         onClick={onClose}
         className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
       >
@@ -295,7 +295,7 @@ export function Header() {
                   </Link>
                 )}
                 <Link
-                  href="/"
+                  href="/discover"
                   className="relative px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-300 rounded-lg hover:bg-secondary/50"
                 >
                   Discover
