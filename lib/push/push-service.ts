@@ -114,3 +114,63 @@ export async function sendPushNotification(
     return { success: false, error }
   }
 }
+
+export async function sendPushNotificationToCollectiveMembers(
+  collectiveId: string,
+  senderUserId: string,
+  payload: {
+    title: string
+    body: string
+    url?: string
+    tag?: string
+  },
+) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    console.warn("VAPID keys not configured, skipping push notifications")
+    return { success: false, reason: "VAPID keys not configured" }
+  }
+
+  try {
+    // Get all collective members except the sender who have push subscriptions
+    const subscriptions = await sql`
+      SELECT DISTINCT ps.endpoint, ps.p256dh, ps.auth, ps.user_id
+      FROM push_subscriptions ps
+      JOIN collective_memberships cm ON cm.user_id = ps.user_id
+      WHERE cm.collective_id = ${collectiveId}::uuid
+        AND ps.user_id != ${senderUserId}::uuid
+    `
+
+    if (subscriptions.length === 0) {
+      return { success: true, sent: 0, reason: "No subscribers" }
+    }
+
+    const results = await Promise.allSettled(
+      subscriptions.map(async (sub: { endpoint: string; p256dh: string; auth: string; user_id: string }) => {
+        const pushSubscription = {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh,
+            auth: sub.auth,
+          },
+        }
+
+        try {
+          await webpush.sendNotification(pushSubscription, JSON.stringify(payload))
+          return { success: true, endpoint: sub.endpoint }
+        } catch (error: unknown) {
+          const webPushError = error as { statusCode?: number }
+          if (webPushError.statusCode === 410 || webPushError.statusCode === 404) {
+            await removePushSubscription(sub.user_id, sub.endpoint)
+          }
+          throw error
+        }
+      }),
+    )
+
+    const successful = results.filter((r) => r.status === "fulfilled").length
+    return { success: true, sent: successful, total: subscriptions.length }
+  } catch (error) {
+    console.error("Error sending push notifications to collective:", error)
+    return { success: false, error }
+  }
+}

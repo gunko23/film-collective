@@ -18,10 +18,7 @@ import {
   ChevronRight,
   Plus,
   Sparkles,
-  Calendar,
   Award,
-  Flame,
-  Target,
   Settings,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -195,7 +192,7 @@ function ActivityItem({ activity }: { activity: Activity }) {
         </div>
         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{getActivityDescription()}</p>
         <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-[10px] text-zinc-500 bg-zinc-800/80 px-1.5 py-0.5 rounded">
+          <span className="text-[10px] text-zinc-500 bg-zinc-800/80 px-1.5 py-0.5 rounded-full">
             {activity.collective_name}
           </span>
           <span className="text-[10px] text-zinc-500">
@@ -346,116 +343,106 @@ export function UserDashboard() {
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8 space-y-6 sm:space-y-8">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {insights?.topGenres && insights.topGenres.length > 0 && (
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-pink-500/10 via-pink-500/5 to-transparent border border-pink-500/20 p-5 backdrop-blur-sm">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/10 rounded-full blur-2xl" />
-              <div className="relative">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-2 rounded-xl bg-pink-500/20">
-                    <Target className="h-5 w-5 text-pink-400" />
-                  </div>
-                  <span className="text-sm font-medium text-zinc-300">Top Genre</span>
+        <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8 space-y-6 sm:space-y-8">
+          {/* Favorite Movies Section */}
+          <FavoriteMoviesPicker />
+
+          {/* Collectives Section */}
+          <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 via-zinc-900/50 to-zinc-900/50 border border-violet-500/20 overflow-hidden backdrop-blur-sm">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-zinc-800/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-violet-500/20">
+                  <Users className="h-6 w-6 text-violet-400" />
                 </div>
-                <p className="text-3xl font-bold text-white">{insights.topGenres[0].genre}</p>
-                <p className="text-sm text-zinc-400 mt-1">{insights.topGenres[0].count} films rated</p>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Your Collectives</h2>
+                  <p className="text-xs text-zinc-500">
+                    {collectives.length} collective{collectives.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
               </div>
+              <Link href="/collectives">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs text-violet-400 hover:text-violet-300 hover:bg-violet-500/10"
+                >
+                  View All
+                  <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </Link>
             </div>
-          )}
 
-          {insights?.favoriteDecade && (
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-500/10 via-cyan-500/5 to-transparent border border-cyan-500/20 p-5 backdrop-blur-sm">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl" />
-              <div className="relative">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-2 rounded-xl bg-cyan-500/20">
-                    <Calendar className="h-5 w-5 text-cyan-400" />
-                  </div>
-                  <span className="text-sm font-medium text-zinc-300">Favorite Era</span>
-                </div>
-                <p className="text-3xl font-bold text-white">{insights.favoriteDecade}s</p>
-                <p className="text-sm text-zinc-400 mt-1">Most watched decade</p>
-              </div>
-            </div>
-          )}
-
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-500/10 via-orange-500/5 to-transparent border border-orange-500/20 p-5 backdrop-blur-sm">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl" />
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-2 rounded-xl bg-orange-500/20">
-                  <Flame className="h-5 w-5 text-orange-400" />
-                </div>
-                <span className="text-sm font-medium text-zinc-300">This Month</span>
-              </div>
-              <div className="flex items-end gap-3">
-                <p className="text-3xl font-bold text-white">{insights?.ratingActivity?.this_month || 0}</p>
-                {activityTrend !== 0 && (
-                  <span
-                    className={`text-sm font-semibold mb-1 px-2 py-0.5 rounded-full ${activityTrend > 0 ? "text-emerald-400 bg-emerald-500/20" : "text-red-400 bg-red-500/20"}`}
-                  >
-                    {activityTrend > 0 ? "+" : ""}
-                    {activityTrend}%
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-zinc-400 mt-1">ratings this month</p>
-            </div>
-          </div>
-        </div>
-
-        <FavoriteMoviesPicker />
-
-        {insights?.highestRated && (
-          <Link
-            href={`/movies/${insights.highestRated.tmdb_id}`}
-            className="block relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 p-5 hover:border-amber-500/40 transition-all duration-300 group"
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-colors" />
-            <div className="relative flex items-center gap-5">
-              <div className="relative h-24 w-16 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-amber-500/30 shadow-lg shadow-amber-500/10">
-                {insights.highestRated.poster_path ? (
-                  <Image
-                    src={`https://image.tmdb.org/t/p/w154${insights.highestRated.poster_path}`}
-                    alt={insights.highestRated.title}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="h-full flex items-center justify-center bg-zinc-800">
-                    <Film className="h-6 w-6 text-zinc-600" />
-                  </div>
-                )}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="p-1.5 rounded-lg bg-amber-500/20">
-                    <Award className="h-4 w-4 text-amber-400" />
-                  </div>
-                  <span className="text-xs text-amber-400 font-semibold uppercase tracking-wider">
-                    Your Highest Rated
-                  </span>
-                </div>
-                <p className="text-xl font-bold text-white group-hover:text-amber-300 transition-colors">
-                  {insights.highestRated.title}
+            {collectives.length === 0 ? (
+              <div className="p-8 text-center">
+                <Sparkles className="h-14 w-14 text-violet-500/30 mx-auto mb-4" />
+                <p className="text-zinc-300 font-medium">No collectives yet</p>
+                <p className="text-sm text-zinc-500 mt-1">
+                  Create or join a collective to start sharing movies with friends
                 </p>
-                <div className="flex items-center gap-1.5 mt-2">
-                  <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
-                  <span className="text-lg text-amber-400 font-bold">
-                    {(insights.highestRated.overall_score / 20).toFixed(1)}
-                  </span>
-                </div>
+                <Link href="/collectives">
+                  <Button size="sm" className="mt-5 bg-violet-600 hover:bg-violet-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create or Join Collective
+                  </Button>
+                </Link>
               </div>
-              <ChevronRight className="h-6 w-6 text-zinc-600 group-hover:text-amber-400 group-hover:translate-x-1 transition-all" />
-            </div>
-          </Link>
-        )}
+            ) : (
+              <>
+                {/* Horizontal scrolling cards on mobile, grid on desktop */}
+                <div className="p-4 sm:p-5">
+                  <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:overflow-visible scrollbar-hide">
+                    {collectives.map((collective) => (
+                      <Link
+                        key={collective.id}
+                        href={`/collectives/${collective.id}`}
+                        className="flex-shrink-0 w-[200px] sm:w-auto group"
+                      >
+                        <div className="h-full p-4 rounded-xl bg-zinc-800/50 border border-zinc-700/50 hover:border-violet-500/50 hover:bg-zinc-800 transition-all duration-300">
+                          <div className="flex items-start gap-3">
+                            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-violet-500/30 to-emerald-500/30 flex items-center justify-center ring-1 ring-violet-500/30 flex-shrink-0">
+                              <Users className="h-6 w-6 text-violet-300" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-white truncate group-hover:text-violet-300 transition-colors">
+                                {collective.name}
+                              </p>
+                              <p className="text-xs text-zinc-500 mt-0.5">
+                                {collective.member_count} member{collective.member_count !== 1 ? "s" : ""}
+                              </p>
+                              {collective.role === "owner" && (
+                                <span className="inline-block mt-1.5 text-[10px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                                  Owner
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {collective.description && (
+                            <p className="text-xs text-zinc-500 mt-3 line-clamp-2">{collective.description}</p>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                    {/* Create new collective card */}
+                    <Link href="/collectives" className="flex-shrink-0 w-[200px] sm:w-auto group">
+                      <div className="h-full p-4 rounded-xl border-2 border-dashed border-zinc-700/50 hover:border-violet-500/50 transition-all duration-300 flex flex-col items-center justify-center min-h-[100px]">
+                        <div className="h-10 w-10 rounded-full bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
+                          <Plus className="h-5 w-5 text-violet-400" />
+                        </div>
+                        <p className="text-sm text-zinc-400 mt-2 group-hover:text-violet-300 transition-colors">
+                          Create New
+                        </p>
+                      </div>
+                    </Link>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-          <div className="lg:col-span-2 rounded-2xl bg-zinc-900/50 border border-zinc-800/50 overflow-hidden backdrop-blur-sm">
+          {/* Activity Section */}
+          <div className="rounded-2xl bg-zinc-900/50 border border-zinc-800/50 overflow-hidden backdrop-blur-sm">
             <div className="flex items-center justify-between p-4 sm:p-5 border-b border-zinc-800/50">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-emerald-500/10">
@@ -483,74 +470,135 @@ export function UserDashboard() {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-zinc-900/50 border border-zinc-800/50 overflow-hidden backdrop-blur-sm">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-zinc-800/50">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-violet-500/10">
-                  <Users className="h-5 w-5 text-violet-500" />
+          {/* Insights Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Favorite Genre */}
+            {insights?.topGenres && insights.topGenres.length > 0 && (
+              <div className="relative rounded-2xl bg-gradient-to-br from-pink-500/20 via-zinc-900/80 to-zinc-900 border border-pink-500/30 p-5 backdrop-blur-sm overflow-hidden group hover:border-pink-500/50 transition-all duration-300">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-3xl group-hover:bg-pink-500/20 transition-colors" />
+                <div className="relative">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2.5 rounded-xl bg-pink-500/20 ring-1 ring-pink-500/30">
+                      <Heart className="h-5 w-5 text-pink-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white">Favorite Genre</h3>
+                      <p className="text-xs text-zinc-500">Based on your ratings</p>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-3xl font-black bg-gradient-to-r from-pink-300 to-pink-500 bg-clip-text text-transparent">
+                      {insights.topGenres[0].genre}
+                    </p>
+                  </div>
+                  <p className="text-sm text-zinc-400 mt-2">{insights.topGenres[0].count} films rated</p>
                 </div>
-                <h2 className="font-semibold text-white">Your Collectives</h2>
               </div>
-              <Link href="/collectives">
-                <Button variant="ghost" size="sm" className="h-7 text-xs text-zinc-400 hover:text-white">
-                  View All
-                  <ChevronRight className="h-3 w-3 ml-1" />
-                </Button>
-              </Link>
-            </div>
+            )}
 
-            <div className="divide-y divide-zinc-800/50">
-              {collectives.length === 0 ? (
-                <div className="p-6 text-center">
-                  <Sparkles className="h-12 w-12 text-zinc-700 mx-auto mb-3" />
-                  <p className="text-zinc-400 text-sm font-medium">No collectives yet</p>
-                  <Link href="/collectives">
-                    <Button size="sm" className="mt-4 bg-emerald-600 hover:bg-emerald-700">
-                      <Plus className="h-3.5 w-3.5 mr-1.5" />
-                      Create or Join
-                    </Button>
-                  </Link>
+            {/* Favorite Decade */}
+            {insights?.favoriteDecade && (
+              <div className="relative rounded-2xl bg-gradient-to-br from-cyan-500/20 via-zinc-900/80 to-zinc-900 border border-cyan-500/30 p-5 backdrop-blur-sm overflow-hidden group hover:border-cyan-500/50 transition-all duration-300">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl group-hover:bg-cyan-500/20 transition-colors" />
+                <div className="relative">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2.5 rounded-xl bg-cyan-500/20 ring-1 ring-cyan-500/30">
+                      <Clock className="h-5 w-5 text-cyan-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white">Favorite Decade</h3>
+                      <p className="text-xs text-zinc-500">Most watched era</p>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-3xl font-black bg-gradient-to-r from-cyan-300 to-cyan-500 bg-clip-text text-transparent">
+                      {insights.favoriteDecade}s
+                    </p>
+                  </div>
+                  <p className="text-sm text-zinc-400 mt-2">Your most rated decade</p>
                 </div>
-              ) : (
-                collectives.slice(0, 5).map((collective) => (
-                  <Link
-                    key={collective.id}
-                    href={`/collectives/${collective.id}`}
-                    className="flex items-center gap-3 p-3 sm:p-4 hover:bg-zinc-800/50 transition-colors group"
-                  >
-                    <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 flex items-center justify-center ring-1 ring-emerald-500/20">
-                      <Users className="h-5 w-5 text-emerald-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-white truncate group-hover:text-emerald-400 transition-colors">
-                        {collective.name}
-                      </p>
-                      <p className="text-xs text-zinc-500">
-                        {collective.member_count} member{collective.member_count !== 1 ? "s" : ""}
-                        {collective.role === "owner" && <span className="ml-1.5 text-amber-500">• Owner</span>}
-                      </p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-zinc-600 group-hover:text-emerald-400 transition-colors" />
-                  </Link>
-                ))
-              )}
-            </div>
+              </div>
+            )}
 
-            {collectives.length > 0 && (
-              <div className="p-3 border-t border-zinc-800/50">
-                <Link href="/collectives">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-xs border-zinc-700 hover:bg-zinc-800 bg-transparent"
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1.5" />
-                    Create New Collective
-                  </Button>
-                </Link>
+            {/* Rating Activity */}
+            {insights?.ratingActivity && (
+              <div className="relative rounded-2xl bg-gradient-to-br from-emerald-500/20 via-zinc-900/80 to-zinc-900 border border-emerald-500/30 p-5 backdrop-blur-sm overflow-hidden group hover:border-emerald-500/50 transition-all duration-300">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-colors" />
+                <div className="relative">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/20 ring-1 ring-emerald-500/30">
+                      <TrendingUp className="h-5 w-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white">This Month</h3>
+                      <p className="text-xs text-zinc-500">Rating activity</p>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <p className="text-3xl font-black bg-gradient-to-r from-emerald-300 to-emerald-500 bg-clip-text text-transparent">
+                      {insights.ratingActivity.this_month}
+                    </p>
+                    {activityTrend !== 0 && (
+                      <span
+                        className={`text-lg font-bold px-2 py-0.5 rounded-lg ${
+                          activityTrend > 0 ? "text-emerald-400 bg-emerald-500/20" : "text-red-400 bg-red-500/20"
+                        }`}
+                      >
+                        {activityTrend > 0 ? "+" : ""}
+                        {activityTrend}%
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-zinc-400 mt-2">{insights.ratingActivity.last_month} last month</p>
+                </div>
               </div>
             )}
           </div>
+
+          {insights?.highestRated && (
+            <Link
+              href={`/movies/${insights.highestRated.tmdb_id}`}
+              className="block relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 p-5 hover:border-amber-500/40 transition-all duration-300 group"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-colors" />
+              <div className="relative flex items-center gap-5">
+                <div className="relative h-24 w-16 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-amber-500/30 shadow-lg shadow-amber-500/10">
+                  {insights.highestRated.poster_path ? (
+                    <Image
+                      src={`https://image.tmdb.org/t/p/w154${insights.highestRated.poster_path}`}
+                      alt={insights.highestRated.title}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="h-full flex items-center justify-center bg-zinc-800">
+                      <Film className="h-6 w-6 text-zinc-600" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-1.5 rounded-lg bg-amber-500/20">
+                      <Award className="h-4 w-4 text-amber-400" />
+                    </div>
+                    <span className="text-xs text-amber-400 font-semibold uppercase tracking-wider">
+                      Your Highest Rated
+                    </span>
+                  </div>
+                  <p className="text-xl font-bold text-white group-hover:text-amber-300 transition-colors">
+                    {insights.highestRated.title}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+                    <span className="text-lg text-amber-400 font-bold">
+                      {(insights.highestRated.overall_score / 20).toFixed(1)}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="h-6 w-6 text-zinc-600 group-hover:text-amber-400 group-hover:translate-x-1 transition-all" />
+              </div>
+            </Link>
+          )}
         </div>
       </div>
     </div>

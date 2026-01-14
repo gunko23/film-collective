@@ -3,6 +3,7 @@ import { neon } from "@neondatabase/serverless"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 import { publishMessage, removeTypingUser } from "@/lib/redis/client"
+import { sendPushNotificationToCollectiveMembers } from "@/lib/push/push-service"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -219,6 +220,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     await publishMessage(collectiveId, "new_message", fullMessage)
     await removeTypingUser(collectiveId, dbUser.id)
+
+    const collectiveInfo = await sql`
+      SELECT name FROM collectives WHERE id = ${collectiveId}::uuid
+    `
+    const collectiveName = collectiveInfo[0]?.name || "Collective"
+    const senderName = user.displayName || dbUser.name || "Someone"
+    const messagePreview = gifUrl ? "sent a GIF" : content?.substring(0, 50) + (content?.length > 50 ? "..." : "")
+
+    // Fire and forget - don't block the response
+    sendPushNotificationToCollectiveMembers(collectiveId, dbUser.id, {
+      title: `${collectiveName} Discussion`,
+      body: `${senderName}: ${messagePreview}`,
+      url: `/collectives/${collectiveId}?section=discussion`,
+      tag: `discussion-${collectiveId}`,
+    }).catch((err) => console.error("Push notification error:", err))
 
     return NextResponse.json({ message: fullMessage })
   } catch (error) {

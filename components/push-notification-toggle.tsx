@@ -20,6 +20,7 @@ export function PushNotificationToggle() {
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [permission, setPermission] = useState<NotificationPermission>("default")
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     // Check if push notifications are supported
@@ -36,11 +37,17 @@ export function PushNotificationToggle() {
 
   async function checkSubscription() {
     try {
-      const registration = await navigator.serviceWorker.ready
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Service worker not available")), 3000),
+      )
+
+      const registration = await Promise.race([navigator.serviceWorker.ready, timeoutPromise])
+
       const subscription = await registration.pushManager.getSubscription()
       setIsSubscribed(!!subscription)
     } catch (error) {
       console.error("Error checking subscription:", error)
+      setError("Push notifications unavailable")
     } finally {
       setIsLoading(false)
     }
@@ -113,6 +120,10 @@ export function PushNotificationToggle() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (error) {
+    return <div className="text-sm text-muted-foreground">{error}</div>
   }
 
   if (!isSupported) {

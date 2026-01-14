@@ -2,7 +2,7 @@
 
 import { useUser } from "@stackframe/stack"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { Star, Film, Calendar, ArrowLeft, TrendingUp, Award, RefreshCw, Heart } from "lucide-react"
 import { getImageUrl } from "@/lib/tmdb/image"
@@ -40,6 +40,59 @@ function ProfileContent() {
   const [favorites, setFavorites] = useState<FavoriteMovie[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+
+  const fetchData = useCallback(async () => {
+    if (!user) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      if (retryCount > 0) {
+        await new Promise((resolve) => setTimeout(resolve, retryCount * 2000))
+      }
+
+      const [ratingsRes, favoritesRes] = await Promise.all([
+        fetch("/api/user/ratings"),
+        fetch(`/api/user/${user.id}/profile`),
+      ])
+
+      const ratingsText = await ratingsRes.text()
+
+      if (!ratingsRes.ok) {
+        if (ratingsRes.status === 429 || ratingsText.includes("Too Many") || ratingsText.includes("Rate limit")) {
+          throw new Error("Rate limited. Please wait a moment and try again.")
+        }
+        throw new Error("Failed to load ratings. Please try again.")
+      }
+
+      let ratingsData
+      try {
+        ratingsData = JSON.parse(ratingsText)
+      } catch {
+        throw new Error("Failed to load ratings. Please try again.")
+      }
+      setRatings(ratingsData.ratings || [])
+      setRetryCount(0)
+
+      const favoritesText = await favoritesRes.text()
+
+      if (favoritesRes.ok) {
+        try {
+          const favoritesData = JSON.parse(favoritesText)
+          setFavorites(favoritesData.favorites || [])
+        } catch {
+          console.warn("Failed to parse favorites data")
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching data:", err)
+      setError(err instanceof Error ? err.message : "Failed to load your data")
+    } finally {
+      setLoading(false)
+    }
+  }, [user, retryCount])
 
   useEffect(() => {
     if (!user) {
@@ -47,50 +100,13 @@ function ProfileContent() {
       return
     }
 
-    async function fetchData() {
-      try {
-        const [ratingsRes, favoritesRes] = await Promise.all([
-          fetch("/api/user/ratings"),
-          fetch(`/api/user/${user.id}/profile`),
-        ])
-
-        const ratingsText = await ratingsRes.text()
-
-        if (!ratingsRes.ok) {
-          if (ratingsRes.status === 429 || ratingsText.includes("Too Many") || ratingsText.includes("Rate limit")) {
-            throw new Error("Rate limited. Please wait a moment and try again.")
-          }
-          throw new Error("Failed to load ratings. Please try again.")
-        }
-
-        let ratingsData
-        try {
-          ratingsData = JSON.parse(ratingsText)
-        } catch {
-          throw new Error("Failed to load ratings. Please try again.")
-        }
-        setRatings(ratingsData.ratings || [])
-
-        const favoritesText = await favoritesRes.text()
-
-        if (favoritesRes.ok) {
-          try {
-            const favoritesData = JSON.parse(favoritesText)
-            setFavorites(favoritesData.favorites || [])
-          } catch {
-            console.warn("Failed to parse favorites data")
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching data:", err)
-        setError(err instanceof Error ? err.message : "Failed to load your data")
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchData()
-  }, [user, router])
+  }, [user, router, fetchData])
+
+  const handleRetry = () => {
+    setRetryCount((prev) => prev + 1)
+    fetchData()
+  }
 
   const getRatingLabel = (score: number) => {
     if (score >= 90) return "Masterpiece"
@@ -111,7 +127,6 @@ function ProfileContent() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      {/* Background effects */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-20 left-1/4 w-[500px] h-[500px] rounded-full bg-accent/5 blur-[100px]" />
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
@@ -119,7 +134,6 @@ function ProfileContent() {
 
       <main className="relative z-10 pt-28 pb-16">
         <div className="mx-auto max-w-6xl px-6">
-          {/* Back button */}
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-8 group"
@@ -128,10 +142,8 @@ function ProfileContent() {
             Back to Discover
           </Link>
 
-          {/* Profile header */}
           <div className="mb-12">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-8">
-              {/* Avatar */}
               <div className="relative">
                 {user.profileImageUrl ? (
                   <img
@@ -146,7 +158,6 @@ function ProfileContent() {
                     </span>
                   </div>
                 )}
-                {/* Badge */}
                 <div className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg">
                   <Award className="h-4 w-4" />
                 </div>
@@ -155,14 +166,12 @@ function ProfileContent() {
               <div className="flex-1">
                 <h1 className="text-3xl font-bold text-foreground mb-1">{user.displayName || "Film Enthusiast"}</h1>
                 <p className="text-muted-foreground mb-3">{user.primaryEmail}</p>
-                {/* Push notification toggle */}
                 <div className="flex items-center gap-3">
                   <PushNotificationToggle />
                 </div>
               </div>
             </div>
 
-            {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="rounded-2xl bg-card/50 backdrop-blur-sm border border-border/50 p-5 hover-lift transition-all duration-300">
                 <div className="flex items-center gap-2 text-muted-foreground mb-2">
@@ -245,7 +254,6 @@ function ProfileContent() {
             </div>
           )}
 
-          {/* Rated movies */}
           <div>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-foreground">Your Rated Movies</h2>
@@ -266,11 +274,11 @@ function ProfileContent() {
               <div className="text-center py-12 rounded-2xl bg-card/30 border border-border/50">
                 <p className="text-destructive mb-4">{error}</p>
                 <button
-                  onClick={() => window.location.reload()}
+                  onClick={handleRetry}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-accent-foreground font-medium hover:bg-accent/90 transition-all"
                 >
                   <RefreshCw className="h-4 w-4" />
-                  Try Again
+                  Try Again {retryCount > 0 && `(attempt ${retryCount + 1})`}
                 </button>
               </div>
             ) : ratings.length === 0 ? (
@@ -307,15 +315,12 @@ function ProfileContent() {
                         </div>
                       )}
 
-                      {/* Gradient overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-                      {/* Rating badge - updated to use StarRatingDisplay for half-star support */}
                       <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur-sm shadow-lg">
                         <StarRatingDisplay rating={rating.overallScore / 20} size="sm" showValue />
                       </div>
 
-                      {/* Hover overlay content */}
                       <div className="absolute inset-0 flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-4 group-hover:translate-y-0">
                         <p className="text-xs text-accent font-semibold mb-1">{getRatingLabel(rating.overallScore)}</p>
                         {rating.userComment && (
