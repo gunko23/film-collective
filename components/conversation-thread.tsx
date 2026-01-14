@@ -238,7 +238,7 @@ export function ConversationThread({
     }
 
     pollTyping()
-    const interval = setInterval(pollTyping, 2000)
+    const interval = setInterval(pollTyping, 10000)
     return () => clearInterval(interval)
   }, [collectiveId, ratingId, normalizedCurrentUserId])
 

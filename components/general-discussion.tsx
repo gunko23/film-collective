@@ -1,407 +1,334 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef, useCallback } from "react"
-import { Send, Smile, CheckCheck, ImageIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import Image from "next/image"
 
-type Comment = {
+import { useState, useRef, useEffect, useMemo, useCallback } from "react"
+import Image from "next/image"
+import { Button } from "@/components/ui/button"
+import { Send, Smile, Loader2, CheckCheck, ImageIcon } from "lucide-react"
+
+// Same emojis as movie-conversation-thread
+const QUICK_EMOJIS = [
+  "😀",
+  "😂",
+  "🥹",
+  "😍",
+  "🤩",
+  "😎",
+  "🥳",
+  "😅",
+  "🤔",
+  "😤",
+  "😭",
+  "🙄",
+  "😱",
+  "🤯",
+  "🥴",
+  "😈",
+  "👍",
+  "👎",
+  "❤️",
+  "🔥",
+  "💯",
+  "✨",
+  "👀",
+  "🎬",
+  "🍿",
+  "⭐",
+  "💀",
+  "😴",
+  "🤝",
+  "👏",
+  "🎉",
+  "💔",
+]
+
+const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "😡", "👍", "👎", "🔥"]
+
+interface Message {
   id: string
   content: string
   gif_url?: string
-  created_at: string
   user_id: string
   user_name: string
   user_avatar?: string
-  reactions: {
+  created_at: string
+  reactions?: Array<{
     id: string
-    reaction_type: string
     user_id: string
     user_name: string
-  }[]
+    reaction_type: string
+  }>
+  isOptimistic?: boolean
 }
 
-type TypingUser = {
-  user_id: string
-  user_name: string
-}
-
-type MovieConversationThreadProps = {
+interface GeneralDiscussionProps {
   collectiveId: string
-  tmdbId: number
-  mediaType: "movie" | "tv"
   currentUserId: string
-  initialComments?: Comment[]
+  currentUserName?: string
 }
 
-const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "🔥", "👏", "💯", "🎬"]
-
-const QUICK_EMOJIS = ["😀", "😂", "❤️", "🔥", "👏", "🎬", "🍿", "⭐", "💯", "😮", "😢", "🤔", "👀", "✨", "🎉", "👍"]
-
-const shouldShowDateDivider = (currentComment: Comment, previousComment: Comment | undefined) => {
-  if (!previousComment) return true
-  try {
-    const currentDate = new Date(currentComment.created_at).toDateString()
-    const previousDate = new Date(previousComment.created_at).toDateString()
-    return currentDate !== previousDate
-  } catch {
-    return false
-  }
-}
-
-const formatMessageDate = (dateString: string) => {
-  try {
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return ""
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-
-    if (date.toDateString() === today.toDateString()) {
-      return "Today"
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return "Yesterday"
-    } else {
-      return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })
-    }
-  } catch {
-    return ""
-  }
-}
-
-export function MovieConversationThread({
-  collectiveId,
-  tmdbId,
-  mediaType,
-  currentUserId,
-  initialComments = [],
-}: MovieConversationThreadProps) {
-  const [comments, setComments] = useState<Comment[]>(initialComments)
-  const [newComment, setNewComment] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName }: GeneralDiscussionProps) {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [newMessage, setNewMessage] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSending, setIsSending] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [activeTab, setActiveTab] = useState<"emoji" | "gif">("emoji")
   const [gifSearch, setGifSearch] = useState("")
-  const [gifs, setGifs] = useState<{ url: string; preview: string }[]>([])
-  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
+  const [gifs, setGifs] = useState<Array<{ url: string; preview: string }>>([])
   const [activeReactionPicker, setActiveReactionPicker] = useState<string | null>(null)
-  const [isNearBottom, setIsNearBottom] = useState(true)
+  const [typingUsers, setTypingUsers] = useState<Array<{ user_id: string; user_name: string }>>([])
 
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const hasScrolledInitially = useRef(false)
+  const lastTypingSentRef = useRef<number>(0)
+  const shouldAutoScrollRef = useRef(true)
 
-  // Handle clicking outside emoji picker
+  // Fetch messages
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/collectives/${collectiveId}/discussion/stream`)
+      if (!res.ok) return
+      const data = await res.json()
+      setMessages(data.messages || [])
+      setTypingUsers(data.typingUsers || [])
+    } catch (error) {
+      console.error("Failed to fetch messages:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [collectiveId])
+
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+    fetchMessages()
+    const interval = setInterval(fetchMessages, 3000)
+    return () => clearInterval(interval)
+  }, [fetchMessages])
+
+  // Auto-scroll
+  useEffect(() => {
+    if (shouldAutoScrollRef.current && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [messages])
+
+  const handleScroll = () => {
+    if (!messagesContainerRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current
+    shouldAutoScrollRef.current = scrollHeight - scrollTop - clientHeight < 100
+  }
+
+  // Close pickers on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
         setShowEmojiPicker(false)
+      }
+      if (activeReactionPicker) {
+        setActiveReactionPicker(null)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
+  }, [activeReactionPicker])
 
-  // Initial scroll to bottom
+  // GIF search
   useEffect(() => {
-    if (!hasScrolledInitially.current && comments.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "auto" })
-      hasScrolledInitially.current = true
+    if (!gifSearch.trim()) {
+      setGifs([])
+      return
     }
-  }, [comments.length])
-
-  // Fetch comments
-  const fetchComments = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/collectives/${collectiveId}/movie/${tmdbId}/comments?mediaType=${mediaType}`)
-      if (res.ok) {
-        const data = await res.json()
-        setComments(data)
-      }
-    } catch (error) {
-      console.error("Error fetching comments:", error)
-    }
-  }, [collectiveId, tmdbId, mediaType])
-
-  // Poll for new comments
-  useEffect(() => {
-    fetchComments()
-    const interval = setInterval(fetchComments, 15000)
-    return () => clearInterval(interval)
-  }, [fetchComments])
-
-  // Poll for typing indicators
-  useEffect(() => {
-    const fetchTyping = async () => {
+    const timeout = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/collectives/${collectiveId}/movie/${tmdbId}/typing?mediaType=${mediaType}`)
+        const res = await fetch(`/api/gif/search?q=${encodeURIComponent(gifSearch)}`)
         if (res.ok) {
           const data = await res.json()
-          setTypingUsers(data)
+          setGifs(data.results || [])
         }
-      } catch (error) {
-        // Silently fail
-      }
-    }
+      } catch {}
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [gifSearch])
 
-    const interval = setInterval(fetchTyping, 10000)
-    return () => clearInterval(interval)
-  }, [collectiveId, tmdbId, mediaType])
-
-  // Handle scroll
-  const handleScroll = () => {
-    if (messagesContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current
-      setIsNearBottom(scrollHeight - scrollTop - clientHeight < 100)
-    }
-  }
-
-  // Update typing indicator
-  const updateTypingIndicator = useCallback(async () => {
+  // Typing indicator
+  const sendTypingIndicator = useCallback(async () => {
+    const now = Date.now()
+    if (now - lastTypingSentRef.current < 2000) return
+    lastTypingSentRef.current = now
     try {
-      await fetch(`/api/collectives/${collectiveId}/movie/${tmdbId}/typing`, {
+      await fetch(`/api/collectives/${collectiveId}/discussion/typing`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mediaType }),
+        body: JSON.stringify({ userName: currentUserName }),
       })
-    } catch (error) {
-      // Silently fail
-    }
-  }, [collectiveId, tmdbId, mediaType])
+    } catch {}
+  }, [collectiveId, currentUserName])
 
-  // Clear typing indicator
-  const clearTypingIndicator = useCallback(async () => {
-    try {
-      await fetch(`/api/collectives/${collectiveId}/movie/${tmdbId}/typing?mediaType=${mediaType}`, {
-        method: "DELETE",
-      })
-    } catch (error) {
-      // Silently fail
-    }
-  }, [collectiveId, tmdbId, mediaType])
-
-  // Handle input change with typing indicator
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setNewComment(e.target.value)
-
-    // Auto-resize textarea
+    setNewMessage(e.target.value)
     e.target.style.height = "auto"
     e.target.style.height = Math.min(e.target.scrollHeight, 96) + "px"
-
-    // Update typing indicator
-    updateTypingIndicator()
-
-    // Clear typing after 3 seconds of no input
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current)
-    }
-    typingTimeoutRef.current = setTimeout(() => {
-      clearTypingIndicator()
-    }, 3000)
+    sendTypingIndicator()
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
+    typingTimeoutRef.current = setTimeout(() => {}, 3000)
   }
 
-  // Handle key down
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMessage.trim() || isSending) return
+
+    const content = newMessage.trim()
+    setNewMessage("")
+    setIsSending(true)
+    if (inputRef.current) inputRef.current.style.height = "auto"
+
+    const optimisticId = `optimistic-${Date.now()}`
+    const optimisticMsg: Message = {
+      id: optimisticId,
+      content,
+      user_id: currentUserId,
+      user_name: currentUserName || "You",
+      created_at: new Date().toISOString(),
+      isOptimistic: true,
+    }
+    setMessages((prev) => [...prev, optimisticMsg])
+    shouldAutoScrollRef.current = true
+
+    try {
+      const res = await fetch(`/api/collectives/${collectiveId}/discussion/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, userName: currentUserName }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMessages((prev) => prev.map((m) => (m.id === optimisticId ? { ...data.message, isOptimistic: false } : m)))
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
+      }
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(e)
     }
   }
 
-  // Format time
-  const formatCommentTime = (dateString: string) => {
-    try {
-      const date = new Date(dateString)
-      if (isNaN(date.getTime())) return ""
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    } catch {
-      return ""
-    }
-  }
-
-  // Handle submit
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newComment.trim() || isSubmitting) return
-
-    setIsSubmitting(true)
-    const content = newComment.trim()
-
-    // Optimistic update
-    const optimisticComment: Comment = {
-      id: `temp-${Date.now()}`,
-      content,
-      created_at: new Date().toISOString(),
-      user_id: currentUserId,
-      user_name: "You",
-      reactions: [],
-    }
-
-    setComments((prev) => [...prev, optimisticComment])
-    setNewComment("")
-
-    // Reset textarea height
-    if (inputRef.current) {
-      inputRef.current.style.height = "auto"
-    }
-
-    // Scroll to bottom
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-    }, 50)
-
-    // Keep keyboard open
-    requestAnimationFrame(() => {
-      inputRef.current?.focus()
-    })
-
-    try {
-      const res = await fetch(`/api/collectives/${collectiveId}/movie/${tmdbId}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, mediaType }),
-      })
-
-      if (res.ok) {
-        const savedComment = await res.json()
-        setComments((prev) =>
-          prev.map((c) =>
-            c.id === optimisticComment.id
-              ? {
-                  ...savedComment,
-                  reactions: savedComment.reactions || [],
-                  created_at: savedComment.created_at || optimisticComment.created_at,
-                }
-              : c,
-          ),
-        )
-      }
-    } catch (error) {
-      console.error("Error sending comment:", error)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  // Handle GIF send
-  const handleGifSelect = async (gifUrl: string) => {
-    setIsSubmitting(true)
-    setShowEmojiPicker(false)
-
-    const optimisticComment: Comment = {
-      id: `temp-${Date.now()}`,
-      content: "",
-      gif_url: gifUrl,
-      created_at: new Date().toISOString(),
-      user_id: currentUserId,
-      user_name: "You",
-      reactions: [],
-    }
-
-    setComments((prev) => [...prev, optimisticComment])
-
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-    }, 50)
-
-    try {
-      const res = await fetch(`/api/collectives/${collectiveId}/movie/${tmdbId}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: "", gifUrl, mediaType }),
-      })
-
-      if (res.ok) {
-        const savedComment = await res.json()
-        setComments((prev) =>
-          prev.map((c) =>
-            c.id === optimisticComment.id
-              ? { ...savedComment, reactions: [], created_at: savedComment.created_at || optimisticComment.created_at }
-              : c,
-          ),
-        )
-      } else {
-        setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id))
-      }
-    } catch (error) {
-      console.error("Error sending GIF:", error)
-      setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id))
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  // Search GIFs (using Tenor)
-  useEffect(() => {
-    if (activeTab !== "gif" || !gifSearch.trim()) {
-      setGifs([])
-      return
-    }
-
-    const searchGifs = async () => {
-      try {
-        // Using a simple placeholder for demo - in production you'd use Tenor/Giphy API
-        const mockGifs = [{ url: `https://media.tenor.com/search?q=${encodeURIComponent(gifSearch)}`, preview: "" }]
-        setGifs(mockGifs)
-      } catch (error) {
-        console.error("Error searching GIFs:", error)
-      }
-    }
-
-    const timeout = setTimeout(searchGifs, 300)
-    return () => clearTimeout(timeout)
-  }, [gifSearch, activeTab])
-
-  // Handle emoji insert
   const handleEmojiInsert = (emoji: string) => {
-    setNewComment((prev) => prev + emoji)
+    setNewMessage((prev) => prev + emoji)
+    setShowEmojiPicker(false)
     inputRef.current?.focus()
   }
 
-  // Handle reaction toggle
-  const handleReactionToggle = async (commentId: string, reactionType: string) => {
+  const handleGifSelect = async (url: string) => {
+    setShowEmojiPicker(false)
+    setGifSearch("")
+    setGifs([])
+
+    const optimisticId = `optimistic-gif-${Date.now()}`
+    const optimisticMsg: Message = {
+      id: optimisticId,
+      content: "",
+      gif_url: url,
+      user_id: currentUserId,
+      user_name: currentUserName || "You",
+      created_at: new Date().toISOString(),
+      isOptimistic: true,
+    }
+    setMessages((prev) => [...prev, optimisticMsg])
+    shouldAutoScrollRef.current = true
+
     try {
-      const res = await fetch(`/api/collectives/${collectiveId}/movie/${tmdbId}/comments/${commentId}/reactions`, {
+      const res = await fetch(`/api/collectives/${collectiveId}/discussion/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reactionType }),
+        body: JSON.stringify({ gifUrl: url, userName: currentUserName }),
       })
-
       if (res.ok) {
-        fetchComments()
+        const data = await res.json()
+        setMessages((prev) => prev.map((m) => (m.id === optimisticId ? { ...data.message, isOptimistic: false } : m)))
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
       }
-    } catch (error) {
-      console.error("Error toggling reaction:", error)
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
     }
+  }
+
+  const handleReactionToggle = async (messageId: string, emoji: string) => {
     setActiveReactionPicker(null)
+    try {
+      await fetch(`/api/collectives/${collectiveId}/discussion/messages/${messageId}/reactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji, userName: currentUserName }),
+      })
+      fetchMessages()
+    } catch {}
   }
 
-  // Check if current user reacted
-  const hasUserReacted = (reactions: Comment["reactions"], reactionType: string) => {
-    return reactions.some(
-      (r) => r.reaction_type === reactionType && r.user_id.toLowerCase() === currentUserId?.toLowerCase(),
-    )
+  const formatMessageTime = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
   }
 
-  // Group reactions by type
-  const groupReactions = (reactions: Comment["reactions"]) => {
-    const grouped: { [key: string]: { count: number; users: string[] } } = {}
-    reactions.forEach((r) => {
-      if (!grouped[r.reaction_type]) {
-        grouped[r.reaction_type] = { count: 0, users: [] }
-      }
+  const formatDateSeparator = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    if (date.toDateString() === today.toDateString()) return "Today"
+    if (date.toDateString() === yesterday.toDateString()) return "Yesterday"
+    return date.toLocaleDateString([], { month: "short", day: "numeric" })
+  }
+
+  const isOwnMessage = (userId: string) => userId?.toLowerCase() === currentUserId?.toLowerCase()
+
+  const hasUserReacted = (reactions: Message["reactions"], emoji: string) => {
+    return reactions?.some((r) => r.reaction_type === emoji && r.user_id.toLowerCase() === currentUserId.toLowerCase())
+  }
+
+  const groupReactions = (reactions: Message["reactions"]) => {
+    const grouped: Record<string, { count: number; users: string[] }> = {}
+    reactions?.forEach((r) => {
+      if (!grouped[r.reaction_type]) grouped[r.reaction_type] = { count: 0, users: [] }
       grouped[r.reaction_type].count++
       grouped[r.reaction_type].users.push(r.user_name)
     })
     return grouped
   }
 
-  const isOwnMessage = (userId: string) => {
-    return userId?.toLowerCase() === currentUserId?.toLowerCase()
+  const groupedMessages = useMemo(() => {
+    return messages.map((msg, index) => {
+      const prevMsg = messages[index - 1]
+      const showDateDivider =
+        !prevMsg || new Date(msg.created_at).toDateString() !== new Date(prevMsg.created_at).toDateString()
+      const showAvatar = !isOwnMessage(msg.user_id) && (index === 0 || prevMsg?.user_id !== msg.user_id)
+      return { msg, showDateDivider, showAvatar }
+    })
+  }, [messages, currentUserId])
+
+  const otherTypingUsers = useMemo(() => {
+    return typingUsers.filter((u) => u.user_id.toLowerCase() !== currentUserId.toLowerCase())
+  }, [typingUsers, currentUserId])
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
@@ -412,7 +339,7 @@ export function MovieConversationThread({
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-3"
       >
-        {comments.length === 0 ? (
+        {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full min-h-[200px]">
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-zinc-800/50 flex items-center justify-center mx-auto mb-4">
@@ -423,20 +350,17 @@ export function MovieConversationThread({
             </div>
           </div>
         ) : (
-          comments.map((comment, index) => {
-            const isOwn = isOwnMessage(comment.user_id)
-            const showAvatar = !isOwn && (index === 0 || comments[index - 1]?.user_id !== comment.user_id)
-            const groupedReactions = groupReactions(comment.reactions)
-            const previousComment = comments[index - 1]
-            const showDateDivider = shouldShowDateDivider(comment, previousComment)
+          groupedMessages.map(({ msg, showDateDivider, showAvatar }) => {
+            const isOwn = isOwnMessage(msg.user_id)
+            const groupedReactions = groupReactions(msg.reactions || [])
 
             return (
-              <div key={comment.id}>
+              <div key={msg.id}>
                 {showDateDivider && (
                   <div className="flex items-center justify-center my-4">
                     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
                     <span className="px-3 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">
-                      {formatMessageDate(comment.created_at)}
+                      {formatDateSeparator(msg.created_at)}
                     </span>
                     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
                   </div>
@@ -450,17 +374,17 @@ export function MovieConversationThread({
                     <div className="w-7 mr-2 flex-shrink-0">
                       {showAvatar && (
                         <div className="h-7 w-7 rounded-full bg-emerald-600/20 flex items-center justify-center overflow-hidden">
-                          {comment.user_avatar ? (
+                          {msg.user_avatar ? (
                             <Image
-                              src={comment.user_avatar || "/placeholder.svg"}
-                              alt={comment.user_name}
+                              src={msg.user_avatar || "/placeholder.svg"}
+                              alt={msg.user_name}
                               width={28}
                               height={28}
                               className="object-cover"
                             />
                           ) : (
                             <span className="text-[10px] font-medium text-emerald-400">
-                              {comment.user_name?.[0]?.toUpperCase() || "?"}
+                              {msg.user_name?.[0]?.toUpperCase() || "?"}
                             </span>
                           )}
                         </div>
@@ -471,7 +395,7 @@ export function MovieConversationThread({
                   <div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
                     {/* Username for others */}
                     {!isOwn && showAvatar && (
-                      <p className="text-[10px] text-muted-foreground mb-0.5 ml-1">{comment.user_name}</p>
+                      <p className="text-[10px] text-muted-foreground mb-0.5 ml-1">{msg.user_name}</p>
                     )}
 
                     {/* Message bubble */}
@@ -483,36 +407,30 @@ export function MovieConversationThread({
                             : "bg-card/80 border border-border/50 text-foreground rounded-bl-md"
                         }`}
                       >
-                        {comment.gif_url ? (
-                          <img
-                            src={comment.gif_url || "/placeholder.svg"}
-                            alt="GIF"
-                            className="max-w-[200px] rounded-lg"
-                          />
+                        {msg.gif_url ? (
+                          <img src={msg.gif_url || "/placeholder.svg"} alt="GIF" className="max-w-[200px] rounded-lg" />
                         ) : (
-                          <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">
-                            {comment.content}
-                          </p>
+                          <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                         )}
                         <div className={`flex items-center gap-1 mt-0.5 ${isOwn ? "justify-end" : "justify-start"}`}>
                           <span className="text-[9px] text-muted-foreground/70">
-                            {formatCommentTime(comment.created_at)}
+                            {msg.isOptimistic ? "Sending..." : formatMessageTime(msg.created_at)}
                           </span>
-                          {isOwn && <CheckCheck className="h-3 w-3 text-emerald-400/70" />}
+                          {isOwn && !msg.isOptimistic && <CheckCheck className="h-3 w-3 text-emerald-400/70" />}
                         </div>
                       </div>
 
                       {/* Reaction button */}
                       <button
                         type="button"
-                        onClick={() => setActiveReactionPicker(activeReactionPicker === comment.id ? null : comment.id)}
+                        onClick={() => setActiveReactionPicker(activeReactionPicker === msg.id ? null : msg.id)}
                         className={`absolute ${isOwn ? "-left-6" : "-right-6"} top-1/2 -translate-y-1/2 p-1 rounded-full bg-zinc-800/80 opacity-0 group-hover:opacity-100 hover:bg-zinc-700 transition-all`}
                       >
                         <Smile className="h-3 w-3 text-zinc-400" />
                       </button>
 
                       {/* Reaction picker */}
-                      {activeReactionPicker === comment.id && (
+                      {activeReactionPicker === msg.id && (
                         <div
                           className={`absolute ${isOwn ? "right-0" : "left-0"} bottom-full mb-1 bg-zinc-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-zinc-700/50 p-1.5 z-50`}
                         >
@@ -521,8 +439,8 @@ export function MovieConversationThread({
                               <button
                                 key={emoji}
                                 type="button"
-                                onClick={() => handleReactionToggle(comment.id, emoji)}
-                                className="p-1 rounded hover:bg-zinc-700/50 transition-colors text-base"
+                                onClick={() => handleReactionToggle(msg.id, emoji)}
+                                className={`p-1 rounded hover:bg-zinc-700/50 transition-colors text-base ${hasUserReacted(msg.reactions || [], emoji) ? "bg-zinc-700/50" : ""}`}
                               >
                                 {emoji}
                               </button>
@@ -539,8 +457,8 @@ export function MovieConversationThread({
                           <button
                             key={emoji}
                             type="button"
-                            onClick={() => handleReactionToggle(comment.id, emoji)}
-                            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-zinc-800/50 hover:bg-zinc-700/50 transition-colors text-xs"
+                            onClick={() => handleReactionToggle(msg.id, emoji)}
+                            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full transition-colors text-xs ${hasUserReacted(msg.reactions || [], emoji) ? "bg-emerald-500/20 border border-emerald-500/30" : "bg-zinc-800/50 hover:bg-zinc-700/50"}`}
                             title={data.users.join(", ")}
                           >
                             <span>{emoji}</span>
@@ -557,7 +475,7 @@ export function MovieConversationThread({
         )}
 
         {/* Typing indicator */}
-        {typingUsers.length > 0 && (
+        {otherTypingUsers.length > 0 && (
           <div className="flex items-center gap-2 px-2">
             <div className="flex items-center gap-1 px-3 py-2 rounded-2xl bg-card/50 border border-border/30">
               <div className="flex gap-0.5">
@@ -575,7 +493,8 @@ export function MovieConversationThread({
                 />
               </div>
               <span className="text-[10px] text-muted-foreground ml-1">
-                {typingUsers.map((u) => u.user_name).join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing
+                {otherTypingUsers.map((u) => u.user_name).join(", ")} {otherTypingUsers.length === 1 ? "is" : "are"}{" "}
+                typing
               </span>
             </div>
           </div>
@@ -688,23 +607,22 @@ export function MovieConversationThread({
             {/* Text input */}
             <textarea
               ref={inputRef}
-              value={newComment}
+              value={newMessage}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
+              placeholder="Message"
               rows={1}
-              className="flex-1 bg-transparent border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 resize-none py-1 leading-5 max-h-24 overflow-y-auto"
-              style={{ minHeight: "24px" }}
+              className="flex-1 bg-transparent text-sm text-foreground resize-none focus:outline-none min-h-[24px] max-h-24 py-1 placeholder:text-muted-foreground/50"
             />
 
             {/* Send button */}
             <Button
               type="submit"
               size="icon"
-              disabled={(!newComment.trim() && !isSubmitting) || isSubmitting}
+              disabled={!newMessage.trim() || isSending}
               className="h-8 w-8 rounded-full bg-zinc-700 hover:bg-zinc-600 flex-shrink-0 disabled:opacity-50"
             >
-              <Send className="h-4 w-4" />
+              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
         </form>

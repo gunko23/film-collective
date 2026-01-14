@@ -2,7 +2,20 @@
 
 import { useState, Suspense } from "react"
 import Link from "next/link"
-import { Film, User, Sparkles, Menu, X, Info, Compass, Users, Settings, Loader2, LogIn } from "lucide-react"
+import {
+  Film,
+  User,
+  Sparkles,
+  Menu,
+  X,
+  Info,
+  Compass,
+  Users,
+  Settings,
+  Loader2,
+  LogIn,
+  LayoutDashboard,
+} from "lucide-react"
 import { useUser, useStackApp } from "@stackframe/stack"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -92,6 +105,12 @@ function UserContent() {
             <DropdownMenuSeparator />
           </div>
           <DropdownMenuItem asChild>
+            <Link href="/" className="flex items-center gap-2 cursor-pointer">
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
             <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
               <User className="h-4 w-4" />
               My Profile
@@ -143,6 +162,16 @@ function MobileMenuContent({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="sm:hidden border-t border-border/50 px-3 py-3 space-y-2">
+      {user && (
+        <Link
+          href="/"
+          onClick={onClose}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-secondary/50"
+        >
+          <LayoutDashboard className="h-4 w-4" />
+          Dashboard
+        </Link>
+      )}
       <Link
         href="/"
         onClick={onClose}
@@ -230,6 +259,7 @@ function MobileMenuButton({
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const user = useUser()
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
@@ -256,6 +286,14 @@ export function Header() {
 
               {/* Center Nav Links - Hidden on mobile */}
               <div className="hidden md:flex items-center gap-1">
+                {user && (
+                  <Link
+                    href="/"
+                    className="relative px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-300 rounded-lg hover:bg-secondary/50"
+                  >
+                    Dashboard
+                  </Link>
+                )}
                 <Link
                   href="/"
                   className="relative px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-300 rounded-lg hover:bg-secondary/50"

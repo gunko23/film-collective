@@ -1,7 +1,6 @@
 import { stackServerApp } from "@/stack"
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
 import Header from "@/components/header"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,7 +17,6 @@ import {
   getCollectiveTVShowStats,
   getCollectiveEpisodeStats,
 } from "@/lib/collectives/collective-service"
-import { CollectiveActions } from "@/components/collective-actions"
 import { CollectiveAnalytics } from "@/components/collective-analytics"
 import { CollectivePageClient } from "@/components/collective-page-client"
 import NewCollectiveForm from "@/components/new-collective-form"
@@ -121,47 +119,29 @@ export default async function CollectiveDetailPage({ params }: Props) {
       </div>
 
       <main className="relative z-10 pt-28 pb-16">
-        <div className="mx-auto max-w-6xl px-6">
-          <Link
-            href="/collectives"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6 group"
-          >
-            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-            All Collectives
-          </Link>
-
-          <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">{collective.name}</h1>
-              {collective.description && <p className="text-muted-foreground">{collective.description}</p>}
-            </div>
-            <CollectiveActions
-              collectiveId={collectiveId}
-              collectiveName={collective.name}
-              userRole={collective.user_role}
+        <CollectivePageClient
+          collectiveId={collectiveId}
+          currentUserId={user.id}
+          currentUserName={user.displayName || undefined}
+          collectiveName={collective.name}
+          collectiveDescription={collective.description}
+          userRole={collective.user_role}
+          movieStats={movieStats}
+          tvShowStats={tvShowStats}
+          episodeStats={episodeStats}
+          members={members}
+          insightsContent={
+            <CollectiveAnalytics
+              analytics={analytics}
+              genreStats={genreStats}
+              decadeStats={decadeStats}
+              ratingDistribution={ratingDistribution}
+              memberSimilarity={memberSimilarity}
+              controversialMovies={controversialMovies}
+              unanimousFavorites={unanimousFavorites}
             />
-          </div>
-
-          <CollectivePageClient
-            collectiveId={collectiveId}
-            currentUserId={user.id}
-            movieStats={movieStats}
-            tvShowStats={tvShowStats}
-            episodeStats={episodeStats}
-            members={members}
-            insightsContent={
-              <CollectiveAnalytics
-                analytics={analytics}
-                genreStats={genreStats}
-                decadeStats={decadeStats}
-                ratingDistribution={ratingDistribution}
-                memberSimilarity={memberSimilarity}
-                controversialMovies={controversialMovies}
-                unanimousFavorites={unanimousFavorites}
-              />
-            }
-          />
-        </div>
+          }
+        />
       </main>
     </div>
   )

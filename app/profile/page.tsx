@@ -4,7 +4,7 @@ import { useUser } from "@stackframe/stack"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Star, Film, Calendar, ArrowLeft, TrendingUp, Award, RefreshCw } from "lucide-react"
+import { Star, Film, Calendar, ArrowLeft, TrendingUp, Award, RefreshCw, Heart } from "lucide-react"
 import { getImageUrl } from "@/lib/tmdb/image"
 import Header from "@/components/header"
 import AuthErrorBoundary from "@/components/auth-error-boundary"
@@ -26,10 +26,18 @@ type RatedMovie = {
   }
 }
 
+type FavoriteMovie = {
+  tmdb_id: number
+  title: string
+  poster_path: string | null
+  position: number
+}
+
 function ProfileContent() {
   const user = useUser()
   const router = useRouter()
   const [ratings, setRatings] = useState<RatedMovie[]>([])
+  const [favorites, setFavorites] = useState<FavoriteMovie[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,32 +47,49 @@ function ProfileContent() {
       return
     }
 
-    async function fetchRatings() {
+    async function fetchData() {
       try {
-        const res = await fetch("/api/user/ratings")
-        const text = await res.text()
+        const [ratingsRes, favoritesRes] = await Promise.all([
+          fetch("/api/user/ratings"),
+          fetch(`/api/user/${user.id}/profile`),
+        ])
 
-        if (text.startsWith("Too Many") || res.status === 429) {
-          throw new Error("Rate limited. Please wait a moment and try again.")
+        const ratingsText = await ratingsRes.text()
+
+        if (!ratingsRes.ok) {
+          if (ratingsRes.status === 429 || ratingsText.includes("Too Many") || ratingsText.includes("Rate limit")) {
+            throw new Error("Rate limited. Please wait a moment and try again.")
+          }
+          throw new Error("Failed to load ratings. Please try again.")
         }
 
-        let data
+        let ratingsData
         try {
-          data = JSON.parse(text)
+          ratingsData = JSON.parse(ratingsText)
         } catch {
           throw new Error("Failed to load ratings. Please try again.")
         }
-        if (!res.ok) throw new Error(data.error || "Failed to fetch ratings")
-        setRatings(data.ratings)
+        setRatings(ratingsData.ratings || [])
+
+        const favoritesText = await favoritesRes.text()
+
+        if (favoritesRes.ok) {
+          try {
+            const favoritesData = JSON.parse(favoritesText)
+            setFavorites(favoritesData.favorites || [])
+          } catch {
+            console.warn("Failed to parse favorites data")
+          }
+        }
       } catch (err) {
-        console.error("Error fetching ratings:", err)
-        setError(err instanceof Error ? err.message : "Failed to load your ratings")
+        console.error("Error fetching data:", err)
+        setError(err instanceof Error ? err.message : "Failed to load your data")
       } finally {
         setLoading(false)
       }
     }
 
-    fetchRatings()
+    fetchData()
   }, [user, router])
 
   const getRatingLabel = (score: number) => {
@@ -174,6 +199,51 @@ function ProfileContent() {
               </div>
             </div>
           </div>
+
+          {favorites.length > 0 && (
+            <div className="mb-12 rounded-2xl bg-gradient-to-br from-card/80 to-card/50 backdrop-blur-sm border border-border/50 p-6 max-w-xs">
+              <div className="flex items-center gap-2 mb-6">
+                <Heart className="h-5 w-5 text-pink-500" />
+                <h2 className="text-xl font-bold text-foreground">Your Top 3 Films</h2>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {[1, 2, 3].map((position) => {
+                  const fav = favorites.find((f) => f.position === position)
+                  return (
+                    <div key={position} className="relative">
+                      {fav ? (
+                        <Link href={`/movies/${fav.tmdb_id}`} className="group">
+                          <div className="aspect-[2/3] rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 group-hover:ring-accent/50 transition-all duration-500 hover-lift group-hover:shadow-xl group-hover:shadow-accent/10">
+                            {fav.poster_path ? (
+                              <img
+                                src={getImageUrl(fav.poster_path, "w342") || "/placeholder.svg"}
+                                alt={fav.title}
+                                className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              />
+                            ) : (
+                              <div className="h-full flex items-center justify-center">
+                                <Film className="h-8 w-8 text-muted-foreground/30" />
+                              </div>
+                            )}
+                          </div>
+                          <p className="mt-2 text-sm font-medium text-foreground truncate group-hover:text-accent transition-colors">
+                            {fav.title}
+                          </p>
+                        </Link>
+                      ) : (
+                        <div className="aspect-[2/3] rounded-xl bg-muted/50 border border-dashed border-border flex items-center justify-center">
+                          <span className="text-muted-foreground text-sm">#{position}</span>
+                        </div>
+                      )}
+                      <div className="absolute -top-2 -left-2 h-7 w-7 rounded-full bg-accent flex items-center justify-center text-xs font-bold text-accent-foreground shadow-lg">
+                        {position}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Rated movies */}
           <div>

@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Crown, Shield, UserIcon, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -56,25 +57,29 @@ export function MembersModal({ members, isOpen, onClose }: Props) {
         <div className="overflow-y-auto max-h-[60vh] p-4">
           <div className="space-y-3">
             {members.map((member) => (
-              <div
+              <Link
                 key={member.id}
-                className="flex items-center gap-3 p-3 rounded-xl bg-background/50 border border-border/50"
+                href={`/user/${member.id}`}
+                onClick={onClose}
+                className="flex items-center gap-3 p-3 rounded-xl bg-background/50 border border-border/50 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all group"
               >
                 {member.avatar_url ? (
                   <img
                     src={member.avatar_url || "/placeholder.svg"}
                     alt={member.name || "Member"}
-                    className="h-10 w-10 rounded-full object-cover"
+                    className="h-10 w-10 rounded-full object-cover ring-2 ring-transparent group-hover:ring-emerald-500/30 transition-all"
                   />
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20 ring-2 ring-transparent group-hover:ring-emerald-500/30 transition-all">
                     <span className="text-sm font-semibold text-accent">
                       {(member.name || member.email).charAt(0).toUpperCase()}
                     </span>
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{member.name || member.email}</p>
+                  <p className="text-sm font-medium text-foreground truncate group-hover:text-emerald-400 transition-colors">
+                    {member.name || member.email}
+                  </p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     {getRoleIcon(member.role)}
                     <span>{getRoleLabel(member.role)}</span>
@@ -82,7 +87,7 @@ export function MembersModal({ members, isOpen, onClose }: Props) {
                     <span>Joined {new Date(member.joined_at).toLocaleDateString()}</span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

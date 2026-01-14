@@ -576,7 +576,10 @@ export function EnhancedComments({
                       {!isOwnComment && (
                         <div className="w-7 flex-shrink-0">
                           {showAvatar && (
-                            <div className="h-7 w-7 rounded-full bg-emerald-600/20 flex items-center justify-center overflow-hidden">
+                            <Link
+                              href={`/user/${comment.user_id}`}
+                              className="block h-7 w-7 rounded-full bg-emerald-600/20 flex items-center justify-center overflow-hidden ring-2 ring-transparent hover:ring-emerald-500/30 transition-all"
+                            >
                               {comment.user_avatar ? (
                                 <Image
                                   src={comment.user_avatar || "/placeholder.svg"}
@@ -590,7 +593,7 @@ export function EnhancedComments({
                                   {comment.user_name?.[0]?.toUpperCase() || "?"}
                                 </span>
                               )}
-                            </div>
+                            </Link>
                           )}
                         </div>
                       )}

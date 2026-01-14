@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server"
-import { stackServerApp } from "@/stack"
+import { getSafeUser } from "@/lib/auth/auth-utils"
 import { neon } from "@neondatabase/serverless"
 
 const sql = neon(process.env.DATABASE_URL!)
 
 export async function GET() {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Rate limited, please try again" }, { status: 429 })
+    }
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
