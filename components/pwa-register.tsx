@@ -4,15 +4,15 @@ import { useEffect } from "react"
 
 export function PWARegister() {
   useEffect(() => {
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+    if ("serviceWorker" in navigator) {
       // Check if sw.js exists before registering
       fetch("/sw.js", { method: "HEAD" })
         .then((response) => {
           if (response.ok && response.headers.get("content-type")?.includes("javascript")) {
             return navigator.serviceWorker.register("/sw.js")
           }
-          console.log("[v0] Service Worker not available or wrong MIME type")
-          return null
+          // Also try registering if content-type check fails (some servers don't set it correctly)
+          return navigator.serviceWorker.register("/sw.js").catch(() => null)
         })
         .then((registration) => {
           if (registration) {
