@@ -20,6 +20,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Clapperboard,
+  Trophy,
 } from "lucide-react"
 import type { SyncLogEntry } from "@/lib/db"
 
@@ -264,6 +265,56 @@ export default function AdminPage() {
                     <RefreshCw className="mr-2 h-4 w-4" />
                   )}
                   Sync Film
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Oscar TMDB IDs */}
+            <Card className="bg-card border-border/50 ring-1 ring-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-3 text-base font-semibold">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
+                    <Trophy className="h-4 w-4 text-amber-500" />
+                  </div>
+                  Populate Oscar TMDB IDs
+                </CardTitle>
+                <CardDescription className="text-sm">
+                  Fetch TMDB IDs for all Oscar nominations (movies and people)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  onClick={async () => {
+                    setIsLoading("oscar-tmdb")
+                    setResult(null)
+                    try {
+                      const response = await fetch("/api/oscar-nominations/populate-tmdb", {
+                        method: "POST",
+                      })
+                      const data = await response.json()
+                      setResult({
+                        success: response.ok,
+                        message: data.message || (response.ok ? "TMDB IDs populated successfully" : "Failed to populate TMDB IDs"),
+                      })
+                    } catch (error) {
+                      setResult({
+                        success: false,
+                        message: error instanceof Error ? error.message : "Failed to populate TMDB IDs",
+                      })
+                    } finally {
+                      setIsLoading(null)
+                    }
+                  }}
+                  disabled={isLoading !== null}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {isLoading === "oscar-tmdb" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trophy className="mr-2 h-4 w-4" />
+                  )}
+                  Populate TMDB IDs
                 </Button>
               </CardContent>
             </Card>

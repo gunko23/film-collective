@@ -292,6 +292,14 @@ class TMDBClient {
     })
   }
 
+  // Search people
+  async searchPerson(query: string, page = 1): Promise<{ page: number; results: TMDBPerson[]; total_pages: number; total_results: number }> {
+    return this.fetch<{ page: number; results: TMDBPerson[]; total_pages: number; total_results: number }>("/search/person", {
+      query,
+      page: page.toString(),
+    })
+  }
+
   // Discover movies with filters
   async discoverMovies(
     options: {

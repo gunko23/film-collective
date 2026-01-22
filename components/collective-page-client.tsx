@@ -29,9 +29,10 @@ import { MembersModal } from "@/components/members-modal"
 import { StarRatingDisplay } from "@/components/star-rating-display"
 import { EnhancedComments } from "@/components/enhanced-comments"
 import { getImageUrl } from "@/lib/tmdb/image"
-import { MessageCircle } from "lucide-react"
+import { MessageCircle, Trophy } from "lucide-react"
 import { GeneralDiscussion } from "@/components/general-discussion"
 import { CollectiveActions } from "@/components/collective-actions"
+import { OscarPredictions } from "@/components/oscar-predictions"
 
 type MovieStat = {
   tmdb_id: string
@@ -133,10 +134,16 @@ type Props = {
   insightsContent: React.ReactNode
 }
 
-type Section = "dashboard" | "insights" | "feed" | "messageboard" | "discussion"
+type Section = "dashboard" | "insights" | "feed" | "messageboard" | "discussion" | "predictions"
 
 const sectionConfig: { value: Section; label: string; icon: React.ReactNode; description?: string }[] = [
   { value: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
+  {
+    value: "predictions",
+    label: "Predictions",
+    icon: <Trophy className="h-4 w-4" />,
+    description: "Oscar predictions for 2026",
+  },
   {
     value: "discussion",
     label: "Discussion",
@@ -882,6 +889,13 @@ export function CollectivePageClient({
         {activeSection === "messageboard" && (
           <div className="mb-8">
             <MessageBoard collectiveId={collectiveId} />
+          </div>
+        )}
+
+        {/* Predictions Section */}
+        {activeSection === "predictions" && (
+          <div className="mb-8">
+            <OscarPredictions collectiveId={collectiveId} />
           </div>
         )}
       </div>
