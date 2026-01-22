@@ -15,12 +15,13 @@ type Member = {
 
 type Props = {
   members: Member[]
-  isOpen: boolean
+  open: boolean
   onClose: () => void
+  collectiveId?: string
 }
 
-export function MembersModal({ members, isOpen, onClose }: Props) {
-  if (!isOpen) return null
+export function MembersModal({ members, open, onClose }: Props) {
+  if (!open) return null
 
   const getRoleIcon = (role: string) => {
     switch (role) {
