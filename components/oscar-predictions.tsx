@@ -331,7 +331,12 @@ export function OscarPredictions({ collectiveId }: OscarPredictionsProps) {
           return (
             <div 
               key={category}
-              className="bg-card/50 rounded-lg border border-border/50 overflow-hidden"
+              className={cn(
+                "rounded-lg border overflow-hidden transition-all duration-200",
+                isExpanded 
+                  ? "bg-amber-500/5 border-amber-500/30 shadow-lg shadow-amber-500/10" 
+                  : "bg-card/50 border-border/50"
+              )}
             >
               {/* Category header - Compact */}
               <button
