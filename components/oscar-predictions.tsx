@@ -104,7 +104,6 @@ export function OscarPredictions({ collectiveId }: OscarPredictionsProps) {
 
       if (nominationsRes.ok) {
         const data = await nominationsRes.json()
-        console.log("[v0] Oscar nominations sample:", data.nominations && Object.values(data.nominations)[0]?.[0])
         setNominations(data.nominations)
       }
 

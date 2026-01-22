@@ -288,15 +288,27 @@ export default function AdminPage() {
                     setIsLoading("oscar-tmdb")
                     setResult(null)
                     try {
+                      console.log("[v0] Starting TMDB population...")
                       const response = await fetch("/api/oscar-nominations/populate-tmdb", {
                         method: "POST",
                       })
+                      console.log("[v0] TMDB population response status:", response.status)
                       const data = await response.json()
+                      console.log("[v0] TMDB population response:", data)
+                      
+                      let message = ""
+                      if (response.ok && data.summary) {
+                        message = `Updated: ${data.summary.updated}, Skipped: ${data.summary.skipped}, Not Found: ${data.summary.notFound}, Errors: ${data.summary.errors}`
+                      } else {
+                        message = data.error || "Failed to populate TMDB IDs"
+                      }
+                      
                       setResult({
                         success: response.ok,
-                        message: data.message || (response.ok ? "TMDB IDs populated successfully" : "Failed to populate TMDB IDs"),
+                        message,
                       })
                     } catch (error) {
+                      console.error("[v0] TMDB population error:", error)
                       setResult({
                         success: false,
                         message: error instanceof Error ? error.message : "Failed to populate TMDB IDs",

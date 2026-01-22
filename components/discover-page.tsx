@@ -154,7 +154,7 @@ export function DiscoverPage() {
           <div
             className="absolute inset-0 opacity-[0.02] dark:opacity-[0.03]"
             style={{
-              backgroundImage: `linear-gradient(var(--foreground) 1px, transparent 1px), linear-gradient(90deg, var(--foreground) 1px, transparent 1px)`,
+              backgroundImage: `linear-gradient(to bottom, var(--foreground) 1px, transparent 1px), linear-gradient(to right, var(--foreground) 1px, transparent 1px)`,
               backgroundSize: "60px 60px",
             }}
           />
