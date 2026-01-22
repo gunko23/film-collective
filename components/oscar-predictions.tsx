@@ -30,7 +30,10 @@ interface Nomination {
   category: string
   film_title: string
   nominee_name: string | null
-  tmdb_id: number | null
+  tmdb_movie_id: number | null
+  tmdb_person_id: number | null
+  poster_path: string | null
+  profile_path: string | null
   film_nomination: boolean
 }
 
@@ -101,6 +104,7 @@ export function OscarPredictions({ collectiveId }: OscarPredictionsProps) {
 
       if (nominationsRes.ok) {
         const data = await nominationsRes.json()
+        console.log("[v0] Oscar nominations sample:", data.nominations && Object.values(data.nominations)[0]?.[0])
         setNominations(data.nominations)
       }
 
@@ -404,11 +408,14 @@ export function OscarPredictions({ collectiveId }: OscarPredictionsProps) {
                             )}
                           >
                             {/* Poster/Avatar */}
-                            {nomination.tmdb_id ? (
+                            {nomination.poster_path || nomination.profile_path ? (
                               <div className="relative w-8 h-12 rounded overflow-hidden flex-shrink-0">
                                 <Image
-                                  src={getImageUrl(nomination.tmdb_id?.toString() || null, "w92") || "/placeholder.png"}
-                                  alt={nomination.film_title}
+                                  src={getImageUrl(
+                                    nomination.poster_path || nomination.profile_path,
+                                    "w92"
+                                  ) || "/placeholder.png"}
+                                  alt={primaryText}
                                   fill
                                   className="object-cover"
                                 />

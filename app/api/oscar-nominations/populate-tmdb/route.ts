@@ -45,7 +45,8 @@ export async function POST() {
 
             await sql`
               UPDATE oscar_nominations 
-              SET tmdb_movie_id = ${match.id}
+              SET tmdb_movie_id = ${match.id},
+                  poster_path = ${match.poster_path}
               WHERE id = ${nom.id}
             `
             results.push({ id: nom.id as string, status: "updated", tmdb_id: match.id })
@@ -69,7 +70,8 @@ export async function POST() {
 
               await sql`
                 UPDATE oscar_nominations 
-                SET tmdb_person_id = ${match.id}
+                SET tmdb_person_id = ${match.id},
+                    profile_path = ${match.profile_path}
                 WHERE id = ${nom.id}
               `
               results.push({ id: nom.id as string, status: "updated", tmdb_id: match.id })

@@ -13,7 +13,10 @@ export async function GET() {
         category,
         work_title as film_title,
         nominee as nominee_name,
-        tmdb_movie_id as tmdb_id,
+        tmdb_movie_id,
+        tmdb_person_id,
+        poster_path,
+        profile_path,
         film_nomination
       FROM oscar_nominations
       WHERE award_year = 2026
