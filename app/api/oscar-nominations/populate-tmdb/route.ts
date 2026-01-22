@@ -33,7 +33,7 @@ export async function POST() {
           // If has movie ID but no poster path, fetch details to get the poster
           if (nom.tmdb_movie_id && !nom.poster_path) {
             console.log(`[v0] Fetching poster for existing movie ID: ${nom.tmdb_movie_id}`)
-            const movieDetails = await client.getMovie(nom.tmdb_movie_id as number)
+            const movieDetails = await client.getMovieDetails(nom.tmdb_movie_id as number)
             await sql`
               UPDATE oscar_nominations 
               SET poster_path = ${movieDetails.poster_path}
@@ -76,7 +76,7 @@ export async function POST() {
           // If has person ID but no profile path, fetch details to get the profile
           if (nom.tmdb_person_id && !nom.profile_path) {
             console.log(`[v0] Fetching profile for existing person ID: ${nom.tmdb_person_id}`)
-            const personDetails = await client.getPerson(nom.tmdb_person_id as number)
+            const personDetails = await client.getPersonDetails(nom.tmdb_person_id as number)
             await sql`
               UPDATE oscar_nominations 
               SET profile_path = ${personDetails.profile_path}
