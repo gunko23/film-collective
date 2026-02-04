@@ -2,6 +2,9 @@
 
 import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
+import { useAblyChannel } from "@/hooks/use-ably-channel"
+import { useAblyPresence } from "@/hooks/use-ably-presence"
+import { getFeedChannelName } from "@/lib/ably/channel-names"
 import { Send, ImageIcon, X, MessageCircle, ChevronRight, Loader2, Smile, CheckCheck } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -167,8 +170,6 @@ export function EnhancedComments({
   const [showReactionPicker, setShowReactionPicker] = useState(false)
   const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const lastTypingUpdateRef = useRef<number>(0)
 
   const normalizedCurrentUserId = currentUserId?.toLowerCase()
 
@@ -199,38 +200,33 @@ export function EnhancedComments({
     fetchData()
   }, [fetchData])
 
-  // Poll for new data every 10s when comments are visible
+  // Ably real-time subscriptions
+  const channelName = getFeedChannelName(collectiveId, ratingId)
+
+  useAblyChannel({
+    channelName,
+    eventName: "new_comment",
+    enabled: showComments,
+    onMessage: useCallback((data: unknown) => {
+      const comment = data as Comment
+      if (!comment?.id) return
+      setComments((prev) => {
+        if (prev.some((c) => c.id === comment.id)) return prev
+        return [...prev, comment]
+      })
+    }, []),
+  })
+
+  const { typingUsers: ablyTypingUsers, extendTyping, stopTyping } = useAblyPresence({
+    channelName,
+    currentUserId,
+    currentUserName: currentUserName || undefined,
+    enabled: showComments,
+  })
+
   useEffect(() => {
-    if (!showComments) return
-
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        fetchData()
-      }
-    }, 10000)
-    return () => clearInterval(interval)
-  }, [fetchData, showComments])
-
-  // Poll for typing indicators when comments are shown
-  useEffect(() => {
-    if (!showComments) return
-
-    const pollTyping = async () => {
-      try {
-        const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/typing`)
-        if (res.ok) {
-          const data = await res.json()
-          setTypingUsers(
-            data.typingUsers?.filter((u: TypingUser) => u.user_id?.toLowerCase() !== normalizedCurrentUserId) || [],
-          )
-        }
-      } catch {}
-    }
-
-    pollTyping()
-    const interval = setInterval(pollTyping, 2000)
-    return () => clearInterval(interval)
-  }, [showComments, collectiveId, ratingId, normalizedCurrentUserId])
+    setTypingUsers(ablyTypingUsers)
+  }, [ablyTypingUsers])
 
   // Search GIFs with debounce
   useEffect(() => {
@@ -249,44 +245,13 @@ export function EnhancedComments({
     return () => clearTimeout(timer)
   }, [gifSearch])
 
-  // Handle typing indicator
-  const updateTypingIndicator = useCallback(
-    async (isTyping: boolean) => {
-      const now = Date.now()
-      // Throttle typing updates to once per 2 seconds
-      if (isTyping && now - lastTypingUpdateRef.current < 2000) return
-      lastTypingUpdateRef.current = now
-
-      try {
-        await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/typing`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isTyping }),
-        })
-      } catch {}
-    },
-    [collectiveId, ratingId],
-  )
-
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewComment(e.target.value)
-
-    // Update typing indicator
-    updateTypingIndicator(true)
-
-    // Clear previous timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current)
-    }
-
-    // Set timeout to clear typing indicator
-    typingTimeoutRef.current = setTimeout(() => {
-      updateTypingIndicator(false)
-    }, 3000)
+    extendTyping()
 
     if (inputRef.current) {
       inputRef.current.style.height = "auto"
-      const maxHeight = 96 // 4 rows * ~24px line height
+      const maxHeight = 96
       inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, maxHeight) + "px"
     }
   }

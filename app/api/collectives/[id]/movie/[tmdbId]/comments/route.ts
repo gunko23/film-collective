@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sql } from "@/lib/db"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 import { ensureUserExists } from "@/lib/db/user-service"
+import { publishToChannel } from "@/lib/ably/server"
+import { getMovieChannelName } from "@/lib/ably/channel-names"
 
 type Props = {
   params: Promise<{ id: string; tmdbId: string }>
@@ -84,6 +86,9 @@ export async function POST(request: NextRequest, { params }: Props) {
       user_avatar: dbUser.avatar_url,
       reactions: [],
     }
+
+    // Publish new comment via Ably (non-blocking)
+    publishToChannel(getMovieChannelName(collectiveId, tmdbId, mediaType), "new_comment", newComment).catch(() => {})
 
     return NextResponse.json(newComment)
   } catch (error) {

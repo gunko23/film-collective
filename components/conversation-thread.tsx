@@ -2,6 +2,9 @@
 
 import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
+import { useAblyChannel } from "@/hooks/use-ably-channel"
+import { useAblyPresence } from "@/hooks/use-ably-presence"
+import { getFeedChannelName } from "@/lib/ably/channel-names"
 import { Check, ImageIcon, Loader2, Send, Smile, X } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -174,8 +177,6 @@ export function ConversationThread({
   const [sendingMessage, setSendingMessage] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const lastTypingUpdateRef = useRef<number>(0)
   const pickerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [gifs, setGifs] = useState<{ url: string; preview: string }[]>([])
@@ -219,33 +220,31 @@ export function ConversationThread({
     }
   }, [fetchComments, initialComments])
 
-  // Poll for new comments every 10s
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        fetchComments()
-      }
-    }, 10000)
-    return () => clearInterval(interval)
-  }, [fetchComments])
+  // Ably real-time subscriptions
+  const channelName = getFeedChannelName(collectiveId, ratingId)
+
+  useAblyChannel({
+    channelName,
+    eventName: "new_comment",
+    onMessage: useCallback((data: unknown) => {
+      const comment = data as Comment
+      if (!comment?.id) return
+      setComments((prev) => {
+        if (prev.some((c) => c.id === comment.id)) return prev
+        return [...prev, { ...comment, isNew: true }]
+      })
+    }, []),
+  })
+
+  const { typingUsers: ablyTypingUsers, extendTyping, stopTyping } = useAblyPresence({
+    channelName,
+    currentUserId,
+    currentUserName,
+  })
 
   useEffect(() => {
-    const pollTyping = async () => {
-      try {
-        const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/typing`)
-        if (res.ok) {
-          const data = await res.json()
-          setTypingUsers(
-            data.typingUsers?.filter((u: TypingUser) => u.user_id?.toLowerCase() !== normalizedCurrentUserId) || [],
-          )
-        }
-      } catch {}
-    }
-
-    pollTyping()
-    const interval = setInterval(pollTyping, 10000)
-    return () => clearInterval(interval)
-  }, [collectiveId, ratingId, normalizedCurrentUserId])
+    setTypingUsers(ablyTypingUsers)
+  }, [ablyTypingUsers])
 
   useEffect(() => {
     if (!hasInitiallyScrolled && comments.length > 0 && scrollRef.current) {
@@ -273,38 +272,13 @@ export function ConversationThread({
     return () => clearTimeout(timer)
   }, [gifSearchQuery])
 
-  const updateTypingIndicator = useCallback(
-    async (isTyping: boolean) => {
-      const now = Date.now()
-      if (isTyping && now - lastTypingUpdateRef.current < 2000) return
-      lastTypingUpdateRef.current = now
-
-      try {
-        await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/typing`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isTyping }),
-        })
-      } catch {}
-    },
-    [collectiveId, ratingId],
-  )
-
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewComment(e.target.value)
-    updateTypingIndicator(true)
-
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current)
-    }
-
-    typingTimeoutRef.current = setTimeout(() => {
-      updateTypingIndicator(false)
-    }, 3000)
+    extendTyping()
 
     if (inputRef.current) {
       inputRef.current.style.height = "auto"
-      const maxHeight = 96 // Corresponds to roughly 4 lines of text
+      const maxHeight = 96
       inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, maxHeight) + "px"
     }
   }
@@ -359,10 +333,7 @@ export function ConversationThread({
 
     console.log("[v0] Submitting comment:", { newComment, selectedGif, collectiveId, ratingId })
 
-    updateTypingIndicator(false) // Stop typing indicator when sending
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current)
-    }
+    stopTyping()
 
     setLoading(true)
     setSendingMessage(true)

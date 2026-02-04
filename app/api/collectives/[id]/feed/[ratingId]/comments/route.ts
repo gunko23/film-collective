@@ -3,7 +3,8 @@ import { neon } from "@neondatabase/serverless"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { createNotification, getRatingOwner, getRatingMediaInfo } from "@/lib/notifications/notification-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
-import { getFeedTypingChannel, removeTypingUserForChannel } from "@/lib/redis/client"
+import { publishToChannel } from "@/lib/ably/server"
+import { getFeedChannelName } from "@/lib/ably/channel-names"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -115,8 +116,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       DO UPDATE SET last_read_at = NOW()
     `.catch(() => {})
 
-    // Clear typing indicator (non-blocking)
-    removeTypingUserForChannel(getFeedTypingChannel(ratingId), dbUser.id).catch(() => {})
+    // Publish new comment via Ably (non-blocking)
+    publishToChannel(getFeedChannelName(collectiveId, ratingId), "new_comment", comment).catch(() => {})
 
     // Send notifications (non-blocking)
     if (mediaType) {

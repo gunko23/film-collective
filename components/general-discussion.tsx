@@ -3,7 +3,9 @@
 import type React from "react"
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { useDiscussionStream } from "@/hooks/use-discussion-stream"
+import { useAblyChannel } from "@/hooks/use-ably-channel"
+import { useAblyPresence } from "@/hooks/use-ably-presence"
+import { getDiscussionChannelName } from "@/lib/ably/channel-names"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Send, Smile, Loader2, CheckCheck, ImageIcon } from "lucide-react"
@@ -85,8 +87,6 @@ export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const lastTypingSentRef = useRef<number>(0)
   const shouldAutoScrollRef = useRef(true)
   const lastCursorRef = useRef<string | null>(null)
 
@@ -119,7 +119,6 @@ export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName
         setMessages(data.messages || [])
       }
 
-      setTypingUsers(data.typingUsers || [])
     } catch (error) {
       console.error("Failed to fetch messages:", error)
     } finally {
@@ -127,53 +126,54 @@ export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName
     }
   }, [collectiveId])
 
-  // SSE handlers
-  const handleSSEMessage = useCallback((event: { type: string; data: unknown; timestamp: number }) => {
-    const msg = event.data as Message
-    if (!msg?.id) return
+  // Ably real-time subscriptions
+  const channelName = getDiscussionChannelName(collectiveId)
 
-    setMessages((prev) => {
-      // Skip if already exists (e.g. from optimistic update)
-      if (prev.some((m) => m.id === msg.id)) return prev
-      return [...prev, msg]
-    })
+  useAblyChannel({
+    channelName,
+    eventName: "new_message",
+    onMessage: useCallback((data: unknown) => {
+      const msg = data as Message
+      if (!msg?.id) return
 
-    // Update cursor
-    if (msg.created_at) {
-      lastCursorRef.current = msg.created_at
-    }
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev
+        return [...prev, msg]
+      })
 
-    // Auto-scroll if near bottom
-    if (shouldAutoScrollRef.current && messagesEndRef.current) {
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50)
-    }
-  }, [])
+      if (msg.created_at) {
+        lastCursorRef.current = msg.created_at
+      }
 
-  const handleSSETyping = useCallback((users: Array<{ user_id: string; user_name: string }>) => {
-    setTypingUsers(users)
-  }, [])
-
-  const { isConnected: sseConnected } = useDiscussionStream({
-    collectiveId,
-    onNewMessage: handleSSEMessage,
-    onTypingUpdate: handleSSETyping,
+      if (shouldAutoScrollRef.current && messagesEndRef.current) {
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50)
+      }
+    }, []),
   })
 
-  // Initial fetch + fallback polling when SSE is disconnected
+  useAblyChannel({
+    channelName,
+    eventName: "reaction",
+    onMessage: useCallback(() => {
+      fetchMessages(false)
+    }, [fetchMessages]),
+  })
+
+  const { typingUsers: ablyTypingUsers, extendTyping, stopTyping } = useAblyPresence({
+    channelName,
+    currentUserId,
+    currentUserName,
+  })
+
+  // Sync Ably presence typing to local state
   useEffect(() => {
-    fetchMessages(false) // initial full load
+    setTypingUsers(ablyTypingUsers)
+  }, [ablyTypingUsers])
+
+  // Initial fetch
+  useEffect(() => {
+    fetchMessages(false)
   }, [fetchMessages])
-
-  useEffect(() => {
-    if (sseConnected) return // SSE handles updates
-
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        fetchMessages(true) // incremental
-      }
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [fetchMessages, sseConnected])
 
   // Auto-scroll
   useEffect(() => {
@@ -220,27 +220,11 @@ export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName
     return () => clearTimeout(timeout)
   }, [gifSearch])
 
-  // Typing indicator
-  const sendTypingIndicator = useCallback(async () => {
-    const now = Date.now()
-    if (now - lastTypingSentRef.current < 2000) return
-    lastTypingSentRef.current = now
-    try {
-      await fetch(`/api/collectives/${collectiveId}/discussion/typing`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userName: currentUserName }),
-      })
-    } catch {}
-  }, [collectiveId, currentUserName])
-
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(e.target.value)
     e.target.style.height = "auto"
     e.target.style.height = Math.min(e.target.scrollHeight, 96) + "px"
-    sendTypingIndicator()
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
-    typingTimeoutRef.current = setTimeout(() => {}, 3000)
+    extendTyping()
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -250,6 +234,7 @@ export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName
     const content = newMessage.trim()
     setNewMessage("")
     setIsSending(true)
+    stopTyping()
     if (inputRef.current) inputRef.current.style.height = "auto"
 
     const optimisticId = `optimistic-${Date.now()}`

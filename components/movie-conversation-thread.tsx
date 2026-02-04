@@ -2,6 +2,9 @@
 
 import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
+import { useAblyChannel } from "@/hooks/use-ably-channel"
+import { useAblyPresence } from "@/hooks/use-ably-presence"
+import { getMovieChannelName } from "@/lib/ably/channel-names"
 import { Send, Smile, CheckCheck, ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
@@ -92,7 +95,6 @@ export function MovieConversationThread({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const hasScrolledInitially = useRef(false)
 
   // Handle clicking outside emoji picker
@@ -127,30 +129,35 @@ export function MovieConversationThread({
     }
   }, [collectiveId, tmdbId, mediaType])
 
-  // Poll for new comments
+  // Initial fetch
   useEffect(() => {
     fetchComments()
-    const interval = setInterval(fetchComments, 15000)
-    return () => clearInterval(interval)
   }, [fetchComments])
 
-  // Poll for typing indicators
-  useEffect(() => {
-    const fetchTyping = async () => {
-      try {
-        const res = await fetch(`/api/collectives/${collectiveId}/movie/${tmdbId}/typing?mediaType=${mediaType}`)
-        if (res.ok) {
-          const data = await res.json()
-          setTypingUsers(data)
-        }
-      } catch (error) {
-        // Silently fail
-      }
-    }
+  // Ably real-time subscriptions
+  const channelName = getMovieChannelName(collectiveId, String(tmdbId), mediaType)
 
-    const interval = setInterval(fetchTyping, 10000)
-    return () => clearInterval(interval)
-  }, [collectiveId, tmdbId, mediaType])
+  useAblyChannel({
+    channelName,
+    eventName: "new_comment",
+    onMessage: useCallback((data: unknown) => {
+      const comment = data as Comment
+      if (!comment?.id) return
+      setComments((prev) => {
+        if (prev.some((c) => c.id === comment.id)) return prev
+        return [...prev, comment]
+      })
+    }, []),
+  })
+
+  const { typingUsers: ablyTypingUsers, extendTyping, stopTyping } = useAblyPresence({
+    channelName,
+    currentUserId,
+  })
+
+  useEffect(() => {
+    setTypingUsers(ablyTypingUsers)
+  }, [ablyTypingUsers])
 
   // Handle scroll
   const handleScroll = () => {
@@ -160,30 +167,6 @@ export function MovieConversationThread({
     }
   }
 
-  // Update typing indicator
-  const updateTypingIndicator = useCallback(async () => {
-    try {
-      await fetch(`/api/collectives/${collectiveId}/movie/${tmdbId}/typing`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mediaType }),
-      })
-    } catch (error) {
-      // Silently fail
-    }
-  }, [collectiveId, tmdbId, mediaType])
-
-  // Clear typing indicator
-  const clearTypingIndicator = useCallback(async () => {
-    try {
-      await fetch(`/api/collectives/${collectiveId}/movie/${tmdbId}/typing?mediaType=${mediaType}`, {
-        method: "DELETE",
-      })
-    } catch (error) {
-      // Silently fail
-    }
-  }, [collectiveId, tmdbId, mediaType])
-
   // Handle input change with typing indicator
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewComment(e.target.value)
@@ -192,16 +175,7 @@ export function MovieConversationThread({
     e.target.style.height = "auto"
     e.target.style.height = Math.min(e.target.scrollHeight, 96) + "px"
 
-    // Update typing indicator
-    updateTypingIndicator()
-
-    // Clear typing after 3 seconds of no input
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current)
-    }
-    typingTimeoutRef.current = setTimeout(() => {
-      clearTypingIndicator()
-    }, 3000)
+    extendTyping()
   }
 
   // Handle key down
@@ -229,6 +203,7 @@ export function MovieConversationThread({
     if (!newComment.trim() || isSubmitting) return
 
     setIsSubmitting(true)
+    stopTyping()
     const content = newComment.trim()
 
     // Optimistic update

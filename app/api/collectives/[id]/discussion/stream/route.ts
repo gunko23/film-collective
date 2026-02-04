@@ -1,6 +1,5 @@
 import type { NextRequest } from "next/server"
 import { neon } from "@neondatabase/serverless"
-import { getTypingUsers } from "@/lib/redis/client"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -137,13 +136,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         : null,
     }))
 
-    const typingUsers = await getTypingUsers(collectiveId)
-
     const nextCursor = messages.length > 0 ? messages[messages.length - 1].created_at : cursor
 
     return Response.json({
       messages,
-      typingUsers: typingUsers || [],
       nextCursor,
       hasMore: messages.length === limit,
     })
