@@ -68,17 +68,10 @@ type Props = {
 
 async function searchGifs(query: string): Promise<{ url: string; preview: string }[]> {
   try {
-    const response = await fetch(
-      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ&client_key=film_collective&limit=12`,
-    )
+    const response = await fetch(`/api/gif/search?q=${encodeURIComponent(query)}`)
     if (!response.ok) throw new Error("Failed to fetch GIFs")
     const data = await response.json()
-    return (
-      data.results?.map((gif: { media_formats: { gif: { url: string }; tinygif: { url: string } } }) => ({
-        url: gif.media_formats.gif?.url || gif.media_formats.tinygif?.url,
-        preview: gif.media_formats.tinygif?.url || gif.media_formats.gif?.url,
-      })) || []
-    )
+    return data.results || []
   } catch {
     return []
   }
@@ -180,29 +173,43 @@ export function EnhancedComments({
   const normalizedCurrentUserId = currentUserId?.toLowerCase()
 
   // Fetch reactions and comments
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const [reactionsRes, commentsRes] = await Promise.all([
-          fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/reactions`),
-          fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`),
-        ])
+  const fetchData = useCallback(async () => {
+    try {
+      const [reactionsRes, commentsRes] = await Promise.all([
+        fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/reactions`),
+        fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`),
+      ])
 
-        if (reactionsRes.ok) {
-          const data = await reactionsRes.json()
-          setReactions(data.reactions || [])
-        }
-
-        if (commentsRes.ok) {
-          const data = await commentsRes.json()
-          setComments(data.comments || [])
-        }
-      } catch (error) {
-        // Silently fail
+      if (reactionsRes.ok) {
+        const data = await reactionsRes.json()
+        setReactions(data.reactions || [])
       }
+
+      if (commentsRes.ok) {
+        const data = await commentsRes.json()
+        setComments(data.comments || [])
+      }
+    } catch (error) {
+      // Silently fail
     }
+  }, [collectiveId, ratingId])
+
+  // Initial load
+  useEffect(() => {
     fetchData()
-  }, [ratingId, collectiveId])
+  }, [fetchData])
+
+  // Poll for new data every 10s when comments are visible
+  useEffect(() => {
+    if (!showComments) return
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchData()
+      }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [fetchData, showComments])
 
   // Poll for typing indicators when comments are shown
   useEffect(() => {

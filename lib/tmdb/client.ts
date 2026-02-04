@@ -308,6 +308,10 @@ class TMDBClient {
       withGenres?: string
       year?: number
       voteAverageGte?: number
+      voteCountGte?: number
+      withRuntimeLte?: number
+      certificationCountry?: string
+      certificationLte?: string
     } = {},
   ): Promise<TMDBMovieListResponse> {
     const params: Record<string, string> = {}
@@ -316,6 +320,10 @@ class TMDBClient {
     if (options.withGenres) params.with_genres = options.withGenres
     if (options.year) params.year = options.year.toString()
     if (options.voteAverageGte) params["vote_average.gte"] = options.voteAverageGte.toString()
+    if (options.voteCountGte) params["vote_count.gte"] = options.voteCountGte.toString()
+    if (options.withRuntimeLte) params["with_runtime.lte"] = options.withRuntimeLte.toString()
+    if (options.certificationCountry) params.certification_country = options.certificationCountry
+    if (options.certificationLte) params["certification.lte"] = options.certificationLte
 
     return this.fetch<TMDBMovieListResponse>("/discover/movie", params)
   }

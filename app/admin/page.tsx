@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 import {
   Loader2,
   RefreshCw,
@@ -21,6 +22,8 @@ import {
   ArrowLeft,
   Clapperboard,
   Trophy,
+  ShieldAlert,
+  Upload,
 } from "lucide-react"
 import type { SyncLogEntry } from "@/lib/db"
 
@@ -39,11 +42,178 @@ type SyncHistoryResponse = {
   history: SyncLogEntry[]
 }
 
+/**
+ * Parse a CSV line properly, handling quoted fields that may contain commas
+ */
+function parseCSVLine(line: string): string[] {
+  const result: string[] = []
+  let current = ""
+  let inQuotes = false
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    
+    if (char === '"') {
+      // Toggle quote state
+      inQuotes = !inQuotes
+    } else if (char === ',' && !inQuotes) {
+      // End of field
+      result.push(current.replace(/^["']|["']$/g, ""))
+      current = ""
+    } else {
+      current += char
+    }
+  }
+  
+  // Don't forget the last field
+  result.push(current.replace(/^["']|["']$/g, ""))
+  
+  return result
+}
+
 export default function AdminPage() {
   const [isLoading, setIsLoading] = useState<string | null>(null)
   const [pages, setPages] = useState("1")
   const [movieId, setMovieId] = useState("")
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  // Parental guide import state
+  const [pgFile, setPgFile] = useState<File | null>(null)
+  const [pgProgress, setPgProgress] = useState({ current: 0, total: 0, phase: "" })
+  const [pgStats, setPgStats] = useState<{ totalCached: number } | null>(null)
+
+  // Fetch parental guide stats on mount
+  const { data: pgStatsData } = useSWR<{ totalCached: number }>(
+    "/api/parental-guide?stats=true",
+    fetcher,
+    { revalidateOnFocus: false }
+  )
+
+  // Handle parental guide CSV import
+  const handleParentalGuideImport = async () => {
+    if (!pgFile) return
+
+    setIsLoading("parental-guide")
+    setResult(null)
+    setPgProgress({ current: 0, total: 0, phase: "Reading CSV..." })
+
+    try {
+      // Read the CSV file
+      const text = await pgFile.text()
+      const lines = text.split("\n")
+      
+      // Parse headers - trim whitespace and tabs, lowercase
+      const headerLine = lines[0]
+      const headers = parseCSVLine(headerLine).map(h => h.trim().toLowerCase().replace(/[\t\s]+/g, ""))
+      
+      console.log("CSV Headers found:", headers)
+      
+      // Find the column indices we need
+      const colIndex = {
+        tconst: headers.indexOf("tconst"),
+        sex: headers.indexOf("sex"),
+        violence: headers.indexOf("violence"),
+        profanity: headers.indexOf("profanity"),
+        drugs: headers.indexOf("drugs"),
+        intense: headers.indexOf("intense"),
+      }
+      
+      console.log("Column indices:", colIndex)
+      
+      // Validate we found the required columns
+      if (colIndex.tconst === -1) {
+        throw new Error("Could not find 'tconst' column in CSV")
+      }
+      
+      // Parse all rows first
+      const allRows: Array<{
+        imdbId: string
+        sexNudity: string
+        violence: string
+        profanity: string
+        alcoholDrugsSmoking: string
+        frighteningIntense: string
+      }> = []
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim()
+        if (!line) continue
+        
+        // Parse CSV line properly (handles quoted fields with commas)
+        const values = parseCSVLine(line)
+        
+        // Get IMDb ID from the correct column
+        const imdbId = colIndex.tconst >= 0 ? values[colIndex.tconst]?.trim() : ""
+        if (!imdbId) continue
+        
+        const normalizedImdbId = imdbId.startsWith("tt") ? imdbId : `tt${imdbId.padStart(7, "0")}`
+        
+        // Get severity values from correct columns by index
+        allRows.push({
+          imdbId: normalizedImdbId,
+          sexNudity: colIndex.sex >= 0 ? values[colIndex.sex]?.trim() || "" : "",
+          violence: colIndex.violence >= 0 ? values[colIndex.violence]?.trim() || "" : "",
+          profanity: colIndex.profanity >= 0 ? values[colIndex.profanity]?.trim() || "" : "",
+          alcoholDrugsSmoking: colIndex.drugs >= 0 ? values[colIndex.drugs]?.trim() || "" : "",
+          frighteningIntense: colIndex.intense >= 0 ? values[colIndex.intense]?.trim() || "" : "",
+        })
+      }
+
+      console.log(`Parsed ${allRows.length} rows from CSV`)
+      console.log("Sample row:", allRows[0])
+
+      setPgProgress({ current: 0, total: allRows.length, phase: "Importing (server-side)..." })
+
+      // Send to server in larger batches - server handles TMDB lookups in parallel
+      const BATCH_SIZE = 200
+      let totalInserted = 0
+      let totalNotFound = 0
+      let totalFailed = 0
+      let totalSkipped = 0
+
+      for (let i = 0; i < allRows.length; i += BATCH_SIZE) {
+        const batch = allRows.slice(i, i + BATCH_SIZE)
+        
+        const res = await fetch("/api/parental-guide/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: batch }),
+        })
+        
+        const data = await res.json()
+        
+        if (data.error) {
+          throw new Error(data.error)
+        }
+        
+        totalInserted += data.inserted || 0
+        totalNotFound += data.notFound || 0
+        totalFailed += data.failed || 0
+        totalSkipped += data.skipped || 0
+        
+        setPgProgress({ 
+          current: Math.min(i + BATCH_SIZE, allRows.length), 
+          total: allRows.length, 
+          phase: `Importing... (${totalInserted} added, ${totalSkipped} skipped)` 
+        })
+      }
+
+      setResult({
+        success: true,
+        message: `Import complete! Inserted: ${totalInserted}, Skipped (already exists): ${totalSkipped}, Not found in TMDB: ${totalNotFound}, Failed: ${totalFailed}`,
+      })
+      setPgFile(null)
+      mutate("/api/parental-guide?stats=true")
+    } catch (error) {
+      setResult({
+        success: false,
+        message: error instanceof Error ? error.message : "Import failed",
+      })
+    } finally {
+      setIsLoading(null)
+      setPgProgress({ current: 0, total: 0, phase: "" })
+    }
+  }
 
   const { data: historyData, isLoading: historyLoading } = useSWR<SyncHistoryResponse>("/api/tmdb/sync", fetcher, {
     refreshInterval: 30000,
@@ -328,6 +498,83 @@ export default function AdminPage() {
                   )}
                   Populate TMDB IDs
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* Parental Guide Import */}
+            <Card className="bg-card border-border/50 ring-1 ring-border/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-3 text-base font-semibold">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
+                    <ShieldAlert className="h-4 w-4 text-purple-500" />
+                  </div>
+                  Import Parental Guide Data
+                </CardTitle>
+                <CardDescription className="text-sm">
+                  Upload Kaggle IMDb Parental Guide CSV to populate content ratings
+                  {pgStatsData?.totalCached ? (
+                    <span className="block mt-1 text-accent">
+                      Currently cached: {pgStatsData.totalCached.toLocaleString()} movies
+                    </span>
+                  ) : null}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pgFile" className="text-sm text-muted-foreground">
+                    CSV File
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="pgFile"
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => setPgFile(e.target.files?.[0] || null)}
+                      className="h-10 bg-background file:mr-4 file:py-1 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-accent/10 file:text-accent hover:file:bg-accent/20"
+                    />
+                  </div>
+                  {pgFile && (
+                    <p className="text-xs text-muted-foreground">
+                      Selected: {pgFile.name} ({(pgFile.size / 1024).toFixed(1)} KB)
+                    </p>
+                  )}
+                </div>
+                
+                {isLoading === "parental-guide" && pgProgress.total > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{pgProgress.phase}</span>
+                      <span>{pgProgress.current} / {pgProgress.total}</span>
+                    </div>
+                    <Progress value={(pgProgress.current / pgProgress.total) * 100} className="h-2" />
+                  </div>
+                )}
+                
+                <Button
+                  onClick={handleParentalGuideImport}
+                  disabled={isLoading !== null || !pgFile}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {isLoading === "parental-guide" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  Import Parental Guide
+                </Button>
+                
+                <p className="text-xs text-muted-foreground">
+                  Get the CSV from{" "}
+                  <a 
+                    href="https://www.kaggle.com/datasets/barryhaworth/imdb-parental-guide" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline"
+                  >
+                    Kaggle IMDb Parental Guide Dataset
+                  </a>
+                </p>
               </CardContent>
             </Card>
           </div>
