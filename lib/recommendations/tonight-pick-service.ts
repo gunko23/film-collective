@@ -378,9 +378,16 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
   }
 
   // For "acclaimed" mood, we want highly-rated movies with lots of votes
+  // But relax requirements if also filtering by content rating (too restrictive otherwise)
   if (mood === "acclaimed") {
-    discoverOptions.voteAverageGte = 7.5 // Higher quality threshold
-    discoverOptions.voteCountGte = 1000 // More votes = more acclaimed
+    if (contentRating) {
+      // Relaxed for content rating combo
+      discoverOptions.voteAverageGte = 7.0
+      discoverOptions.voteCountGte = 500
+    } else {
+      discoverOptions.voteAverageGte = 7.5
+      discoverOptions.voteCountGte = 1000
+    }
   }
 
   if (combinedGenres.length > 0) {
