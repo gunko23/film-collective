@@ -307,3 +307,20 @@ export type PostMovieListItem = typeof postMovieListItems.$inferSelect
 export type NewPostMovieListItem = typeof postMovieListItems.$inferInsert
 export type PostComment = typeof postComments.$inferSelect
 export type NewPostComment = typeof postComments.$inferInsert
+
+// ============================================
+// PARENTAL GUIDE TYPES
+// ============================================
+export type SeverityLevel = "None" | "Mild" | "Moderate" | "Severe" | null
+
+export type ParentalGuideData = {
+  tmdbId: number
+  imdbId?: string | null
+  sexNudity: SeverityLevel
+  violence: SeverityLevel
+  profanity: SeverityLevel
+  alcoholDrugsSmoking: SeverityLevel
+  frighteningIntense: SeverityLevel
+  fetchedAt?: Date | string | null
+  fetchSource?: string
+}

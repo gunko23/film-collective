@@ -128,17 +128,10 @@ interface ConversationThreadProps {
 
 async function searchGifs(query: string): Promise<{ url: string; preview: string }[]> {
   try {
-    const response = await fetch(
-      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ&client_key=film_collective&limit=12`,
-    )
+    const response = await fetch(`/api/gif/search?q=${encodeURIComponent(query)}`)
     if (!response.ok) throw new Error("Failed to fetch GIFs")
     const data = await response.json()
-    return (
-      data.results?.map((gif: { media_formats: { gif: { url: string }; tinygif: { url: string } } }) => ({
-        url: gif.media_formats.gif?.url || gif.media_formats.tinygif?.url,
-        preview: gif.media_formats.tinygif?.url || gif.media_formats.gif?.url,
-      })) || []
-    )
+    return data.results || []
   } catch {
     return []
   }
@@ -203,26 +196,38 @@ export function ConversationThread({
     }
   }, [])
 
-  useEffect(() => {
-    async function fetchComments() {
-      try {
-        const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`)
-        if (res.ok) {
-          const data = await res.json()
-          setComments(data.comments || [])
-        }
-      } catch {
-        // Silently fail
-      } finally {
-        setInitialLoading(false)
+  const fetchComments = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/collectives/${collectiveId}/feed/${ratingId}/comments`)
+      if (res.ok) {
+        const data = await res.json()
+        setComments(data.comments || [])
       }
+    } catch {
+      // Silently fail
+    } finally {
+      setInitialLoading(false)
     }
+  }, [collectiveId, ratingId])
+
+  // Initial load
+  useEffect(() => {
     if (!initialComments || initialComments.length === 0) {
       fetchComments()
     } else {
       setInitialLoading(false)
     }
-  }, [ratingId, collectiveId, initialComments])
+  }, [fetchComments, initialComments])
+
+  // Poll for new comments every 10s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchComments()
+      }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [fetchComments])
 
   useEffect(() => {
     const pollTyping = async () => {

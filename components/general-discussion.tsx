@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
+import { useDiscussionStream } from "@/hooks/use-discussion-stream"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Send, Smile, Loader2, CheckCheck, ImageIcon } from "lucide-react"
@@ -87,14 +88,37 @@ export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastTypingSentRef = useRef<number>(0)
   const shouldAutoScrollRef = useRef(true)
+  const lastCursorRef = useRef<string | null>(null)
 
-  // Fetch messages
-  const fetchMessages = useCallback(async () => {
+  // Fetch messages with optional cursor for incremental loading
+  const fetchMessages = useCallback(async (useCursor: boolean) => {
     try {
-      const res = await fetch(`/api/collectives/${collectiveId}/discussion/stream`)
+      const url = useCursor && lastCursorRef.current
+        ? `/api/collectives/${collectiveId}/discussion/stream?cursor=${encodeURIComponent(lastCursorRef.current)}`
+        : `/api/collectives/${collectiveId}/discussion/stream`
+      const res = await fetch(url)
       if (!res.ok) return
       const data = await res.json()
-      setMessages(data.messages || [])
+
+      if (data.nextCursor) {
+        lastCursorRef.current = data.nextCursor
+      }
+
+      if (useCursor && lastCursorRef.current) {
+        // Incremental: append only new messages, deduplicate by ID
+        const newMessages = data.messages || []
+        if (newMessages.length > 0) {
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id))
+            const unique = newMessages.filter((m: Message) => !existingIds.has(m.id))
+            return unique.length > 0 ? [...prev, ...unique] : prev
+          })
+        }
+      } else {
+        // Initial load: replace state
+        setMessages(data.messages || [])
+      }
+
       setTypingUsers(data.typingUsers || [])
     } catch (error) {
       console.error("Failed to fetch messages:", error)
@@ -103,11 +127,53 @@ export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName
     }
   }, [collectiveId])
 
+  // SSE handlers
+  const handleSSEMessage = useCallback((event: { type: string; data: unknown; timestamp: number }) => {
+    const msg = event.data as Message
+    if (!msg?.id) return
+
+    setMessages((prev) => {
+      // Skip if already exists (e.g. from optimistic update)
+      if (prev.some((m) => m.id === msg.id)) return prev
+      return [...prev, msg]
+    })
+
+    // Update cursor
+    if (msg.created_at) {
+      lastCursorRef.current = msg.created_at
+    }
+
+    // Auto-scroll if near bottom
+    if (shouldAutoScrollRef.current && messagesEndRef.current) {
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50)
+    }
+  }, [])
+
+  const handleSSETyping = useCallback((users: Array<{ user_id: string; user_name: string }>) => {
+    setTypingUsers(users)
+  }, [])
+
+  const { isConnected: sseConnected } = useDiscussionStream({
+    collectiveId,
+    onNewMessage: handleSSEMessage,
+    onTypingUpdate: handleSSETyping,
+  })
+
+  // Initial fetch + fallback polling when SSE is disconnected
   useEffect(() => {
-    fetchMessages()
-    const interval = setInterval(fetchMessages, 3000)
-    return () => clearInterval(interval)
+    fetchMessages(false) // initial full load
   }, [fetchMessages])
+
+  useEffect(() => {
+    if (sseConnected) return // SSE handles updates
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchMessages(true) // incremental
+      }
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [fetchMessages, sseConnected])
 
   // Auto-scroll
   useEffect(() => {
@@ -207,6 +273,9 @@ export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName
       if (res.ok) {
         const data = await res.json()
         setMessages((prev) => prev.map((m) => (m.id === optimisticId ? { ...data.message, isOptimistic: false } : m)))
+        if (data.message?.created_at) {
+          lastCursorRef.current = data.message.created_at
+        }
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
       }
@@ -257,6 +326,9 @@ export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName
       if (res.ok) {
         const data = await res.json()
         setMessages((prev) => prev.map((m) => (m.id === optimisticId ? { ...data.message, isOptimistic: false } : m)))
+        if (data.message?.created_at) {
+          lastCursorRef.current = data.message.created_at
+        }
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
       }
@@ -273,7 +345,7 @@ export function GeneralDiscussion({ collectiveId, currentUserId, currentUserName
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emoji, userName: currentUserName }),
       })
-      fetchMessages()
+      fetchMessages(false)
     } catch {}
   }
 

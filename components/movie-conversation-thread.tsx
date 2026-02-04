@@ -335,7 +335,7 @@ export function MovieConversationThread({
     }
   }
 
-  // Search GIFs (using Tenor)
+  // Search GIFs
   useEffect(() => {
     if (activeTab !== "gif" || !gifSearch.trim()) {
       setGifs([])
@@ -344,9 +344,11 @@ export function MovieConversationThread({
 
     const searchGifs = async () => {
       try {
-        // Using a simple placeholder for demo - in production you'd use Tenor/Giphy API
-        const mockGifs = [{ url: `https://media.tenor.com/search?q=${encodeURIComponent(gifSearch)}`, preview: "" }]
-        setGifs(mockGifs)
+        const response = await fetch(`/api/gif/search?q=${encodeURIComponent(gifSearch)}`)
+        if (response.ok) {
+          const data = await response.json()
+          setGifs(data.results || [])
+        }
       } catch (error) {
         console.error("Error searching GIFs:", error)
       }

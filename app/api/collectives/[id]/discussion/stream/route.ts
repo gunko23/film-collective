@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server"
 import { neon } from "@neondatabase/serverless"
+import { getTypingUsers } from "@/lib/redis/client"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -136,13 +137,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         : null,
     }))
 
-    const typingUsers = await sql`
-      SELECT gdt.user_id, COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name
-      FROM general_discussion_typing gdt
-      JOIN users u ON u.id = gdt.user_id
-      WHERE gdt.collective_id = ${collectiveId}::uuid
-        AND gdt.updated_at > NOW() - INTERVAL '5 seconds'
-    `
+    const typingUsers = await getTypingUsers(collectiveId)
 
     const nextCursor = messages.length > 0 ? messages[messages.length - 1].created_at : cursor
 

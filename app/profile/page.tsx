@@ -10,6 +10,7 @@ import Header from "@/components/header"
 import AuthErrorBoundary from "@/components/auth-error-boundary"
 import { StarRatingDisplay } from "@/components/star-rating-display"
 import { PushNotificationToggle } from "@/components/push-notification-toggle"
+import { LetterboxdImport } from "@/components/letterboxd-import"
 
 type RatedMovie = {
   id: string
@@ -207,6 +208,11 @@ function ProfileContent() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Letterboxd Import */}
+          <div className="mb-12 max-w-2xl">
+            <LetterboxdImport />
           </div>
 
           {favorites.length > 0 && (

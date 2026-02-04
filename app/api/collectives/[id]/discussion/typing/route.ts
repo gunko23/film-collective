@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 import { setTypingUser, removeTypingUser } from "@/lib/redis/client"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 // POST: Update typing indicator
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -25,14 +22,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const userName = user.displayName || dbUser.name || "Someone"
 
     await setTypingUser(collectiveId, dbUser.id, userName)
-
-    // Also update database for persistence (optional, can be removed)
-    await sql`
-      INSERT INTO general_discussion_typing (collective_id, user_id, user_name, updated_at)
-      VALUES (${collectiveId}::uuid, ${dbUser.id}::uuid, ${userName}, NOW())
-      ON CONFLICT (collective_id, user_id)
-      DO UPDATE SET updated_at = NOW(), user_name = ${userName}
-    `.catch(() => {})
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -55,11 +44,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const dbUser = await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
 
     await removeTypingUser(collectiveId, dbUser.id)
-
-    await sql`
-      DELETE FROM general_discussion_typing
-      WHERE collective_id = ${collectiveId}::uuid AND user_id = ${dbUser.id}::uuid
-    `.catch(() => {})
 
     return NextResponse.json({ success: true })
   } catch {

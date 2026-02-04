@@ -33,6 +33,8 @@ import { MessageCircle, Trophy } from "lucide-react"
 import { GeneralDiscussion } from "@/components/general-discussion"
 import { CollectiveActions } from "@/components/collective-actions"
 import { OscarPredictions } from "@/components/oscar-predictions"
+import { TonightsPick } from "@/components/tonights-pick"
+import { Sparkles } from "lucide-react"
 
 type MovieStat = {
   tmdb_id: string
@@ -134,10 +136,16 @@ type Props = {
   insightsContent: React.ReactNode
 }
 
-type Section = "dashboard" | "insights" | "feed" | "messageboard" | "discussion" | "predictions"
+type Section = "dashboard" | "tonightspick" | "insights" | "feed" | "messageboard" | "discussion" | "predictions"
 
 const sectionConfig: { value: Section; label: string; icon: React.ReactNode; description?: string }[] = [
   { value: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
+  {
+    value: "tonightspick",
+    label: "Tonight's Pick",
+    icon: <Sparkles className="h-4 w-4" />,
+    description: "Find the perfect film for your group",
+  },
   {
     value: "predictions",
     label: "Predictions",
@@ -882,6 +890,13 @@ export function CollectivePageClient({
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/* Tonight's Pick Section */}
+        {activeSection === "tonightspick" && (
+          <div className="mb-8">
+            <TonightsPick collectiveId={collectiveId} currentUserId={currentUserId} />
           </div>
         )}
 

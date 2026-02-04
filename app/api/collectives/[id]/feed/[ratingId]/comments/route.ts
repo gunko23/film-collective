@@ -3,6 +3,7 @@ import { neon } from "@neondatabase/serverless"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { createNotification, getRatingOwner, getRatingMediaInfo } from "@/lib/notifications/notification-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
+import { getFeedTypingChannel, removeTypingUserForChannel } from "@/lib/redis/client"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -115,10 +116,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     `.catch(() => {})
 
     // Clear typing indicator (non-blocking)
-    sql`
-      DELETE FROM typing_indicators
-      WHERE rating_id = ${ratingId}::uuid AND collective_id = ${collectiveId}::uuid AND user_id = ${dbUser.id}::uuid
-    `.catch(() => {})
+    removeTypingUserForChannel(getFeedTypingChannel(ratingId), dbUser.id).catch(() => {})
 
     // Send notifications (non-blocking)
     if (mediaType) {

@@ -204,12 +204,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
     }
 
-    // Clear typing indicator from database
-    await sql`
-      DELETE FROM general_discussion_typing
-      WHERE collective_id = ${collectiveId}::uuid AND user_id = ${dbUser.id}::uuid
-    `.catch(() => {})
-
     const fullMessage = {
       ...message,
       user_name: user.displayName || dbUser.name || "Anonymous",
