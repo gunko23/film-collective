@@ -5,7 +5,7 @@ export default function Discover() {
   return (
     <div className="relative min-h-screen bg-background overflow-hidden">
       <Header />
-      <main className="relative z-10 pt-16 sm:pt-20">
+      <main className="relative z-10 pt-2 lg:pt-20 pb-24 lg:pb-0">
         <DiscoverPage />
       </main>
     </div>

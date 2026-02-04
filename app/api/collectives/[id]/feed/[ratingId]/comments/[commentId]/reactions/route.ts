@@ -15,7 +15,7 @@ export async function GET(
       SELECT cr.id, cr.user_id, cr.reaction_type, u.name as user_name
       FROM comment_reactions cr
       JOIN users u ON u.id = cr.user_id
-      WHERE cr.comment_id = ${commentId} AND cr.collective_id = ${collectiveId}
+      WHERE cr.comment_id = ${commentId}::uuid AND cr.collective_id = ${collectiveId}::uuid
     `
 
     return NextResponse.json({ reactions })
@@ -45,21 +45,21 @@ export async function POST(
     // Check if reaction exists
     const existing = await sql`
       SELECT id FROM comment_reactions
-      WHERE comment_id = ${commentId} AND user_id = ${dbUser.id} AND reaction_type = ${reactionType}
+      WHERE comment_id = ${commentId}::uuid AND user_id = ${dbUser.id}::uuid AND reaction_type = ${reactionType}
     `
 
     if (existing.length > 0) {
       // Remove reaction
       await sql`
         DELETE FROM comment_reactions
-        WHERE comment_id = ${commentId} AND user_id = ${dbUser.id} AND reaction_type = ${reactionType}
+        WHERE comment_id = ${commentId}::uuid AND user_id = ${dbUser.id}::uuid AND reaction_type = ${reactionType}
       `
       return NextResponse.json({ action: "removed" })
     } else {
       // Add reaction
       const result = await sql`
         INSERT INTO comment_reactions (comment_id, collective_id, user_id, reaction_type)
-        VALUES (${commentId}, ${collectiveId}, ${dbUser.id}, ${reactionType})
+        VALUES (${commentId}::uuid, ${collectiveId}::uuid, ${dbUser.id}::uuid, ${reactionType})
         RETURNING id
       `
       return NextResponse.json({ action: "added", id: result[0].id })

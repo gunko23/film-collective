@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Bell, MessageCircle, Heart, CheckCheck, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Header } from "@/components/header"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import useSWR from "swr"
 import { formatDistanceToNow } from "date-fns"
@@ -100,7 +101,8 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-24 pb-12">
+    <div className="min-h-screen bg-background pt-4 lg:pt-24 pb-24 lg:pb-12">
+      <Header />
       <div className="max-w-3xl mx-auto px-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">

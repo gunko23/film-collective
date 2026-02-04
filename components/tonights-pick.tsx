@@ -143,7 +143,7 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
   const [maxProfanity, setMaxProfanity] = useState<ContentLevel>(null)
   const [maxSubstances, setMaxSubstances] = useState<ContentLevel>(null)
   const [maxFrightening, setMaxFrightening] = useState<ContentLevel>(null)
-  const [showContentFilters, setShowContentFilters] = useState(false)
+  const [showContentFilters, setShowContentFilters] = useState(true)
 
   // Fetch members on mount
   useEffect(() => {
@@ -278,25 +278,6 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header - Mobile Optimized */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 ring-1 ring-amber-500/30">
-            <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-amber-500" />
-          </div>
-          <div>
-            <h2 className="text-lg sm:text-xl font-bold text-foreground">Tonight's Pick</h2>
-            <p className="text-xs sm:text-sm text-muted-foreground">Find the perfect film for your group</p>
-          </div>
-        </div>
-        {step === "results" && (
-          <Button variant="outline" onClick={reset} size="sm" className="gap-2 self-start sm:self-auto">
-            <RefreshCw className="h-4 w-4" />
-            Start Over
-          </Button>
-        )}
-      </div>
-
       {/* Progress Steps - Mobile Optimized */}
       <div className="flex items-center justify-between rounded-xl bg-muted/30 p-2 sm:p-3 sm:justify-start sm:gap-4">
         {["members", "mood", "results"].map((s, i) => {
@@ -392,14 +373,18 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
             {selectedMembers.length} of {members.length} selected
           </div>
 
-          <Button
+          <button
             onClick={() => setStep("mood")}
             disabled={selectedMembers.length === 0}
-            className="gap-2 w-full h-12 text-base"
+            className="w-full h-12 rounded-xl text-base font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: selectedMembers.length > 0 ? '#e07850' : '#161619',
+              color: selectedMembers.length > 0 ? '#08080a' : 'rgba(248, 246, 241, 0.4)',
+            }}
           >
             Continue
             <ChevronRight className="h-5 w-5" />
-          </Button>
+          </button>
         </div>
       )}
 
@@ -719,7 +704,15 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
 
           {/* Navigation buttons - Stacked on mobile */}
           <div className="flex flex-col gap-2 pt-2">
-            <Button onClick={() => getRecommendations(1)} disabled={loading} className="gap-2 h-12 text-base">
+            <button
+              onClick={() => getRecommendations(1)}
+              disabled={loading}
+              className="w-full h-12 rounded-xl text-base font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: '#e07850',
+                color: '#08080a',
+              }}
+            >
               {loading ? (
                 <>
                   <RefreshCw className="h-5 w-5 animate-spin" />
@@ -731,11 +724,18 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
                   Get Recommendations
                 </>
               )}
-            </Button>
-            <Button variant="ghost" onClick={() => setStep("members")} className="gap-2 h-10">
+            </button>
+            <button
+              onClick={() => setStep("members")}
+              className="w-full h-10 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all"
+              style={{
+                backgroundColor: 'transparent',
+                color: 'rgba(248, 246, 241, 0.55)',
+              }}
+            >
               <ChevronLeft className="h-4 w-4" />
               Back
-            </Button>
+            </button>
           </div>
         </div>
       )}
@@ -744,20 +744,27 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
       {step === "results" && results && (
         <div className="space-y-4 sm:space-y-6">
           {/* Action Buttons */}
-          <div className="flex items-center justify-between gap-2">
-            <Button 
-              variant="ghost" 
-              onClick={() => setStep("mood")} 
-              className="gap-2 h-9 text-sm"
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setStep("mood")}
+              className="flex-1 h-11 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all"
+              style={{
+                backgroundColor: '#0f0f12',
+                border: '1px solid rgba(248, 246, 241, 0.1)',
+                color: '#f8f6f1',
+              }}
             >
               <ChevronLeft className="h-4 w-4" />
               Back
-            </Button>
-            <Button
-              variant="outline"
+            </button>
+            <button
               onClick={shuffleResults}
               disabled={loading}
-              className="gap-2 h-9 text-sm"
+              className="flex-1 h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: '#e07850',
+                color: '#08080a',
+              }}
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -765,7 +772,7 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
                 <RefreshCw className="h-4 w-4" />
               )}
               Shuffle
-            </Button>
+            </button>
           </div>
 
           {/* Group Profile Summary */}

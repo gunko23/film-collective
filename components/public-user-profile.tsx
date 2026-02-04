@@ -44,7 +44,7 @@ export function PublicUserProfile({ userId }: { userId: string }) {
 
   if (isLoading) {
     return (
-      <main className="pt-24 pb-16">
+      <main className="pt-6 lg:pt-24 pb-24 lg:pb-16">
         <div className="max-w-4xl mx-auto px-4">
           <div className="animate-pulse space-y-8">
             <div className="flex items-center gap-6">
@@ -67,7 +67,7 @@ export function PublicUserProfile({ userId }: { userId: string }) {
 
   if (!data) {
     return (
-      <main className="pt-24 pb-16">
+      <main className="pt-6 lg:pt-24 pb-24 lg:pb-16">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <p className="text-muted-foreground">User not found</p>
         </div>
@@ -78,7 +78,7 @@ export function PublicUserProfile({ userId }: { userId: string }) {
   const { user, favorites, stats, topGenres, recentRatings } = data
 
   return (
-    <main className="pt-24 pb-16">
+    <main className="pt-6 lg:pt-24 pb-24 lg:pb-16">
       <div className="max-w-4xl mx-auto px-4 space-y-8">
         {/* Back button */}
         <Link

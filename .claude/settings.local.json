@@ -8,7 +8,10 @@
       "Bash(npx:*)",
       "Bash(node -e:*)",
       "Bash(npm install:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(node:*)",
+      "Bash(git add:*)",
+      "Bash(test:*)"
     ]
   }
 }

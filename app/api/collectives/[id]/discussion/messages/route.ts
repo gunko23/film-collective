@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
-import { publishMessage, removeTypingUser } from "@/lib/redis/client"
+import { publishToChannel } from "@/lib/ably/server"
+import { getDiscussionChannelName } from "@/lib/ably/channel-names"
 import { sendPushNotificationToCollectiveMembers } from "@/lib/push/push-service"
 
 const sql = neon(process.env.DATABASE_URL!)
@@ -212,8 +213,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       reply_to: replyTo,
     }
 
-    await publishMessage(collectiveId, "new_message", fullMessage)
-    await removeTypingUser(collectiveId, dbUser.id)
+    await publishToChannel(getDiscussionChannelName(collectiveId), "new_message", fullMessage)
 
     const collectiveInfo = await sql`
       SELECT name FROM collectives WHERE id = ${collectiveId}::uuid

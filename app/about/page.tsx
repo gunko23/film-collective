@@ -33,7 +33,7 @@ export default function AboutPage() {
         <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-accent/3 rounded-full blur-[100px] animate-pulse-glow animation-delay-200" />
       </div>
 
-      <main className="relative z-10 pt-24 sm:pt-28 pb-16">
+      <main className="relative z-10 pt-6 lg:pt-28 pb-24 lg:pb-16">
         {/* Hero Section */}
         <section className="relative px-4 sm:px-6 py-16 sm:py-24">
           <div className="mx-auto max-w-4xl text-center">

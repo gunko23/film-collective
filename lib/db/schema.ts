@@ -233,51 +233,6 @@ export const feedReactions = pgTable(
 )
 
 // ============================================
-// MESSAGE BOARD / POSTS
-// ============================================
-export const collectivePosts = pgTable("collective_posts", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  collectiveId: uuid("collective_id")
-    .notNull()
-    .references(() => collectives.id, { onDelete: "cascade" }),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  content: text("content"),
-  postType: text("post_type").notNull().default("discussion"), // 'discussion' or 'movie_list'
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-})
-
-export const postMovieListItems = pgTable("post_movie_list_items", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  postId: uuid("post_id")
-    .notNull()
-    .references(() => collectivePosts.id, { onDelete: "cascade" }),
-  tmdbId: integer("tmdb_id").notNull(),
-  title: text("title").notNull(),
-  posterPath: text("poster_path"),
-  releaseDate: date("release_date"),
-  position: integer("position").notNull().default(0),
-  note: text("note"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-})
-
-export const postComments = pgTable("post_comments", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  postId: uuid("post_id")
-    .notNull()
-    .references(() => collectivePosts.id, { onDelete: "cascade" }),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-})
-
-// ============================================
 // TYPES
 // ============================================
 export type User = typeof users.$inferSelect
@@ -299,14 +254,6 @@ export type FeedComment = typeof feedComments.$inferSelect
 export type NewFeedComment = typeof feedComments.$inferInsert
 export type FeedReaction = typeof feedReactions.$inferSelect
 export type NewFeedReaction = typeof feedReactions.$inferInsert
-
-// New types for message board
-export type CollectivePost = typeof collectivePosts.$inferSelect
-export type NewCollectivePost = typeof collectivePosts.$inferInsert
-export type PostMovieListItem = typeof postMovieListItems.$inferSelect
-export type NewPostMovieListItem = typeof postMovieListItems.$inferInsert
-export type PostComment = typeof postComments.$inferSelect
-export type NewPostComment = typeof postComments.$inferInsert
 
 // ============================================
 // PARENTAL GUIDE TYPES

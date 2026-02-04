@@ -156,7 +156,7 @@ export default async function CollectiveFeedPage({ params, searchParams }: Props
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <main className="pt-28 pb-16">
+        <main className="pt-6 lg:pt-28 pb-24 lg:pb-16">
           <div className="mx-auto max-w-4xl px-6 text-center">
             <h1 className="text-2xl font-bold text-foreground mb-4">Collective not found</h1>
             <Link href="/collectives" className="text-accent hover:underline">
@@ -203,7 +203,7 @@ export default async function CollectiveFeedPage({ params, searchParams }: Props
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
       </div>
 
-      <main className="relative z-10 pt-28 pb-16">
+      <main className="relative z-10 pt-6 lg:pt-28 pb-24 lg:pb-16">
         <div className="mx-auto max-w-3xl px-6">
           {/* Back button */}
           <Link

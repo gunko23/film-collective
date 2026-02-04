@@ -104,6 +104,23 @@ export type TonightPickResponse = {
   }
 }
 
+export type SoloTonightPickRequest = {
+  userId: string
+  mood?: "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | null
+  maxRuntime?: number | null
+  contentRating?: string | null
+  parentalFilters?: ParentalFilters | null
+  page?: number
+}
+
+export type SoloTonightPickResponse = {
+  recommendations: MovieRecommendation[]
+  userProfile: {
+    sharedGenres: GenrePreference[]
+    totalRatings: number
+  }
+}
+
 // ============================================
 // Core Recommendation Logic
 // ============================================
@@ -199,7 +216,8 @@ function calculateGroupFitScore(
   preferredGenres: GenrePreference[],
   dislikedGenres: Set<number>,
   seenByCount: number,
-  totalMembers: number
+  totalMembers: number,
+  soloMode: boolean = false
 ): { score: number; reasoning: string[] } {
   const reasoning: string[] = []
   let score = 50 // Base score
@@ -215,7 +233,7 @@ function calculateGroupFitScore(
     }
   }
   if (genreMatchCount > 0) {
-    reasoning.push(`Matches ${genreMatchCount} of your group's favorite genres`)
+    reasoning.push(`Matches ${genreMatchCount} of your ${soloMode ? "" : "group's "}favorite genres`)
   }
 
   // Penalty for disliked genres
@@ -227,14 +245,18 @@ function calculateGroupFitScore(
     }
   }
   if (dislikedMatchCount > 0) {
-    reasoning.push(`Contains ${dislikedMatchCount} genre(s) your group tends to rate lower`)
+    reasoning.push(`Contains ${dislikedMatchCount} genre(s) you ${soloMode ? "tend" : "your group tends"} to rate lower`)
   }
 
   // Penalty if some members have already seen it
   if (seenByCount > 0) {
     const penaltyMultiplier = seenByCount / totalMembers
     score -= Math.round(30 * penaltyMultiplier)
-    reasoning.push(`${seenByCount} member(s) may have seen this`)
+    if (soloMode) {
+      reasoning.push("You may have seen this")
+    } else {
+      reasoning.push(`${seenByCount} member(s) may have seen this`)
+    }
   }
 
   // Boost for well-reviewed films (TMDB score)
@@ -321,67 +343,55 @@ function getMoodFilters(mood: TonightPickRequest["mood"]): {
 }
 
 // ============================================
-// Main Recommendation Function
+// Shared Recommendation Logic
 // ============================================
 
-export async function getTonightsPick(request: TonightPickRequest): Promise<TonightPickResponse> {
-  const { collectiveId, memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1 } = request
+type FetchAndScoreOptions = {
+  memberIds: string[]
+  mood?: "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | null
+  maxRuntime?: number | null
+  contentRating?: string | null
+  parentalFilters?: ParentalFilters | null
+  page?: number
+  soloMode?: boolean
+}
 
-  // Calculate page offset for TMDB queries - each "shuffle" gets different pages
-  const pageOffset = (page - 1) * 3 // Each shuffle skips 3 pages worth of results
+async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
+  recommendations: MovieRecommendation[]
+  genres: GenrePreference[]
+  totalRatings: number
+}> {
+  const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, soloMode = false } = options
 
-  // Validate members belong to the collective
-  const validMembers = await sql`
-    SELECT u.id, u.name
-    FROM users u
-    JOIN collective_memberships cm ON u.id = cm.user_id
-    WHERE cm.collective_id = ${collectiveId}::uuid
-      AND u.id = ANY(${memberIds}::uuid[])
-  `
+  const pageOffset = (page - 1) * 3
 
-  if (validMembers.length === 0) {
-    throw new Error("No valid members selected")
-  }
-
-  const validMemberIds = validMembers.map((m: any) => m.id)
-
-  // Get group preferences
   const [groupGenres, seenMovies, dislikedGenres] = await Promise.all([
-    getGroupGenrePreferences(validMemberIds),
-    getSeenMovieTmdbIds(validMemberIds),
-    getDislikedGenres(validMemberIds),
+    getGroupGenrePreferences(memberIds),
+    getSeenMovieTmdbIds(memberIds),
+    getDislikedGenres(memberIds),
   ])
 
-  // Get mood-based filters
   const moodFilters = getMoodFilters(mood)
 
-  // Build TMDB discover query
   const tmdb = createTMDBClient()
   if (!tmdb) {
     throw new Error("TMDB client not available")
   }
 
-  // Combine group's preferred genres with mood preferences
   const preferredGenreIds = groupGenres.slice(0, 3).map((g) => g.genreId)
   const combinedGenres = [...new Set([...moodFilters.preferGenres, ...preferredGenreIds])]
 
-  // Fetch candidates from TMDB
-  // We'll get multiple pages to have enough options after filtering
   const candidateMovies: any[] = []
 
-  // Strategy: Get popular/top-rated movies, filtering by group's preferred genres
   const discoverOptions: any = {
     page: 1,
     sortBy: moodFilters.sortBy,
-    voteAverageGte: 6.0, // Minimum quality threshold
-    voteCountGte: 200, // Filter out obscure movies with very few ratings
+    voteAverageGte: 6.0,
+    voteCountGte: 200,
   }
 
-  // For "acclaimed" mood, we want highly-rated movies with lots of votes
-  // But relax requirements if also filtering by content rating (too restrictive otherwise)
   if (mood === "acclaimed") {
     if (contentRating) {
-      // Relaxed for content rating combo
       discoverOptions.voteAverageGte = 7.0
       discoverOptions.voteCountGte = 500
     } else {
@@ -394,105 +404,86 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     discoverOptions.withGenres = combinedGenres.slice(0, 3).join(",")
   }
 
-  // Add runtime filter if specified
   if (maxRuntime) {
     discoverOptions.withRuntimeLte = maxRuntime
   }
 
-  // Add content rating filter if specified (US MPAA ratings)
   if (contentRating) {
     discoverOptions.certificationCountry = "US"
     discoverOptions.certificationLte = contentRating
   }
 
-  // Fetch discover results (sorted by mood preference)
-  // Apply pageOffset for shuffle functionality - each shuffle gets different pages
   const page1 = await tmdb.discoverMovies({ ...discoverOptions, page: 1 + pageOffset })
   candidateMovies.push(...page1.results)
 
   const page2 = await tmdb.discoverMovies({ ...discoverOptions, page: 2 + pageOffset })
   candidateMovies.push(...page2.results)
 
-  // Fetch more pages from discover for variety
   const page3 = await tmdb.discoverMovies({ ...discoverOptions, page: 3 + pageOffset })
   candidateMovies.push(...page3.results)
 
-  // Only fetch popular/top-rated if no content rating filter
-  // (these endpoints don't support certification filtering)
   if (!contentRating) {
-    // Always fetch popular movies for mainstream options
     const popularMovies = await tmdb.getPopularMovies(1 + pageOffset)
     candidateMovies.push(...popularMovies.results)
 
-    // Also get a second page of popular for more variety
     const popularMovies2 = await tmdb.getPopularMovies(2 + pageOffset)
     candidateMovies.push(...popularMovies2.results)
 
-    // Also get some top-rated for quality options (only if no runtime filter, since we can't filter those)
     if (!maxRuntime) {
       const topRated = await tmdb.getTopRatedMovies(1 + pageOffset)
       candidateMovies.push(...topRated.results)
     }
   } else {
-    // When content rating is specified, get more pages from discover instead
     const page4 = await tmdb.discoverMovies({ ...discoverOptions, page: 4 + pageOffset })
     candidateMovies.push(...page4.results)
-    
-    // Also try sorting by popularity for more mainstream options
-    const popularDiscover = await tmdb.discoverMovies({ 
-      ...discoverOptions, 
+
+    const popularDiscover = await tmdb.discoverMovies({
+      ...discoverOptions,
       sortBy: "popularity.desc",
-      page: 1 + pageOffset 
+      page: 1 + pageOffset
     })
     candidateMovies.push(...popularDiscover.results)
-    
-    const popularDiscover2 = await tmdb.discoverMovies({ 
-      ...discoverOptions, 
+
+    const popularDiscover2 = await tmdb.discoverMovies({
+      ...discoverOptions,
       sortBy: "popularity.desc",
-      page: 2 + pageOffset 
+      page: 2 + pageOffset
     })
     candidateMovies.push(...popularDiscover2.results)
   }
 
-  // Dedupe by ID
   const uniqueMovies = Array.from(
     new Map(candidateMovies.map((m) => [m.id, m])).values()
   )
 
-  // Score and filter candidates
   const scoredMovies: MovieRecommendation[] = []
 
   for (const movie of uniqueMovies) {
-    // Skip if runtime exceeds preference
     if (maxRuntime && movie.runtime && movie.runtime > maxRuntime) {
       continue
     }
 
-    // Check who has seen this movie
     const seenBy = seenMovies.get(movie.id) || []
-    
-    // Skip if everyone has seen it
-    if (seenBy.length >= validMemberIds.length) {
+
+    if (seenBy.length >= memberIds.length) {
       continue
     }
 
-    // Skip movies in avoided genres (from mood)
     const movieGenreIds = (movie.genres || []).map((g: any) => g.id)
     const hasAvoidedGenre = moodFilters.avoidGenres.some((g) => movieGenreIds.includes(g))
     if (hasAvoidedGenre && mood) {
       continue
     }
 
-    // Calculate group fit
     const { score, reasoning } = calculateGroupFitScore(
       movie,
       groupGenres,
       dislikedGenres,
       seenBy.length,
-      validMemberIds.length
+      memberIds.length,
+      soloMode
     )
 
-    // Calculate genre match score (how many preferred genres match)
     const genreMatchCount = groupGenres
       .slice(0, 5)
       .filter((g) => movieGenreIds.includes(g.genreId)).length
@@ -516,18 +507,14 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     })
   }
 
-  // Sort by group fit score
   scoredMovies.sort((a, b) => b.groupFitScore - a.groupFitScore)
 
-  // Get top candidates (more than we need, to account for filtering)
   let candidates = scoredMovies.slice(0, 50)
 
-  // Fetch parental guide data for candidates
   const parentalGuideData = await getParentalGuideBatch(
     candidates.map(m => ({ tmdbId: m.tmdbId }))
   )
 
-  // Add parental guide info and filter based on parental filters
   const hasParentalFilters = parentalFilters && (
     parentalFilters.maxViolence ||
     parentalFilters.maxSexNudity ||
@@ -537,11 +524,10 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
   )
 
   const filteredMovies: MovieRecommendation[] = []
-  
+
   for (const movie of candidates) {
     const pg = parentalGuideData.get(movie.tmdbId)
-    
-    // Add parental guide info to movie
+
     if (pg) {
       movie.parentalGuide = {
         sexNudity: pg.sexNudity,
@@ -552,9 +538,7 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
       }
     }
 
-    // Apply parental filters if set
     if (hasParentalFilters && pg) {
-      // Check each category against the max limit
       if (exceedsSeverityLimit(pg.violence, parentalFilters?.maxViolence)) continue
       if (exceedsSeverityLimit(pg.sexNudity, parentalFilters?.maxSexNudity)) continue
       if (exceedsSeverityLimit(pg.profanity, parentalFilters?.maxProfanity)) continue
@@ -563,18 +547,86 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     }
 
     filteredMovies.push(movie)
-    
-    // Stop once we have enough
+
     if (filteredMovies.length >= 12) break
   }
 
-  // Return top recommendations
   return {
     recommendations: filteredMovies.slice(0, 12),
+    genres: groupGenres.slice(0, 5),
+    totalRatings: groupGenres.reduce((sum, g) => sum + g.ratingCount, 0),
+  }
+}
+
+// ============================================
+// Main Recommendation Function (Group)
+// ============================================
+
+export async function getTonightsPick(request: TonightPickRequest): Promise<TonightPickResponse> {
+  const { collectiveId, memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1 } = request
+
+  // Validate members belong to the collective
+  const validMembers = await sql`
+    SELECT u.id, u.name
+    FROM users u
+    JOIN collective_memberships cm ON u.id = cm.user_id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+      AND u.id = ANY(${memberIds}::uuid[])
+  `
+
+  if (validMembers.length === 0) {
+    throw new Error("No valid members selected")
+  }
+
+  const validMemberIds = validMembers.map((m: any) => m.id)
+
+  const result = await _fetchAndScoreMovies({
+    memberIds: validMemberIds,
+    mood,
+    maxRuntime,
+    contentRating,
+    parentalFilters,
+    page,
+  })
+
+  return {
+    recommendations: result.recommendations,
     groupProfile: {
       memberCount: validMemberIds.length,
-      sharedGenres: groupGenres.slice(0, 5),
-      totalRatings: groupGenres.reduce((sum, g) => sum + g.ratingCount, 0),
+      sharedGenres: result.genres,
+      totalRatings: result.totalRatings,
+    },
+  }
+}
+
+// ============================================
+// Solo Recommendation Function
+// ============================================
+
+export async function getSoloTonightsPick(request: SoloTonightPickRequest): Promise<SoloTonightPickResponse> {
+  const { userId, mood, maxRuntime, contentRating, parentalFilters, page = 1 } = request
+
+  // Validate user exists
+  const userResult = await sql`SELECT id FROM users WHERE id = ${userId}::uuid`
+  if (userResult.length === 0) {
+    throw new Error("User not found")
+  }
+
+  const result = await _fetchAndScoreMovies({
+    memberIds: [userId],
+    mood,
+    maxRuntime,
+    contentRating,
+    parentalFilters,
+    page,
+    soloMode: true,
+  })
+
+  return {
+    recommendations: result.recommendations,
+    userProfile: {
+      sharedGenres: result.genres,
+      totalRatings: result.totalRatings,
     },
   }
 }

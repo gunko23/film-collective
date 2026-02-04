@@ -6,6 +6,7 @@ import { stackServerApp } from "@/stack"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Analytics } from "@vercel/analytics/next"
 import { PWARegister } from "@/components/pwa-register"
+import { AblyClientProvider } from "@/components/ably-provider"
 import "./globals.css"
 
 const inter = Inter({
@@ -61,7 +62,9 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange={false}>
           <StackProvider app={stackServerApp}>
-            <StackTheme>{children}</StackTheme>
+            <StackTheme>
+              <AblyClientProvider>{children}</AblyClientProvider>
+            </StackTheme>
           </StackProvider>
         </ThemeProvider>
         <Analytics />

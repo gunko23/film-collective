@@ -3,7 +3,8 @@ import { neon } from "@neondatabase/serverless"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { createNotification, getRatingOwner, getRatingMediaInfo } from "@/lib/notifications/notification-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
-import { getFeedTypingChannel, removeTypingUserForChannel } from "@/lib/redis/client"
+import { publishToChannel } from "@/lib/ably/server"
+import { getFeedChannelName } from "@/lib/ably/channel-names"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -12,30 +13,40 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id: collectiveId, ratingId } = await params
 
     const comments = await sql`
-      SELECT 
-        fc.id,
-        fc.user_id,
-        COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
-        u.avatar_url as user_avatar,
-        fc.content,
-        fc.gif_url,
-        fc.created_at,
-        COALESCE(
-          (SELECT json_agg(json_build_object(
+      WITH comment_data AS (
+        SELECT
+          fc.id,
+          fc.user_id,
+          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
+          u.avatar_url as user_avatar,
+          fc.content,
+          fc.gif_url,
+          fc.created_at
+        FROM feed_comments fc
+        JOIN users u ON u.id = fc.user_id
+        WHERE fc.rating_id = ${ratingId}::uuid AND fc.collective_id = ${collectiveId}::uuid
+        ORDER BY fc.created_at ASC
+      ),
+      reaction_data AS (
+        SELECT
+          cr.comment_id,
+          json_agg(json_build_object(
             'id', cr.id,
             'user_id', cr.user_id,
             'user_name', COALESCE(ru.name, SPLIT_PART(ru.email, '@', 1), 'User'),
             'reaction_type', cr.reaction_type
-          ))
-          FROM comment_reactions cr
-          JOIN users ru ON ru.id = cr.user_id
-          WHERE cr.comment_id = fc.id),
-          '[]'
-        ) as reactions
-      FROM feed_comments fc
-      JOIN users u ON u.id = fc.user_id
-      WHERE fc.rating_id = ${ratingId}::uuid AND fc.collective_id = ${collectiveId}::uuid
-      ORDER BY fc.created_at ASC
+          )) as reactions
+        FROM comment_reactions cr
+        JOIN users ru ON ru.id = cr.user_id
+        WHERE cr.comment_id IN (SELECT id FROM comment_data)
+        GROUP BY cr.comment_id
+      )
+      SELECT
+        cd.*,
+        COALESCE(rd.reactions, '[]'::json) as reactions
+      FROM comment_data cd
+      LEFT JOIN reaction_data rd ON rd.comment_id = cd.id
+      ORDER BY cd.created_at ASC
     `
 
     return NextResponse.json({ comments })
@@ -115,8 +126,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       DO UPDATE SET last_read_at = NOW()
     `.catch(() => {})
 
-    // Clear typing indicator (non-blocking)
-    removeTypingUserForChannel(getFeedTypingChannel(ratingId), dbUser.id).catch(() => {})
+    // Publish new comment via Ably (non-blocking)
+    publishToChannel(getFeedChannelName(collectiveId, ratingId), "new_comment", comment).catch(() => {})
 
     // Send notifications (non-blocking)
     if (mediaType) {

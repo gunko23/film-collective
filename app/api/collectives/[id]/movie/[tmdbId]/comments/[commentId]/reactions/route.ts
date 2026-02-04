@@ -28,8 +28,8 @@ export async function POST(request: NextRequest, { params }: Props) {
     // Check if reaction already exists
     const existing = await sql`
       SELECT id FROM movie_comment_reactions
-      WHERE comment_id = ${commentId}
-        AND user_id = ${dbUser.id}
+      WHERE comment_id = ${commentId}::uuid
+        AND user_id = ${dbUser.id}::uuid
         AND reaction_type = ${reactionType}
     `
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, { params }: Props) {
       // Remove existing reaction
       await sql`
         DELETE FROM movie_comment_reactions
-        WHERE id = ${existing[0].id}
+        WHERE id = ${existing[0].id}::uuid
       `
       return NextResponse.json({ removed: true })
     }
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest, { params }: Props) {
     // Add new reaction
     const result = await sql`
       INSERT INTO movie_comment_reactions (comment_id, collective_id, user_id, reaction_type)
-      VALUES (${commentId}, ${collectiveId}, ${dbUser.id}, ${reactionType})
+      VALUES (${commentId}::uuid, ${collectiveId}::uuid, ${dbUser.id}::uuid, ${reactionType})
       RETURNING id, reaction_type, user_id
     `
 

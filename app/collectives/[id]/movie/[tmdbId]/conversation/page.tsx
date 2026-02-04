@@ -171,7 +171,7 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <main className="pt-28 pb-16">
+        <main className="pt-6 lg:pt-28 pb-24 lg:pb-16">
           <div className="mx-auto max-w-4xl px-6 text-center">
             <h1 className="text-2xl font-bold text-foreground mb-4">Content not found</h1>
             <Link href={`/collectives/${collectiveId}`} className="text-accent hover:underline">
@@ -197,7 +197,7 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
       </div>
 
       {/* Main content area - fixed height container */}
-      <div className="relative z-10 pt-20 flex-1 flex flex-col overflow-hidden">
+      <div className="relative z-10 pt-4 lg:pt-20 flex-1 flex flex-col overflow-hidden">
         <div className="mx-auto max-w-2xl px-4 w-full flex-1 flex flex-col overflow-hidden">
           {/* Sticky header with back button - fixed at top of content */}
           <div className="flex-shrink-0 flex items-center gap-4 py-3 bg-background border-b border-border/30">

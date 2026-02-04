@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { NotificationBell } from "@/components/notification-bell"
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
 import { ErrorBoundary } from "react-error-boundary"
 
 function UserContent() {
@@ -262,7 +263,8 @@ export function Header() {
   const user = useUser()
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50">
+    <>
+    <header className="hidden lg:block fixed top-0 left-0 right-0 z-50">
       <div className="mx-2 sm:mx-4 mt-2 sm:mt-4">
         <div className="mx-auto max-w-6xl">
           <nav className="relative rounded-xl sm:rounded-2xl border border-border/50 bg-background/80 backdrop-blur-xl shadow-lg shadow-black/5 dark:shadow-black/20">
@@ -355,6 +357,8 @@ export function Header() {
         </div>
       </div>
     </header>
+    <MobileBottomNav />
+    </>
   )
 }
 
