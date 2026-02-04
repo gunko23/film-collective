@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   BarChart3,
   Activity,
-  MessageSquare,
   Users,
   Film,
   Tv,
@@ -24,7 +23,6 @@ import {
 import { CollectiveMoviesGrid } from "@/components/collective-movies-grid"
 import { CollectiveMovieModal } from "@/components/collective-movie-modal"
 import { CollectiveTVShowModal } from "@/components/collective-tv-show-modal"
-import { MessageBoard } from "@/components/message-board"
 import { MembersModal } from "@/components/members-modal"
 import { StarRatingDisplay } from "@/components/star-rating-display"
 import { EnhancedComments } from "@/components/enhanced-comments"
@@ -136,7 +134,7 @@ type Props = {
   insightsContent: React.ReactNode
 }
 
-type Section = "dashboard" | "tonightspick" | "insights" | "feed" | "messageboard" | "discussion" | "predictions"
+type Section = "dashboard" | "tonightspick" | "insights" | "feed" | "discussion" | "predictions"
 
 const sectionConfig: { value: Section; label: string; icon: React.ReactNode; description?: string }[] = [
   { value: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
@@ -165,12 +163,6 @@ const sectionConfig: { value: Section; label: string; icon: React.ReactNode; des
     description: "View insights about the collective",
   },
   { value: "feed", label: "Feed", icon: <Activity className="h-4 w-4" />, description: "View recent activity feed" },
-  {
-    value: "messageboard",
-    label: "Message Board",
-    icon: <MessageSquare className="h-4 w-4" />,
-    description: "Post messages to the collective",
-  },
 ]
 
 const REACTION_EMOJI_MAP: Record<string, string> = {
@@ -897,13 +889,6 @@ export function CollectivePageClient({
         {activeSection === "tonightspick" && (
           <div className="mb-8">
             <TonightsPick collectiveId={collectiveId} currentUserId={currentUserId} />
-          </div>
-        )}
-
-        {/* Message Board Section */}
-        {activeSection === "messageboard" && (
-          <div className="mb-8">
-            <MessageBoard collectiveId={collectiveId} />
           </div>
         )}
 

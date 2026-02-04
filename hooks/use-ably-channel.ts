@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { useChannel } from "ably/react"
+import { useAbly } from "ably/react"
 
 interface UseAblyChannelOptions {
   channelName: string
@@ -11,14 +11,23 @@ interface UseAblyChannelOptions {
 }
 
 export function useAblyChannel({ channelName, eventName, onMessage, enabled = true }: UseAblyChannelOptions) {
+  const ably = useAbly()
   const onMessageRef = useRef(onMessage)
   onMessageRef.current = onMessage
 
-  useChannel(
-    { channelName, skip: !enabled },
-    eventName,
-    (message) => {
+  useEffect(() => {
+    if (!enabled) return
+
+    const channel = ably.channels.get(channelName)
+
+    const listener = (message: { data: unknown }) => {
       onMessageRef.current(message.data)
-    },
-  )
+    }
+
+    channel.subscribe(eventName, listener)
+
+    return () => {
+      channel.unsubscribe(eventName, listener)
+    }
+  }, [ably, channelName, eventName, enabled])
 }

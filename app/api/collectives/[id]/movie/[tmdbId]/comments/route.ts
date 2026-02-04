@@ -16,32 +16,42 @@ export async function GET(request: NextRequest, { params }: Props) {
 
   try {
     const comments = await sql`
-      SELECT 
-        mc.id,
-        mc.content,
-        mc.gif_url,
-        mc.created_at,
-        mc.user_id,
-        COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
-        u.avatar_url as user_avatar,
-        COALESCE(
-          (SELECT json_agg(json_build_object(
+      WITH comment_data AS (
+        SELECT
+          mc.id,
+          mc.content,
+          mc.gif_url,
+          mc.created_at,
+          mc.user_id,
+          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
+          u.avatar_url as user_avatar
+        FROM movie_comments mc
+        JOIN users u ON u.id = mc.user_id
+        WHERE mc.collective_id = ${collectiveId}::uuid
+          AND mc.tmdb_id = ${Number.parseInt(tmdbId)}
+          AND mc.media_type = ${mediaType}
+        ORDER BY mc.created_at ASC
+      ),
+      reaction_data AS (
+        SELECT
+          mcr.comment_id,
+          json_agg(json_build_object(
             'id', mcr.id,
             'reaction_type', mcr.reaction_type,
             'user_id', mcr.user_id,
             'user_name', COALESCE(ru.name, SPLIT_PART(ru.email, '@', 1), 'User')
-          ))
-          FROM movie_comment_reactions mcr
-          JOIN users ru ON ru.id = mcr.user_id
-          WHERE mcr.comment_id = mc.id),
-          '[]'
-        ) as reactions
-      FROM movie_comments mc
-      JOIN users u ON u.id = mc.user_id
-      WHERE mc.collective_id = ${collectiveId}
-        AND mc.tmdb_id = ${Number.parseInt(tmdbId)}
-        AND mc.media_type = ${mediaType}
-      ORDER BY mc.created_at ASC
+          )) as reactions
+        FROM movie_comment_reactions mcr
+        JOIN users ru ON ru.id = mcr.user_id
+        WHERE mcr.comment_id IN (SELECT id FROM comment_data)
+        GROUP BY mcr.comment_id
+      )
+      SELECT
+        cd.*,
+        COALESCE(rd.reactions, '[]'::json) as reactions
+      FROM comment_data cd
+      LEFT JOIN reaction_data rd ON rd.comment_id = cd.id
+      ORDER BY cd.created_at ASC
     `
 
     return NextResponse.json(comments)
@@ -76,7 +86,7 @@ export async function POST(request: NextRequest, { params }: Props) {
 
     const result = await sql`
       INSERT INTO movie_comments (collective_id, tmdb_id, media_type, user_id, content, gif_url)
-      VALUES (${collectiveId}, ${Number.parseInt(tmdbId)}, ${mediaType}, ${dbUser.id}, ${content?.trim() || ""}, ${gifUrl || null})
+      VALUES (${collectiveId}::uuid, ${Number.parseInt(tmdbId)}, ${mediaType}, ${dbUser.id}::uuid, ${content?.trim() || ""}, ${gifUrl || null})
       RETURNING id, content, gif_url, created_at, user_id
     `
 

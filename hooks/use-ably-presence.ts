@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
-import { usePresence, usePresenceListener } from "ably/react"
+import { useAbly } from "ably/react"
+import type { Types } from "ably"
 
 interface TypingUser {
   user_id: string
@@ -21,77 +22,97 @@ export function useAblyPresence({
   currentUserName,
   enabled = true,
 }: UseAblyPresenceOptions) {
+  const ably = useAbly()
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isTypingRef = useRef(false)
+  const channelRef = useRef<Types.RealtimeChannelCallbacks | null>(null)
 
-  const { updateStatus } = usePresence(
-    { channelName, skip: !enabled },
-    { isTyping: false, userName: currentUserName || "User" },
-  )
+  // Derive typing users from presence set
+  const updateTypingUsersFromPresence = useCallback(async (channel: Types.RealtimeChannelCallbacks) => {
+    try {
+      const members = await channel.presence.get()
+      const typing: TypingUser[] = members
+        .filter((member) => {
+          const data = member.data as { isTyping?: boolean } | undefined
+          return data?.isTyping && member.clientId !== currentUserId
+        })
+        .map((member) => {
+          const data = member.data as { userName?: string }
+          return {
+            user_id: member.clientId,
+            user_name: data?.userName || "User",
+          }
+        })
+      setTypingUsers(typing)
+    } catch {
+      // Ignore errors (e.g. channel not attached yet)
+    }
+  }, [currentUserId])
 
-  const { presenceData } = usePresenceListener(
-    { channelName, skip: !enabled },
-  )
-
-  // Derive typing users from presence data
   useEffect(() => {
-    if (!enabled || !presenceData) {
+    if (!enabled) {
       setTypingUsers([])
       return
     }
 
-    const typing: TypingUser[] = presenceData
-      .filter((member) => {
-        const data = member.data as { isTyping?: boolean; userName?: string } | undefined
-        return data?.isTyping && member.clientId !== currentUserId
-      })
-      .map((member) => {
-        const data = member.data as { userName?: string }
-        return {
-          user_id: member.clientId,
-          user_name: data?.userName || "User",
-        }
-      })
+    const channel = ably.channels.get(channelName)
+    channelRef.current = channel
 
-    setTypingUsers(typing)
-  }, [presenceData, currentUserId, enabled])
+    // Enter presence
+    channel.presence.enter({ isTyping: false, userName: currentUserName || "User" })
+
+    // Listen for presence changes
+    const onPresenceChange = () => {
+      updateTypingUsersFromPresence(channel)
+    }
+
+    channel.presence.subscribe(onPresenceChange)
+
+    return () => {
+      channel.presence.unsubscribe(onPresenceChange)
+      channel.presence.leave()
+      channelRef.current = null
+    }
+  }, [ably, channelName, enabled, currentUserName, updateTypingUsersFromPresence])
+
+  const updatePresenceData = useCallback((isTyping: boolean) => {
+    if (!channelRef.current) return
+    channelRef.current.presence.update({ isTyping, userName: currentUserName || "User" })
+  }, [currentUserName])
 
   const startTyping = useCallback(() => {
     if (!enabled || isTypingRef.current) return
     isTypingRef.current = true
-    updateStatus({ isTyping: true, userName: currentUserName || "User" })
+    updatePresenceData(true)
 
-    // Auto-stop after 5 seconds of no calls
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false
-      updateStatus({ isTyping: false, userName: currentUserName || "User" })
+      updatePresenceData(false)
     }, 5000)
-  }, [enabled, updateStatus, currentUserName])
+  }, [enabled, updatePresenceData])
 
   const stopTyping = useCallback(() => {
     if (!enabled) return
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
     isTypingRef.current = false
-    updateStatus({ isTyping: false, userName: currentUserName || "User" })
-  }, [enabled, updateStatus, currentUserName])
+    updatePresenceData(false)
+  }, [enabled, updatePresenceData])
 
-  // Extend typing timeout on repeated calls
   const extendTyping = useCallback(() => {
     if (!enabled) return
     if (!isTypingRef.current) {
       isTypingRef.current = true
-      updateStatus({ isTyping: true, userName: currentUserName || "User" })
+      updatePresenceData(true)
     }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false
-      updateStatus({ isTyping: false, userName: currentUserName || "User" })
+      updatePresenceData(false)
     }, 5000)
-  }, [enabled, updateStatus, currentUserName])
+  }, [enabled, updatePresenceData])
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current)
