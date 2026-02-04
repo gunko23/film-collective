@@ -1,45 +1,78 @@
 "use client"
 
-import type React from "react"
-
+import { useState } from "react"
+import { useStackApp } from "@stackframe/stack"
 import useSWR from "swr"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import {
-  Film,
-  Tv,
-  Users,
-  Star,
-  MessageCircle,
-  Heart,
-  TrendingUp,
-  Clock,
-  ChevronRight,
-  Plus,
-  Sparkles,
-  Award,
-  Settings,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Compass, Users, Info, Settings, LayoutDashboard, User, LogOut } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { formatDistanceToNow, format } from "date-fns"
-import { FavoriteMoviesPicker } from "@/components/favorite-movies-picker"
+import { SectionLabel } from "@/components/ui/section-label"
+import { LogFilmModal } from "@/components/modals/log-film-modal"
+import { ThemeToggle } from "@/components/theme-toggle"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { formatDistanceToNow } from "date-fns"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
-const REACTION_EMOJI_MAP: Record<string, string> = {
-  fire: "🔥",
-  heart: "❤️",
-  laughing: "😂",
-  crying: "😢",
-  mindblown: "🤯",
-  clap: "👏",
-  thinking: "🤔",
-  angry: "😡",
-  love: "😍",
-  thumbsup: "👍",
+// ─── Icons ──────────────────────────────────────────────────
+
+function BellIcon({ color = "#f8f6f1", size = 20 }: { color?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M18 8A6 6 0 0 0 6 8C6 15 3 17 3 17H21C21 17 18 15 18 8Z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.73 21C13.37 21.62 12.71 22 12 22C11.29 22 10.63 21.62 10.27 21" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
 }
+
+function TonightsPickIcon({ color = "#e07850", size = 24 }: { color?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+      <circle cx="19" cy="5" r="1.5" fill={color} opacity="0.6" />
+      <circle cx="5" cy="18" r="1" fill={color} opacity="0.4" />
+    </svg>
+  )
+}
+
+function LogFilmIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="7" width="18" height="14" rx="2" stroke={color} strokeWidth="1.5" />
+      <path d="M7 7V4C7 3.45 7.45 3 8 3H16C16.55 3 17 3.45 17 4V7" stroke={color} strokeWidth="1.5" />
+      <circle cx="8.5" cy="13" r="1.5" stroke={color} strokeWidth="1.5" />
+      <circle cx="15.5" cy="13" r="1.5" stroke={color} strokeWidth="1.5" />
+      <path d="M10 13H14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function PlusIcon({ color = "rgba(248,246,241,0.25)", size = 24 }: { color?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" strokeDasharray="2 3" />
+      <path d="M12 8V16M8 12H16" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function ChevronRightIcon({ color = "currentColor", size = 14 }: { color?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  )
+}
+
+// ─── Types ──────────────────────────────────────────────────
 
 type Activity = {
   activity_type: "rating" | "comment" | "reaction"
@@ -105,104 +138,110 @@ type DashboardData = {
   }[]
 }
 
-function ActivityItem({ activity }: { activity: Activity }) {
+type ActivityFilter = "all" | "ratings" | "discussions"
+
+const REACTION_EMOJI_MAP: Record<string, string> = {
+  fire: "\uD83D\uDD25",
+  heart: "\u2764\uFE0F",
+  laughing: "\uD83D\uDE02",
+  crying: "\uD83D\uDE22",
+  mindblown: "\uD83E\uDD2F",
+  clap: "\uD83D\uDC4F",
+  thinking: "\uD83E\uDD14",
+  angry: "\uD83D\uDE21",
+  love: "\uD83D\uDE0D",
+  thumbsup: "\uD83D\uDC4D",
+}
+
+// ─── Activity Item ──────────────────────────────────────────
+
+function DashboardActivityItem({ activity }: { activity: Activity }) {
   const router = useRouter()
 
-  const getActivityDescription = () => {
+  const getDescription = () => {
     switch (activity.activity_type) {
       case "rating":
         return (
-          <span>
-            rated <span className="font-medium text-foreground">{activity.media_title}</span>
-            {activity.score && (
-              <span className="ml-1.5 inline-flex items-center gap-0.5 text-amber-500">
-                <Star className="h-3 w-3 fill-current" />
-                {(activity.score / 20).toFixed(1)}
-              </span>
+          <>
+            <span className="text-foreground/60"> rated </span>
+            <span className="font-medium">{activity.media_title}</span>
+          </>
+        )
+      case "comment":
+        return (
+          <>
+            <span className="text-foreground/60"> commented on </span>
+            {activity.target_user_name && (
+              <><span className="font-medium">{activity.target_user_name}&apos;s</span><span className="text-foreground/60"> review of </span></>
             )}
-          </span>
-        )
-      case "comment":
-        return (
-          <span>
-            commented on{" "}
-            {activity.target_user_name && (
-              <span className="font-medium text-foreground">{activity.target_user_name}&apos;s</span>
-            )}{" "}
-            review of <span className="font-medium text-foreground">{activity.media_title}</span>
-          </span>
+            <span className="font-medium">{activity.media_title}</span>
+          </>
         )
       case "reaction":
         return (
-          <span>
-            reacted {REACTION_EMOJI_MAP[activity.reaction_type || ""] || activity.reaction_type} to{" "}
+          <>
+            <span className="text-foreground/60">
+              {" "}reacted {REACTION_EMOJI_MAP[activity.reaction_type || ""] || activity.reaction_type} to{" "}
+            </span>
             {activity.target_user_name && (
-              <span className="font-medium text-foreground">{activity.target_user_name}&apos;s</span>
-            )}{" "}
-            review of <span className="font-medium text-foreground">{activity.media_title}</span>
-          </span>
+              <><span className="font-medium">{activity.target_user_name}&apos;s</span><span className="text-foreground/60"> review of </span></>
+            )}
+            <span className="font-medium">{activity.media_title}</span>
+          </>
         )
       default:
         return null
     }
-  }
-
-  const getActivityIcon = () => {
-    switch (activity.activity_type) {
-      case "rating":
-        return <Star className="h-3.5 w-3.5 text-amber-500" />
-      case "comment":
-        return <MessageCircle className="h-3.5 w-3.5 text-emerald-500" />
-      case "reaction":
-        return <Heart className="h-3.5 w-3.5 text-pink-500" />
-      default:
-        return null
-    }
-  }
-
-  const handleUserClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    router.push(`/user/${activity.actor_id}`)
   }
 
   return (
     <Link
       href={`/collectives/${activity.collective_id}/movie/${activity.tmdb_id}/conversation`}
-      className="group flex items-start gap-3 p-3 rounded-xl hover:bg-zinc-800/50 transition-colors"
+      className="flex gap-3 lg:gap-4 p-3.5 lg:p-5 bg-surface rounded-xl lg:rounded-[14px] border border-foreground/[0.04] mb-2.5 lg:mb-3"
     >
-      <div onClick={handleUserClick} className="cursor-pointer">
-        <Avatar className="h-9 w-9 ring-2 ring-zinc-800 hover:ring-emerald-500/50 transition-all">
+      <div
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/user/${activity.actor_id}`) }}
+        className="cursor-pointer shrink-0"
+      >
+        <Avatar size="sm">
           <AvatarImage src={activity.actor_avatar || undefined} />
-          <AvatarFallback className="bg-zinc-700 text-zinc-300 text-xs">
-            {activity.actor_name?.charAt(0)?.toUpperCase() || "?"}
-          </AvatarFallback>
+          <AvatarFallback>{activity.actor_name?.[0]?.toUpperCase() || "?"}</AvatarFallback>
         </Avatar>
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 text-sm">
-          <span
-            onClick={handleUserClick}
-            className="font-medium text-foreground hover:text-emerald-400 transition-colors cursor-pointer"
-          >
-            {activity.actor_name}
-          </span>
-          {getActivityIcon()}
-        </div>
-        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{getActivityDescription()}</p>
-        <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-[10px] text-zinc-500 bg-zinc-800/80 px-1.5 py-0.5 rounded-full">
+        <p className="text-sm lg:text-[15px] leading-[1.4] mb-1.5 lg:mb-2">
+          <span className="font-semibold">{activity.actor_name}</span>
+          {getDescription()}
+        </p>
+
+        {activity.activity_type === "rating" && activity.score != null && activity.score > 0 && (
+          <div className="flex gap-0.5 mb-1.5 lg:mb-2 items-center">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <span
+                key={s}
+                className="text-xs lg:text-sm"
+                style={{ color: s <= Math.floor(activity.score! / 20) ? "#e07850" : "rgba(248,246,241,0.13)" }}
+              >
+                ★
+              </span>
+            ))}
+            <span className="text-xs lg:text-sm text-accent ml-1">{(activity.score / 20).toFixed(1)}</span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 bg-surface-light rounded text-[11px] lg:text-xs text-foreground/50">
             {activity.collective_name}
           </span>
-          <span className="text-[10px] text-zinc-500">
+          <span className="text-[11px] lg:text-xs text-foreground/[0.25]">
             {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
           </span>
         </div>
       </div>
 
       {activity.poster_path && (
-        <div className="relative h-14 w-10 rounded overflow-hidden flex-shrink-0 ring-1 ring-zinc-700/50">
+        <div className="relative w-11 h-[60px] lg:w-[52px] lg:h-[72px] rounded-md lg:rounded-lg overflow-hidden shrink-0">
           <Image
             src={`https://image.tmdb.org/t/p/w92${activity.poster_path}`}
             alt={activity.media_title}
@@ -215,392 +254,497 @@ function ActivityItem({ activity }: { activity: Activity }) {
   )
 }
 
+// ─── Main Dashboard ─────────────────────────────────────────
+
 export function UserDashboard() {
-  const { data, isLoading } = useSWR<DashboardData>("/api/user/dashboard", fetcher)
+  const { data, isLoading, mutate } = useSWR<DashboardData>("/api/user/dashboard", fetcher)
+  const app = useStackApp()
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all")
+  const [showAllActivity, setShowAllActivity] = useState(false)
+  const [showLogModal, setShowLogModal] = useState(false)
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-          <div className="h-48 bg-zinc-800/50 rounded-2xl animate-pulse" />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 h-96 bg-zinc-800/50 rounded-2xl animate-pulse" />
-            <div className="h-96 bg-zinc-800/50 rounded-2xl animate-pulse" />
+      <div className="min-h-screen bg-background pb-32 lg:pb-0">
+        {/* Desktop sidebar skeleton */}
+        <div className="hidden lg:block fixed top-20 left-0 bottom-0 w-[280px] bg-surface border-r border-foreground/[0.06] p-6">
+          <div className="h-32 bg-surface-light rounded-[14px] animate-pulse mb-6" />
+          <div className="h-4 w-24 bg-surface-light rounded animate-pulse mb-3" />
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => <div key={i} className="h-14 bg-surface-light rounded-[10px] animate-pulse" />)}
           </div>
+        </div>
+        {/* Mobile skeleton */}
+        <div className="lg:ml-[280px] px-5 lg:px-12 pt-3 lg:pt-8 space-y-6">
+          <div className="h-16 bg-surface rounded-xl animate-pulse" />
+          <div className="grid grid-cols-4 lg:hidden gap-2">
+            {[0, 1, 2, 3].map((i) => <div key={i} className="h-[72px] bg-surface rounded-xl animate-pulse" />)}
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 lg:gap-4">
+            <div className="h-28 lg:h-24 bg-surface rounded-[14px] animate-pulse" />
+            <div className="h-28 lg:h-24 bg-surface rounded-[14px] animate-pulse" />
+          </div>
+          <div className="h-40 bg-surface rounded-[14px] animate-pulse" />
         </div>
       </div>
     )
   }
 
   const { user, collectives = [], stats, recentActivity = [], insights, favorites = [] } = data || {}
+  const firstName = user?.name?.split(" ")[0] || "User"
+  const avgRating = insights?.avgRating ? (insights.avgRating / 20).toFixed(1) : "\u2014"
 
-  // Calculate activity trend
-  const activityTrend =
-    insights?.ratingActivity?.last_month > 0
-      ? Math.round(
-          ((insights.ratingActivity.this_month - insights.ratingActivity.last_month) /
-            insights.ratingActivity.last_month) *
-            100,
-        )
-      : insights?.ratingActivity?.this_month > 0
-        ? 100
-        : 0
-
-  const totalRatings = (stats?.movies_rated || 0) + (stats?.shows_rated || 0)
+  const filteredActivity = recentActivity.filter((a) => {
+    if (activityFilter === "all") return true
+    if (activityFilter === "ratings") return a.activity_type === "rating"
+    if (activityFilter === "discussions") return a.activity_type === "comment" || a.activity_type === "reaction"
+    return true
+  })
+  const visibleActivity = showAllActivity ? filteredActivity : filteredActivity.slice(0, 5)
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/40 via-zinc-900 to-zinc-950" />
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
-        <div
-          className="absolute bottom-0 right-1/4 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl animate-pulse"
-          style={{ animationDelay: "1s" }}
-        />
+    <div className="min-h-screen bg-background pb-28 lg:pb-0">
 
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: `linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-            backgroundSize: "40px 40px",
-          }}
-        />
-
-        <div className="relative max-w-6xl mx-auto px-4 py-8 sm:py-12">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-amber-500 rounded-full blur opacity-40 group-hover:opacity-60 transition duration-500" />
-              <Avatar className="relative h-28 w-28 sm:h-36 sm:w-36 ring-4 ring-zinc-900 shadow-2xl">
-                <AvatarImage src={user?.avatarUrl || undefined} className="object-cover" />
-                <AvatarFallback className="bg-gradient-to-br from-emerald-600 to-emerald-800 text-3xl sm:text-4xl font-bold text-white">
-                  {user?.name?.[0]?.toUpperCase() || "?"}
-                </AvatarFallback>
+      {/* ═══════════════════════════════════════════════════════
+          Desktop Sidebar (hidden below lg)
+          ═══════════════════════════════════════════════════════ */}
+      <aside className="hidden lg:flex flex-col fixed top-20 left-0 bottom-0 w-[280px] bg-surface border-r border-foreground/[0.06] overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-foreground/10 [&::-webkit-scrollbar-thumb]:rounded-full">
+        <div className="p-6">
+          {/* User Greeting Card */}
+          <div className="p-4 bg-surface-light rounded-[14px] mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Avatar size="lg">
+                <AvatarImage src={user?.avatarUrl || undefined} />
+                <AvatarFallback>{firstName[0]?.toUpperCase()}</AvatarFallback>
               </Avatar>
-              <div className="absolute bottom-2 right-2 w-5 h-5 bg-emerald-500 rounded-full ring-4 ring-zinc-900" />
-            </div>
-
-            <div className="flex-1 text-center sm:text-left">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{user?.name || "User"}</h1>
-                <Link href="/profile">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-zinc-700 bg-zinc-900/50 hover:bg-zinc-800 text-xs"
-                  >
-                    <Settings className="h-3.5 w-3.5 mr-1.5" />
-                    Edit Profile
-                  </Button>
-                </Link>
+              <div>
+                <p className="text-[11px] text-foreground/50 mb-0.5">Welcome back</p>
+                <p className="text-base font-semibold text-cream">{user?.name || firstName}</p>
               </div>
+            </div>
+            {/* Mini Stats */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: stats?.movies_rated ?? 0, label: "Movies" },
+                { value: avgRating, label: "Avg Rating" },
+              ].map((stat, i) => (
+                <div key={i} className="p-2.5 bg-surface rounded-lg text-center">
+                  <p className="text-lg font-semibold text-cream">{stat.value}</p>
+                  <p className="text-[10px] text-foreground/[0.3] uppercase tracking-wide">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
 
-              {user?.memberSince && (
-                <p className="text-sm text-zinc-400 mt-1.5">
-                  Member since {format(new Date(user.memberSince), "MMMM yyyy")}
-                </p>
-              )}
-
-              <div className="flex flex-wrap justify-center sm:justify-start gap-4 sm:gap-6 mt-4">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-amber-500/20">
-                    <Film className="h-4 w-4 text-amber-500" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-bold text-white">{stats?.movies_rated || 0}</p>
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Movies</p>
-                  </div>
+          {/* Collectives List */}
+          <div className="flex items-center justify-between mb-3">
+            <SectionLabel>Your Collectives</SectionLabel>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {collectives.map((collective) => (
+              <Link
+                key={collective.id}
+                href={`/collectives/${collective.id}`}
+                className="flex items-center gap-3 p-3 rounded-[10px] hover:bg-surface-light transition-colors"
+              >
+                <div className="size-9 rounded-[10px] bg-cool/15 border border-cool/30 flex items-center justify-center text-sm">
+                  👥
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-emerald-500/20">
-                    <Tv className="h-4 w-4 text-emerald-500" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-bold text-white">{stats?.shows_rated || 0}</p>
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Shows</p>
-                  </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-cream truncate">{collective.name}</p>
+                  <p className="text-[11px] text-foreground/[0.3]">
+                    {collective.member_count} member{collective.member_count !== 1 ? "s" : ""}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-violet-500/20">
-                    <Users className="h-4 w-4 text-violet-500" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-bold text-white">{stats?.collective_count || 0}</p>
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Collectives</p>
-                  </div>
-                </div>
-                {insights?.avgRating > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-amber-500/20">
-                      <Star className="h-4 w-4 text-amber-500" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-bold text-white">{(insights.avgRating / 20).toFixed(1)}</p>
-                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Avg Rating</p>
-                    </div>
-                  </div>
+                {collective.role === "owner" && (
+                  <span className="text-[9px] font-semibold text-cool uppercase tracking-wide">Owner</span>
                 )}
+              </Link>
+            ))}
+            <Link
+              href="/collectives"
+              className="flex items-center gap-3 p-3 rounded-[10px] border border-dashed border-foreground/[0.1] hover:bg-surface-light/50 transition-colors"
+            >
+              <div className="size-9 rounded-[10px] bg-surface-light flex items-center justify-center">
+                <PlusIcon size={18} />
               </div>
-            </div>
+              <span className="text-sm text-foreground/[0.3]">Create collective</span>
+            </Link>
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 py-6 sm:py-8 space-y-6 sm:space-y-8">
-          {/* Favorite Movies Section */}
-          <FavoriteMoviesPicker />
+        {/* Settings at bottom */}
+        <div className="mt-auto p-6 pt-0">
+          <Link
+            href="/handler/account-settings"
+            className="flex items-center gap-2.5 p-3 rounded-lg text-foreground/50 hover:text-foreground hover:bg-surface-light transition-colors"
+          >
+            <Settings className="h-5 w-5" />
+            <span className="text-sm">Settings</span>
+          </Link>
+        </div>
+      </aside>
 
-          {/* Collectives Section */}
-          <div className="rounded-2xl bg-gradient-to-br from-violet-500/10 via-zinc-900/50 to-zinc-900/50 border border-violet-500/20 overflow-hidden backdrop-blur-sm">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-zinc-800/50">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-violet-500/20">
-                  <Users className="h-6 w-6 text-violet-400" />
+      {/* ═══════════════════════════════════════════════════════
+          Main Content Area
+          ═══════════════════════════════════════════════════════ */}
+      <div className="lg:ml-[280px]">
+
+        {/* ─── Mobile Header ───────────────────────────────── */}
+        <div className="lg:hidden flex items-start justify-between px-5 pt-3 pb-5">
+          <div>
+            <p className="text-[13px] text-foreground/50 mb-1">Welcome back</p>
+            <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-cream">{firstName}</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/notifications"
+              className="relative size-10 rounded-full bg-surface border border-foreground/[0.06] flex items-center justify-center"
+            >
+              <BellIcon size={20} />
+              <div className="absolute top-2 right-2 size-2 rounded-full bg-accent border-2 border-surface" />
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="focus:outline-none focus:ring-2 focus:ring-accent/50 rounded-full">
+                  <Avatar size="lg">
+                    <AvatarImage src={user?.avatarUrl || undefined} />
+                    <AvatarFallback>{firstName[0]?.toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 rounded-xl">
+                <div className="px-3 py-2">
+                  <p className="text-sm font-medium text-foreground">{user?.name || "User"}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
                 </div>
-                <div>
-                  <h2 className="text-lg font-bold text-white">Your Collectives</h2>
-                  <p className="text-xs text-zinc-500">
-                    {collectives.length} collective{collectives.length !== 1 ? "s" : ""}
-                  </p>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/" className="flex items-center gap-2 cursor-pointer">
+                    <LayoutDashboard className="h-4 w-4" />
+                    Dashboard
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/discover" className="flex items-center gap-2 cursor-pointer">
+                    <Compass className="h-4 w-4" />
+                    Discover
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/collectives" className="flex items-center gap-2 cursor-pointer">
+                    <Users className="h-4 w-4" />
+                    Collectives
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/about" className="flex items-center gap-2 cursor-pointer">
+                    <Info className="h-4 w-4" />
+                    About
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
+                    <User className="h-4 w-4" />
+                    My Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/handler/account-settings" className="flex items-center gap-2 cursor-pointer">
+                    <Settings className="h-4 w-4" />
+                    Account Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5">
+                  <ThemeToggle />
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => app.signOut()} className="text-destructive cursor-pointer">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* ─── Desktop Header ──────────────────────────────── */}
+        <div className="hidden lg:flex items-center justify-between px-12 pt-8 pb-8">
+          <div>
+            <h1 className="text-[32px] font-semibold tracking-tight text-cream mb-1">Dashboard</h1>
+            <p className="text-[15px] text-foreground/50">Here&apos;s what&apos;s happening across your collectives</p>
+          </div>
+          <Link
+            href="/notifications"
+            className="relative size-11 rounded-full bg-surface border border-foreground/[0.06] flex items-center justify-center hover:bg-surface-light transition-colors"
+          >
+            <BellIcon size={22} />
+            <div className="absolute top-2.5 right-2.5 size-2 rounded-full bg-accent" />
+          </Link>
+        </div>
+
+        {/* ─── Mobile Quick Stats ──────────────────────────── */}
+        <div className="lg:hidden px-5 pb-6">
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { value: stats?.movies_rated ?? 0, label: "Movies" },
+              { value: stats?.shows_rated ?? 0, label: "Shows" },
+              { value: stats?.collective_count ?? 0, label: "Collectives" },
+              { value: avgRating, label: "Avg" },
+            ].map((stat, i) => (
+              <div key={i} className="py-3.5 px-2.5 bg-surface rounded-xl border border-foreground/[0.04] text-center">
+                <p className="text-xl font-semibold text-cream mb-0.5">{stat.value}</p>
+                <p className="text-[9px] text-foreground/[0.3] uppercase tracking-[0.05em]">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ─── Quick Actions ────────────────────────────────── */}
+        <div className="px-5 lg:px-12 pb-6 lg:pb-10">
+          <div className="grid grid-cols-2 gap-2.5 lg:gap-4">
+            <Link
+              href="/tonights-pick"
+              className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-5 p-4 lg:p-7 rounded-[14px] lg:rounded-2xl text-left bg-gradient-to-br from-accent/[0.12] to-accent/[0.03] border border-accent/[0.18] hover:border-accent/30 transition-colors"
+            >
+              <div className="size-11 lg:size-14 rounded-xl lg:rounded-[14px] bg-accent/20 flex items-center justify-center shrink-0">
+                <TonightsPickIcon color="#e07850" size={24} />
+              </div>
+              <div className="flex-1">
+                <p className="text-[15px] lg:text-lg font-medium text-cream">Tonight&apos;s Pick</p>
+                <p className="text-xs lg:text-sm text-foreground/50 mt-0.5">Find something to watch</p>
+              </div>
+              <div className="hidden lg:block">
+                <ChevronRightIcon color="rgba(248,246,241,0.3)" size={20} />
+              </div>
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowLogModal(true)}
+              className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-5 p-4 lg:p-7 rounded-[14px] lg:rounded-2xl text-left bg-surface border border-foreground/[0.06] hover:border-foreground/10 transition-colors"
+            >
+              <div className="size-11 lg:size-14 rounded-xl lg:rounded-[14px] bg-surface-light flex items-center justify-center shrink-0">
+                <LogFilmIcon size={24} />
+              </div>
+              <div className="flex-1">
+                <p className="text-[15px] lg:text-lg font-medium text-cream">Log a Film</p>
+                <p className="text-xs lg:text-sm text-foreground/50 mt-0.5">Rate what you watched</p>
+              </div>
+              <div className="hidden lg:block">
+                <ChevronRightIcon color="rgba(248,246,241,0.3)" size={20} />
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* ─── Mobile Collectives (horizontal scroll) ──────── */}
+        <div className="lg:hidden pb-6">
+          <div className="flex items-center justify-between px-5 mb-3.5">
+            <SectionLabel>Your Collectives</SectionLabel>
+            <Link href="/collectives" className="flex items-center gap-1 text-[13px] text-cool">
+              View All
+              <ChevronRightIcon color="#7b8cde" size={14} />
+            </Link>
+          </div>
+
+          <div className="flex gap-2.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {collectives.map((collective) => (
+              <Link
+                key={collective.id}
+                href={`/collectives/${collective.id}`}
+                className="shrink-0 w-40 p-4 bg-surface rounded-[14px] border border-foreground/[0.04] relative"
+              >
+                <div className="size-11 rounded-xl bg-cool/15 border border-cool/30 flex items-center justify-center mb-3 text-lg">
+                  👥
+                </div>
+                <p className="text-sm font-semibold text-cream truncate mb-1">{collective.name}</p>
+                <p className="text-xs text-foreground/[0.3] mb-2">
+                  {collective.member_count} member{collective.member_count !== 1 ? "s" : ""}
+                </p>
+                {collective.role === "owner" && (
+                  <span className="inline-block px-2 py-1 bg-cool/15 rounded-md text-[10px] font-semibold text-cool uppercase tracking-[0.05em]">
+                    Owner
+                  </span>
+                )}
+              </Link>
+            ))}
+
+            {/* Create new card */}
+            <Link
+              href="/collectives"
+              className="shrink-0 w-40 p-4 rounded-[14px] border border-dashed border-foreground/[0.08] flex flex-col items-center justify-center text-center min-h-[140px]"
+            >
+              <div className="size-11 rounded-xl bg-surface flex items-center justify-center mb-3">
+                <PlusIcon size={24} />
+              </div>
+              <p className="text-[13px] text-foreground/[0.25]">Create new</p>
+            </Link>
+          </div>
+        </div>
+
+        {/* ─── Mobile Top 3 Films ──────────────────────────── */}
+        {favorites.length > 0 && (
+          <div className="lg:hidden px-5 pb-6">
+            <div className="flex items-center justify-between mb-3.5">
+              <SectionLabel>Your Top {Math.min(favorites.length, 3)} Films</SectionLabel>
+              <Link href="/profile" className="text-[13px] text-cool">Edit</Link>
+            </div>
+            <div className="flex gap-2.5">
+              {favorites.slice(0, 3).map((film, i) => (
+                <Link key={film.tmdb_id} href={`/movies/${film.tmdb_id}`} className="flex-1 relative">
+                  <div className={`absolute top-2 left-2 z-10 size-[22px] rounded-md flex items-center justify-center text-xs font-bold ${
+                      i === 0 ? "bg-accent text-background" : "bg-surface-light text-cream"
+                    }`}
+                  >
+                    {i + 1}
+                  </div>
+                  <div className="aspect-[2/3] rounded-[10px] overflow-hidden mb-2 bg-gradient-to-br from-accent/40 to-cool/20">
+                    {film.poster_path && (
+                      <Image
+                        src={`https://image.tmdb.org/t/p/w185${film.poster_path}`}
+                        alt={film.title}
+                        width={185}
+                        height={278}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
+                  <p className="text-xs font-medium text-cream truncate">{film.title}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Activity + Desktop Right Column ─────────────── */}
+        <div className="px-5 lg:px-12 pb-6">
+          <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-8">
+
+            {/* Activity Feed */}
+            <div>
+              <div className="flex items-center justify-between mb-3.5 lg:mb-5">
+                <SectionLabel>Collective Activity</SectionLabel>
+                {/* Filter tabs */}
+                <div className="flex gap-1.5">
+                  {(["all", "ratings", "discussions"] as ActivityFilter[]).map((filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => { setActivityFilter(filter); setShowAllActivity(false) }}
+                      className={`px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-colors capitalize ${
+                        activityFilter === filter
+                          ? "bg-accent/15 text-accent lg:bg-accent lg:text-background"
+                          : "bg-surface text-foreground/50 lg:bg-transparent lg:border lg:border-foreground/10"
+                      }`}
+                    >
+                      {filter}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <Link href="/collectives">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs text-violet-400 hover:text-violet-300 hover:bg-violet-500/10"
-                >
-                  View All
-                  <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                </Button>
-              </Link>
+
+              {filteredActivity.length === 0 ? (
+                <div className="py-10 text-center">
+                  <p className="text-sm text-foreground/50">No recent activity</p>
+                  <p className="text-xs text-foreground/[0.25] mt-1">Invite friends to see their activity here</p>
+                </div>
+              ) : (
+                <>
+                  {visibleActivity.map((activity, i) => (
+                    <DashboardActivityItem
+                      key={`${activity.activity_type}-${activity.activity_id}-${i}`}
+                      activity={activity}
+                    />
+                  ))}
+
+                  {!showAllActivity && filteredActivity.length > 5 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllActivity(true)}
+                      className="w-full py-3 mt-1 text-[13px] lg:text-sm font-medium text-cool bg-surface rounded-xl border border-foreground/[0.04] hover:bg-surface-light transition-colors"
+                    >
+                      Load more
+                    </button>
+                  )}
+                </>
+              )}
             </div>
 
-            {collectives.length === 0 ? (
-              <div className="p-8 text-center">
-                <Sparkles className="h-14 w-14 text-violet-500/30 mx-auto mb-4" />
-                <p className="text-zinc-300 font-medium">No collectives yet</p>
-                <p className="text-sm text-zinc-500 mt-1">
-                  Create or join a collective to start sharing movies with friends
-                </p>
-                <Link href="/collectives">
-                  <Button size="sm" className="mt-5 bg-violet-600 hover:bg-violet-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create or Join Collective
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <>
-                {/* Horizontal scrolling cards on mobile, grid on desktop */}
-                <div className="p-4 sm:p-5">
-                  <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:overflow-visible scrollbar-hide">
-                    {collectives.map((collective) => (
+            {/* Desktop Right Column */}
+            <div className="hidden lg:block space-y-8">
+              {/* Top Films - list format */}
+              {favorites.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <SectionLabel>Your Top {Math.min(favorites.length, 3)} Films</SectionLabel>
+                    <Link href="/profile" className="text-[13px] text-cool hover:text-cool/80 transition-colors">Edit</Link>
+                  </div>
+                  <div className="bg-surface rounded-[14px] p-4 border border-foreground/[0.04]">
+                    {favorites.slice(0, 3).map((film, i) => (
                       <Link
-                        key={collective.id}
-                        href={`/collectives/${collective.id}`}
-                        className="flex-shrink-0 w-[200px] sm:w-auto group"
+                        key={film.tmdb_id}
+                        href={`/movies/${film.tmdb_id}`}
+                        className={`flex items-center gap-3.5 py-3 hover:opacity-80 transition-opacity ${
+                          i < Math.min(favorites.length, 3) - 1 ? "border-b border-foreground/[0.04]" : ""
+                        }`}
                       >
-                        <div className="h-full p-4 rounded-xl bg-zinc-800/50 border border-zinc-700/50 hover:border-violet-500/50 hover:bg-zinc-800 transition-all duration-300">
-                          <div className="flex items-start gap-3">
-                            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-violet-500/30 to-emerald-500/30 flex items-center justify-center ring-1 ring-violet-500/30 flex-shrink-0">
-                              <Users className="h-6 w-6 text-violet-300" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-white truncate group-hover:text-violet-300 transition-colors">
-                                {collective.name}
-                              </p>
-                              <p className="text-xs text-zinc-500 mt-0.5">
-                                {collective.member_count} member{collective.member_count !== 1 ? "s" : ""}
-                              </p>
-                              {collective.role === "owner" && (
-                                <span className="inline-block mt-1.5 text-[10px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
-                                  Owner
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {collective.description && (
-                            <p className="text-xs text-zinc-500 mt-3 line-clamp-2">{collective.description}</p>
+                        <div className={`size-7 rounded-lg flex items-center justify-center text-sm font-bold ${
+                          i === 0 ? "bg-accent text-background" : "bg-surface-light text-cream"
+                        }`}>
+                          {i + 1}
+                        </div>
+                        <div className="w-10 h-14 rounded-md overflow-hidden bg-gradient-to-br from-accent/40 to-cool/20 shrink-0">
+                          {film.poster_path && (
+                            <Image
+                              src={`https://image.tmdb.org/t/p/w92${film.poster_path}`}
+                              alt={film.title}
+                              width={40}
+                              height={56}
+                              className="w-full h-full object-cover"
+                            />
                           )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-cream">{film.title}</p>
                         </div>
                       </Link>
                     ))}
-                    {/* Create new collective card */}
-                    <Link href="/collectives" className="flex-shrink-0 w-[200px] sm:w-auto group">
-                      <div className="h-full p-4 rounded-xl border-2 border-dashed border-zinc-700/50 hover:border-violet-500/50 transition-all duration-300 flex flex-col items-center justify-center min-h-[100px]">
-                        <div className="h-10 w-10 rounded-full bg-violet-500/10 flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
-                          <Plus className="h-5 w-5 text-violet-400" />
-                        </div>
-                        <p className="text-sm text-zinc-400 mt-2 group-hover:text-violet-300 transition-colors">
-                          Create New
-                        </p>
-                      </div>
-                    </Link>
                   </div>
                 </div>
-              </>
-            )}
-          </div>
-
-          {/* Activity Section */}
-          <div className="rounded-2xl bg-zinc-900/50 border border-zinc-800/50 overflow-hidden backdrop-blur-sm">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-zinc-800/50">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-emerald-500/10">
-                  <TrendingUp className="h-5 w-5 text-emerald-500" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-white">Collective Activity</h2>
-                  <p className="text-xs text-zinc-500">Last 60 days</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="divide-y divide-zinc-800/50 max-h-[500px] overflow-y-auto">
-              {recentActivity.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Clock className="h-12 w-12 text-zinc-700 mx-auto mb-3" />
-                  <p className="text-zinc-400 text-sm font-medium">No recent activity</p>
-                  <p className="text-xs text-zinc-600 mt-1">Invite friends to see their activity here</p>
-                </div>
-              ) : (
-                recentActivity.map((activity) => (
-                  <ActivityItem key={`${activity.activity_type}-${activity.activity_id}`} activity={activity} />
-                ))
               )}
+
+              {/* Stats Grid */}
+              <div>
+                <SectionLabel className="mb-4 block">Your Stats</SectionLabel>
+                <div className="bg-surface rounded-[14px] p-5 border border-foreground/[0.04]">
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { value: stats?.movies_rated ?? 0, label: "Movies" },
+                      { value: stats?.shows_rated ?? 0, label: "Shows" },
+                      { value: stats?.collective_count ?? 0, label: "Collectives" },
+                      { value: avgRating, label: "Avg Rating" },
+                    ].map((stat, i) => (
+                      <div key={i} className="p-4 bg-surface-light rounded-[10px] text-center">
+                        <p className="text-2xl font-semibold text-cream mb-1">{stat.value}</p>
+                        <p className="text-[11px] text-foreground/[0.3] uppercase tracking-wide">{stat.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
+
           </div>
-
-          {/* Insights Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Favorite Genre */}
-            {insights?.topGenres && insights.topGenres.length > 0 && (
-              <div className="relative rounded-2xl bg-gradient-to-br from-pink-500/20 via-zinc-900/80 to-zinc-900 border border-pink-500/30 p-5 backdrop-blur-sm overflow-hidden group hover:border-pink-500/50 transition-all duration-300">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-3xl group-hover:bg-pink-500/20 transition-colors" />
-                <div className="relative">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2.5 rounded-xl bg-pink-500/20 ring-1 ring-pink-500/30">
-                      <Heart className="h-5 w-5 text-pink-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-white">Favorite Genre</h3>
-                      <p className="text-xs text-zinc-500">Based on your ratings</p>
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-3xl font-black bg-gradient-to-r from-pink-300 to-pink-500 bg-clip-text text-transparent">
-                      {insights.topGenres[0].genre}
-                    </p>
-                  </div>
-                  <p className="text-sm text-zinc-400 mt-2">{insights.topGenres[0].count} films rated</p>
-                </div>
-              </div>
-            )}
-
-            {/* Favorite Decade */}
-            {insights?.favoriteDecade && (
-              <div className="relative rounded-2xl bg-gradient-to-br from-cyan-500/20 via-zinc-900/80 to-zinc-900 border border-cyan-500/30 p-5 backdrop-blur-sm overflow-hidden group hover:border-cyan-500/50 transition-all duration-300">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl group-hover:bg-cyan-500/20 transition-colors" />
-                <div className="relative">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2.5 rounded-xl bg-cyan-500/20 ring-1 ring-cyan-500/30">
-                      <Clock className="h-5 w-5 text-cyan-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-white">Favorite Decade</h3>
-                      <p className="text-xs text-zinc-500">Most watched era</p>
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-3xl font-black bg-gradient-to-r from-cyan-300 to-cyan-500 bg-clip-text text-transparent">
-                      {insights.favoriteDecade}s
-                    </p>
-                  </div>
-                  <p className="text-sm text-zinc-400 mt-2">Your most rated decade</p>
-                </div>
-              </div>
-            )}
-
-            {/* Rating Activity */}
-            {insights?.ratingActivity && (
-              <div className="relative rounded-2xl bg-gradient-to-br from-emerald-500/20 via-zinc-900/80 to-zinc-900 border border-emerald-500/30 p-5 backdrop-blur-sm overflow-hidden group hover:border-emerald-500/50 transition-all duration-300">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-colors" />
-                <div className="relative">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2.5 rounded-xl bg-emerald-500/20 ring-1 ring-emerald-500/30">
-                      <TrendingUp className="h-5 w-5 text-emerald-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-white">This Month</h3>
-                      <p className="text-xs text-zinc-500">Rating activity</p>
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-3">
-                    <p className="text-3xl font-black bg-gradient-to-r from-emerald-300 to-emerald-500 bg-clip-text text-transparent">
-                      {insights.ratingActivity.this_month}
-                    </p>
-                    {activityTrend !== 0 && (
-                      <span
-                        className={`text-lg font-bold px-2 py-0.5 rounded-lg ${
-                          activityTrend > 0 ? "text-emerald-400 bg-emerald-500/20" : "text-red-400 bg-red-500/20"
-                        }`}
-                      >
-                        {activityTrend > 0 ? "+" : ""}
-                        {activityTrend}%
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-zinc-400 mt-2">{insights.ratingActivity.last_month} last month</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {insights?.highestRated && (
-            <Link
-              href={`/movies/${insights.highestRated.tmdb_id}`}
-              className="block relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 p-5 hover:border-amber-500/40 transition-all duration-300 group"
-            >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-colors" />
-              <div className="relative flex items-center gap-5">
-                <div className="relative h-24 w-16 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-amber-500/30 shadow-lg shadow-amber-500/10">
-                  {insights.highestRated.poster_path ? (
-                    <Image
-                      src={`https://image.tmdb.org/t/p/w154${insights.highestRated.poster_path}`}
-                      alt={insights.highestRated.title}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="h-full flex items-center justify-center bg-zinc-800">
-                      <Film className="h-6 w-6 text-zinc-600" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="p-1.5 rounded-lg bg-amber-500/20">
-                      <Award className="h-4 w-4 text-amber-400" />
-                    </div>
-                    <span className="text-xs text-amber-400 font-semibold uppercase tracking-wider">
-                      Your Highest Rated
-                    </span>
-                  </div>
-                  <p className="text-xl font-bold text-white group-hover:text-amber-300 transition-colors">
-                    {insights.highestRated.title}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
-                    <span className="text-lg text-amber-400 font-bold">
-                      {(insights.highestRated.overall_score / 20).toFixed(1)}
-                    </span>
-                  </div>
-                </div>
-                <ChevronRight className="h-6 w-6 text-zinc-600 group-hover:text-amber-400 group-hover:translate-x-1 transition-all" />
-              </div>
-            </Link>
-          )}
         </div>
       </div>
+
+      <LogFilmModal
+        isOpen={showLogModal}
+        onClose={() => setShowLogModal(false)}
+        onSuccess={() => mutate()}
+      />
     </div>
   )
 }

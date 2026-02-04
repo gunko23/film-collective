@@ -55,7 +55,7 @@ export default function NewCollectiveForm() {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <main className="pt-28 pb-16">
+        <main className="pt-6 lg:pt-28 pb-24 lg:pb-16">
           <div className="mx-auto max-w-md px-6 text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-accent/10 mx-auto mb-6">
               <Users className="h-10 w-10 text-accent" />
@@ -84,7 +84,7 @@ export default function NewCollectiveForm() {
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
       </div>
 
-      <main className="relative z-10 pt-28 pb-16">
+      <main className="relative z-10 pt-6 lg:pt-28 pb-24 lg:pb-16">
         <div className="mx-auto max-w-lg px-6">
           {/* Back button */}
           <Link

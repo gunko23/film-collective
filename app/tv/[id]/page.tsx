@@ -26,7 +26,7 @@ function TVShowContent() {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="pt-20 flex items-center justify-center min-h-[60vh]">
+        <div className="pt-4 lg:pt-20 flex items-center justify-center min-h-[60vh]">
           <div className="animate-pulse flex flex-col items-center gap-4">
             <div className="h-8 w-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
             <p className="text-muted-foreground">Loading...</p>
@@ -40,7 +40,7 @@ function TVShowContent() {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="pt-20 flex items-center justify-center min-h-[60vh]">
+        <div className="pt-4 lg:pt-20 flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-foreground">TV Show not found</h1>
             <Button variant="ghost" className="mt-4" onClick={() => router.back()}>

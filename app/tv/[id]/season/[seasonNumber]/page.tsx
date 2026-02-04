@@ -256,7 +256,7 @@ export default function SeasonDetailsPage() {
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
       </div>
 
-      <div className="relative z-10 container mx-auto px-3 sm:px-4 pt-16 sm:pt-20 pb-8 sm:pb-12">
+      <div className="relative z-10 container mx-auto px-3 sm:px-4 pt-4 lg:pt-20 pb-8 sm:pb-12">
         {/* Back button */}
         <div className="mb-4 sm:mb-6">
           <Button

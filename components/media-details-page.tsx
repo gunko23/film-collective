@@ -347,7 +347,7 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
       </div>
 
       {/* Content */}
-      <div className="relative z-10 container mx-auto px-3 sm:px-4 pt-16 sm:pt-20 pb-8 sm:pb-12">
+      <div className="relative z-10 container mx-auto px-3 sm:px-4 pt-4 lg:pt-20 pb-8 sm:pb-12">
         {/* Back button below header */}
         <div className="mx-auto max-w-6xl px-4 sm:px-6 pt-4 sm:pt-12 lg:pt-20">
           <Button

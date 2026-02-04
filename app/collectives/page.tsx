@@ -71,7 +71,7 @@ function CollectivesContent() {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <main className="pt-28 pb-16">
+        <main className="pt-6 lg:pt-28 pb-24 lg:pb-16">
           <div className="mx-auto max-w-4xl px-6 text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-accent/10 mx-auto mb-6">
               <Users className="h-10 w-10 text-accent" />

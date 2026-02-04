@@ -36,7 +36,7 @@ export class AuthErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen bg-background">
           <Header />
-          <main className="relative z-10 pt-28 pb-16">
+          <main className="relative z-10 pt-6 lg:pt-28 pb-24 lg:pb-16">
             <div className="mx-auto max-w-6xl px-6">
               <div className="text-center py-20 rounded-2xl bg-card/30 border border-border/50 backdrop-blur-sm">
                 <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-accent/10 mx-auto mb-6">

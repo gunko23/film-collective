@@ -1,16 +1,24 @@
 "use client"
 
-import { useUser } from "@stackframe/stack"
+import { useUser, useStackApp } from "@stackframe/stack"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
-import { Star, Film, Calendar, ArrowLeft, TrendingUp, Award, RefreshCw, Heart } from "lucide-react"
+import { Star, Film, Calendar, ArrowLeft, TrendingUp, Award, RefreshCw, Heart, Compass, Users, Info, Settings, LayoutDashboard, User, LogOut } from "lucide-react"
 import { getImageUrl } from "@/lib/tmdb/image"
 import Header from "@/components/header"
 import AuthErrorBoundary from "@/components/auth-error-boundary"
 import { StarRatingDisplay } from "@/components/star-rating-display"
 import { PushNotificationToggle } from "@/components/push-notification-toggle"
 import { LetterboxdImport } from "@/components/letterboxd-import"
+import { ThemeToggle } from "@/components/theme-toggle"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 type RatedMovie = {
   id: string
@@ -36,6 +44,7 @@ type FavoriteMovie = {
 
 function ProfileContent() {
   const user = useUser()
+  const app = useStackApp()
   const router = useRouter()
   const [ratings, setRatings] = useState<RatedMovie[]>([])
   const [favorites, setFavorites] = useState<FavoriteMovie[]>([])
@@ -133,7 +142,7 @@ function ProfileContent() {
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
       </div>
 
-      <main className="relative z-10 pt-28 pb-16">
+      <main className="relative z-10 pt-6 lg:pt-28 pb-24 lg:pb-16">
         <div className="mx-auto max-w-6xl px-6">
           <Link
             href="/"
@@ -145,24 +154,81 @@ function ProfileContent() {
 
           <div className="mb-12">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-8">
-              <div className="relative">
-                {user.profileImageUrl ? (
-                  <img
-                    src={user.profileImageUrl || "/placeholder.svg"}
-                    alt={user.displayName || "User"}
-                    className="h-24 w-24 rounded-2xl ring-4 ring-accent/20 shadow-xl"
-                  />
-                ) : (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-accent/80 ring-4 ring-accent/20 shadow-xl shadow-accent/20">
-                    <span className="text-3xl font-bold text-accent-foreground">
-                      {user.displayName?.charAt(0).toUpperCase() || user.primaryEmail?.charAt(0).toUpperCase() || "U"}
-                    </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="relative focus:outline-none focus:ring-2 focus:ring-accent/50 focus:ring-offset-2 focus:ring-offset-background rounded-2xl">
+                    {user.profileImageUrl ? (
+                      <img
+                        src={user.profileImageUrl || "/placeholder.svg"}
+                        alt={user.displayName || "User"}
+                        className="h-28 w-28 rounded-2xl ring-4 ring-accent/20 shadow-xl"
+                      />
+                    ) : (
+                      <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-accent/80 ring-4 ring-accent/20 shadow-xl shadow-accent/20">
+                        <span className="text-4xl font-bold text-accent-foreground">
+                          {user.displayName?.charAt(0).toUpperCase() || user.primaryEmail?.charAt(0).toUpperCase() || "U"}
+                        </span>
+                      </div>
+                    )}
+                    <div className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg">
+                      <Award className="h-4 w-4" />
+                    </div>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56 rounded-xl">
+                  <div className="px-3 py-2">
+                    <p className="text-sm font-medium text-foreground">{user.displayName || "User"}</p>
+                    <p className="text-xs text-muted-foreground">{user.primaryEmail}</p>
                   </div>
-                )}
-                <div className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg">
-                  <Award className="h-4 w-4" />
-                </div>
-              </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/" className="flex items-center gap-2 cursor-pointer">
+                      <LayoutDashboard className="h-4 w-4" />
+                      Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/discover" className="flex items-center gap-2 cursor-pointer">
+                      <Compass className="h-4 w-4" />
+                      Discover
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/collectives" className="flex items-center gap-2 cursor-pointer">
+                      <Users className="h-4 w-4" />
+                      Collectives
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/about" className="flex items-center gap-2 cursor-pointer">
+                      <Info className="h-4 w-4" />
+                      About
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
+                      <User className="h-4 w-4" />
+                      My Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/handler/account-settings" className="flex items-center gap-2 cursor-pointer">
+                      <Settings className="h-4 w-4" />
+                      Account Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5">
+                    <ThemeToggle />
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => app.signOut()} className="text-destructive cursor-pointer">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               <div className="flex-1">
                 <h1 className="text-3xl font-bold text-foreground mb-1">{user.displayName || "Film Enthusiast"}</h1>

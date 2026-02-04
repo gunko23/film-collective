@@ -3,15 +3,21 @@
 import { useUser } from "@stackframe/stack"
 import { Header } from "@/components/header"
 import { UserDashboard } from "@/components/user-dashboard"
-import { DiscoverPage } from "@/components/discover-page"
+import { LandingPage } from "@/components/landing-page"
 
 export default function HomePage() {
   const user = useUser()
 
+  if (!user) {
+    return <LandingPage />
+  }
+
   return (
     <div className="relative min-h-screen bg-background overflow-hidden">
       <Header />
-      <main className="relative z-10 pt-16 sm:pt-20">{user ? <UserDashboard /> : <DiscoverPage />}</main>
+      <main className="relative z-10 pt-2 lg:pt-20">
+        <UserDashboard />
+      </main>
     </div>
   )
 }

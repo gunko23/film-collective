@@ -140,7 +140,7 @@ export default async function ConversationPage({ params }: Props) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <main className="pt-28 pb-16">
+        <main className="pt-6 lg:pt-28 pb-24 lg:pb-16">
           <div className="mx-auto max-w-4xl px-6 text-center">
             <h1 className="text-2xl font-bold text-foreground mb-4">Conversation not found</h1>
             <Link href={`/collectives/${collectiveId}`} className="text-accent hover:underline">
@@ -191,7 +191,7 @@ export default async function ConversationPage({ params }: Props) {
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
       </div>
 
-      <main className="relative z-10 pt-20 flex-1 flex flex-col min-h-0">
+      <main className="relative z-10 pt-4 lg:pt-20 pb-24 lg:pb-0 flex-1 flex flex-col min-h-0">
         <div className="mx-auto max-w-2xl px-4 w-full flex-1 flex flex-col min-h-0">
           {/* Sticky header */}
           <div className="flex-shrink-0 flex items-center gap-4 py-4 bg-background/80 backdrop-blur-sm">

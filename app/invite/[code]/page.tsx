@@ -91,7 +91,7 @@ export default function InvitePage() {
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/3 blur-[80px]" />
       </div>
 
-      <main className="relative z-10 pt-28 pb-16">
+      <main className="relative z-10 pt-6 lg:pt-28 pb-24 lg:pb-16">
         <div className="mx-auto max-w-md px-6">
           {loading ? (
             <div className="text-center py-20">
