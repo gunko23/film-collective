@@ -20,6 +20,8 @@ interface ChatThreadProps {
   pickerVariant?: "popover" | "inline"
   avatarLink?: (userId: string) => string
   reactionEmojis?: string[]
+  stickyInput?: boolean
+  stickyInputBottomOffset?: number
 }
 
 export function ChatThread({
@@ -30,6 +32,8 @@ export function ChatThread({
   pickerVariant = "popover",
   avatarLink,
   reactionEmojis,
+  stickyInput = false,
+  stickyInputBottomOffset = 0,
 }: ChatThreadProps) {
   const {
     messages,
@@ -63,14 +67,16 @@ export function ChatThread({
     scrollIfNeeded()
   }, [messages, scrollIfNeeded])
 
-  // Initial scroll to bottom
+  // Initial scroll to bottom (using container scroll, not scrollIntoView which affects parents)
   const hasInitiallyScrolled = useRef(false)
   useEffect(() => {
     if (!hasInitiallyScrolled.current && messages.length > 0 && !isLoading) {
-      bottomRef.current?.scrollIntoView({ behavior: "auto" })
+      if (containerRef.current) {
+        containerRef.current.scrollTop = containerRef.current.scrollHeight
+      }
       hasInitiallyScrolled.current = true
     }
-  }, [messages.length, isLoading, bottomRef])
+  }, [messages.length, isLoading, containerRef])
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(e.target.value)
@@ -132,7 +138,8 @@ export function ChatThread({
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-3"
+        className="flex-1 overflow-y-auto px-4 py-4"
+        style={stickyInput ? { paddingBottom: 70 } : undefined}
       >
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full min-h-[200px]">
@@ -190,7 +197,13 @@ export function ChatThread({
       )}
 
       {/* Input area */}
-      <div className="flex-shrink-0 p-3 border-t border-border/30 bg-background">
+      <div
+        className={cn(
+          "flex-shrink-0 p-3 border-t border-border/30 bg-background",
+          stickyInput && "fixed left-0 right-0 z-50"
+        )}
+        style={stickyInput ? { bottom: stickyInputBottomOffset } : undefined}
+      >
         <form onSubmit={handleSubmit} className="w-full">
           <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
             {/* Emoji/GIF button */}

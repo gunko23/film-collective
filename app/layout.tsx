@@ -1,6 +1,6 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
+import { Inter, Playfair_Display } from "next/font/google"
 import { StackProvider, StackTheme } from "@stackframe/stack"
 import { stackServerApp } from "@/stack"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -13,6 +13,13 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
   weight: ["300", "400", "500", "600", "700", "800"],
+})
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-serif",
+  weight: ["400", "600", "700"],
+  style: ["normal", "italic"],
 })
 
 export const metadata: Metadata = {
@@ -40,12 +47,12 @@ export const metadata: Metadata = {
         type: "image/svg+xml",
       },
     ],
-    apple: [{ url: "/apple-icon.png" }, { url: "/icon-192.jpg", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/apple-icon.png" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
   },
 }
 
 export const viewport: Viewport = {
-  themeColor: "#10b981",
+  themeColor: "#e07850",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -59,7 +66,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange={false}>
           <StackProvider app={stackServerApp}>
             <StackTheme>

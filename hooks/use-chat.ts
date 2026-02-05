@@ -172,14 +172,16 @@ export function useChat(config: ChatConfig) {
     enabled,
   })
 
-  // Initial fetch
+  // Fetch when URL changes (e.g., when collective changes)
   useEffect(() => {
     if (enabled && (!initialMessages || initialMessages.length === 0)) {
+      setIsLoading(true)
+      setMessages([])
       fetchMessages(false)
     } else {
       setIsLoading(false)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchUrl, enabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isSending) return

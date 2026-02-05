@@ -10,7 +10,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id: collectiveId, tmdbId } = await params
-    const ratings = await getCollectiveMovieRatings(collectiveId, tmdbId)
+    const rawRatings = await getCollectiveMovieRatings(collectiveId, tmdbId)
+
+    // Map database fields to expected format and convert score from 0-100 to 0-5 scale
+    const ratings = rawRatings.map((r: any) => ({
+      user_id: r.user_id,
+      user_name: r.user_name,
+      user_avatar: r.user_avatar,
+      score: r.overall_score ? Math.round(r.overall_score / 20) : null,
+      user_comment: r.user_comment,
+      rated_at: r.rated_at,
+    }))
 
     return NextResponse.json({ ratings })
   } catch (error) {

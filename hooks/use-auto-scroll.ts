@@ -19,14 +19,31 @@ export function useAutoScroll(options?: UseAutoScrollOptions) {
     shouldAutoScrollRef.current = scrollHeight - scrollTop - clientHeight < threshold
   }, [threshold])
 
+  // Scroll to bottom using container's scrollTop (avoids affecting parent scroll containers)
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    bottomRef.current?.scrollIntoView({ behavior })
+    if (containerRef.current) {
+      const target = containerRef.current.scrollHeight
+      if (behavior === "smooth") {
+        containerRef.current.scrollTo({ top: target, behavior: "smooth" })
+      } else {
+        containerRef.current.scrollTop = target
+      }
+    }
   }, [])
 
   // Auto-scroll when shouldAutoScroll is true (called externally after message changes)
   const scrollIfNeeded = useCallback((behavior: ScrollBehavior = "smooth") => {
-    if (shouldAutoScrollRef.current) {
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior }), 50)
+    if (shouldAutoScrollRef.current && containerRef.current) {
+      setTimeout(() => {
+        if (containerRef.current) {
+          const target = containerRef.current.scrollHeight
+          if (behavior === "smooth") {
+            containerRef.current.scrollTo({ top: target, behavior: "smooth" })
+          } else {
+            containerRef.current.scrollTop = target
+          }
+        }
+      }, 50)
     }
   }, [])
 
