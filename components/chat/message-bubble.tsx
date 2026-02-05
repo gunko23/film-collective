@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useMemo, memo } from "react"
-import Image from "next/image"
 import Link from "next/link"
-import { Smile, CheckCheck } from "lucide-react"
+import { Smile } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { REACTION_EMOJIS, getReactionEmoji } from "@/lib/chat/constants"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 export interface MessageReaction {
   id: string
@@ -33,11 +33,23 @@ interface MessageBubbleProps {
   reactionEmojis?: string[]
 }
 
-function formatMessageTime(dateStr: string): string {
+function formatRelativeTime(dateStr: string): string {
   try {
     const date = new Date(dateStr)
     if (isNaN(date.getTime())) return ""
-    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return "Just now"
+    if (diffMins < 60) return `${diffMins} min ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+
+    return date.toLocaleDateString([], { month: "short", day: "numeric" })
   } catch {
     return ""
   }
@@ -52,12 +64,6 @@ function groupReactions(reactions: MessageReaction[]) {
     if (r.user_name) grouped[key].users.push(r.user_name)
   })
   return grouped
-}
-
-function hasUserReacted(reactions: MessageReaction[], reactionType: string, currentUserId: string) {
-  return reactions.some(
-    (r) => r.reaction_type === reactionType && r.user_id.toLowerCase() === currentUserId.toLowerCase()
-  )
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -93,34 +99,27 @@ export const MessageBubble = memo(function MessageBubble({
     return set
   }, [reactions, currentUserId])
 
+  const timeDisplay = isOptimistic ? "Sending..." : formatRelativeTime(createdAt)
+
   const avatarContent = (
-    <div className="h-7 w-7 rounded-full bg-emerald-600/20 flex items-center justify-center overflow-hidden">
-      {userAvatar ? (
-        <Image
-          src={userAvatar}
-          alt={userName}
-          width={28}
-          height={28}
-          className="object-cover"
-        />
-      ) : (
-        <span className="text-[10px] font-medium text-emerald-400">
-          {userName?.[0]?.toUpperCase() || "?"}
-        </span>
-      )}
-    </div>
+    <Avatar size="md">
+      <AvatarImage src={userAvatar} alt={userName} />
+      <AvatarFallback>{userName?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+    </Avatar>
   )
 
   return (
     <div
-      className={cn(
-        "flex group animate-in fade-in slide-in-from-bottom-2 duration-300",
-        isOwn ? "justify-end" : "justify-start"
-      )}
+      className="group animate-in fade-in slide-in-from-bottom-2 duration-300 mb-4"
+      style={{
+        display: "flex",
+        gap: "12px",
+        flexDirection: isOwn ? "row-reverse" : "row",
+      }}
     >
-      {/* Avatar for others */}
+      {/* Avatar - ONLY for other users */}
       {!isOwn && (
-        <div className="w-7 mr-2 flex-shrink-0">
+        <div className="flex-shrink-0" style={{ width: "40px", height: "40px" }}>
           {showAvatar && (
             avatarLink ? (
               <Link href={avatarLink(userId)} className="block">
@@ -133,33 +132,77 @@ export const MessageBubble = memo(function MessageBubble({
         </div>
       )}
 
-      <div className={cn("max-w-[75%]", isOwn ? "items-end" : "items-start")}>
-        {/* Username for others */}
+      {/* Content */}
+      <div
+        style={{
+          maxWidth: isOwn ? "80%" : "70%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: isOwn ? "flex-end" : "flex-start",
+        }}
+      >
+        {/* Header: Username + Time - only for other users */}
         {!isOwn && showUserName && (
-          <p className="text-[10px] text-muted-foreground mb-0.5 ml-1">{userName}</p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              marginBottom: "6px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#f8f6f1",
+              }}
+            >
+              {userName}
+            </span>
+            <span
+              style={{
+                fontSize: "12px",
+                color: "rgba(248, 246, 241, 0.35)",
+              }}
+            >
+              {timeDisplay}
+            </span>
+          </div>
         )}
 
-        {/* Message bubble */}
+        {/* Bubble */}
         <div className="relative">
           <div
-            className={cn(
-              "px-2.5 py-1.5 rounded-2xl",
-              isOwn
-                ? "bg-gradient-to-br from-zinc-700 to-zinc-800 text-white rounded-br-md shadow-lg"
-                : "bg-card/80 border border-border/50 text-foreground rounded-bl-md"
-            )}
+            style={{
+              backgroundColor: isOwn
+                ? "rgba(224, 120, 80, 0.18)"
+                : "#0f0f12",
+              padding: "12px 16px",
+              borderRadius: "16px",
+              borderTopLeftRadius: isOwn ? "16px" : "4px",
+              borderTopRightRadius: isOwn ? "4px" : "16px",
+              border: isOwn
+                ? "1px solid rgba(224, 120, 80, 0.25)"
+                : "1px solid rgba(248, 246, 241, 0.06)",
+            }}
           >
             {gifUrl ? (
               <img src={gifUrl} alt="GIF" className="max-w-[200px] rounded-lg" />
             ) : (
-              <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{content}</p>
+              <p
+                style={{
+                  fontSize: "13px",
+                  lineHeight: 1.5,
+                  color: "#f8f6f1",
+                  margin: 0,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {content}
+              </p>
             )}
-            <div className={cn("flex items-center gap-1 mt-0.5", isOwn ? "justify-end" : "justify-start")}>
-              <span className="text-[9px] text-muted-foreground/70">
-                {isOptimistic ? "Sending..." : formatMessageTime(createdAt)}
-              </span>
-              {isOwn && !isOptimistic && <CheckCheck className="h-3 w-3 text-emerald-400/70" />}
-            </div>
           </div>
 
           {/* Reaction button */}
@@ -168,11 +211,14 @@ export const MessageBubble = memo(function MessageBubble({
               type="button"
               onClick={() => setActiveReactionPicker(!activeReactionPicker)}
               className={cn(
-                "absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-zinc-800/80 opacity-0 group-hover:opacity-100 hover:bg-zinc-700 transition-all",
-                isOwn ? "-left-6" : "-right-6"
+                "absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-surface opacity-0 group-hover:opacity-100 hover:bg-surface-hover transition-all",
+                isOwn ? "-left-8" : "-right-8"
               )}
+              style={{
+                border: "1px solid rgba(248, 246, 241, 0.1)",
+              }}
             >
-              <Smile className="h-3 w-3 text-zinc-400" />
+              <Smile className="h-4 w-4 text-foreground/50" />
             </button>
           )}
 
@@ -180,11 +226,14 @@ export const MessageBubble = memo(function MessageBubble({
           {activeReactionPicker && (
             <div
               className={cn(
-                "absolute bottom-full mb-1 bg-zinc-900/95 backdrop-blur-sm rounded-lg shadow-xl border border-zinc-700/50 p-1.5 z-50",
+                "absolute bottom-full mb-2 bg-surface backdrop-blur-sm rounded-xl shadow-xl p-2 z-50",
                 isOwn ? "right-0" : "left-0"
               )}
+              style={{
+                border: "1px solid rgba(248, 246, 241, 0.1)",
+              }}
             >
-              <div className="grid grid-cols-4 gap-1 w-[120px]">
+              <div className="grid grid-cols-4 gap-1 w-[140px]">
                 {reactionEmojis.map((emoji) => (
                   <button
                     key={emoji}
@@ -194,8 +243,8 @@ export const MessageBubble = memo(function MessageBubble({
                       setActiveReactionPicker(false)
                     }}
                     className={cn(
-                      "p-1 rounded hover:bg-zinc-700/50 transition-colors text-base",
-                      userReactedSet.has(emoji) && "bg-zinc-700/50"
+                      "p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-lg",
+                      userReactedSet.has(emoji) && "bg-accent/20"
                     )}
                   >
                     {getReactionEmoji(emoji)}
@@ -208,22 +257,22 @@ export const MessageBubble = memo(function MessageBubble({
 
         {/* Reactions display */}
         {Object.keys(grouped).length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
+          <div className="flex flex-wrap gap-1.5 mt-2">
             {Object.entries(grouped).map(([type, data]) => (
               <button
                 key={type}
                 type="button"
                 onClick={() => onReactionToggle(id, type)}
                 className={cn(
-                  "flex items-center gap-0.5 px-1.5 py-0.5 rounded-full transition-colors text-xs",
+                  "flex items-center gap-1 px-2 py-1 rounded-full transition-colors text-sm",
                   userReactedSet.has(type)
-                    ? "bg-emerald-500/20 border border-emerald-500/30"
-                    : "bg-zinc-800/50 hover:bg-zinc-700/50"
+                    ? "bg-accent/20 border border-accent/30"
+                    : "bg-surface hover:bg-surface-hover border border-foreground/[0.06]"
                 )}
                 title={data.users.join(", ")}
               >
                 <span>{getReactionEmoji(type)}</span>
-                <span className="text-zinc-400">{data.count}</span>
+                <span className="text-foreground/60 text-xs">{data.count}</span>
               </button>
             ))}
           </div>
