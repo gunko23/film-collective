@@ -52,7 +52,26 @@ export function ChatThread({
 
   const [newMessage, setNewMessage] = useState("")
   const [showPicker, setShowPicker] = useState(false)
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Track visual viewport to position sticky input above the mobile keyboard
+  useEffect(() => {
+    if (!stickyInput || typeof window === "undefined" || !window.visualViewport) return
+
+    const vv = window.visualViewport
+    const onViewportChange = () => {
+      const bottom = window.innerHeight - (vv.offsetTop + vv.height)
+      setKeyboardOffset(Math.max(0, bottom))
+    }
+
+    vv.addEventListener("resize", onViewportChange)
+    vv.addEventListener("scroll", onViewportChange)
+    return () => {
+      vv.removeEventListener("resize", onViewportChange)
+      vv.removeEventListener("scroll", onViewportChange)
+    }
+  }, [stickyInput])
 
   // Wire up auto-scroll on new message
   useEffect(() => {
@@ -92,6 +111,9 @@ export function ChatThread({
     const content = newMessage.trim()
     setNewMessage("")
     if (inputRef.current) inputRef.current.style.height = "auto"
+
+    // Re-focus input to keep mobile keyboard open
+    inputRef.current?.focus()
 
     await sendMessage(content)
   }, [newMessage, isSending, sendMessage])
@@ -139,7 +161,7 @@ export function ChatThread({
         ref={containerRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 py-4"
-        style={stickyInput ? { paddingBottom: 70 } : undefined}
+        style={stickyInput ? { paddingBottom: 70 + keyboardOffset } : undefined}
       >
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full min-h-[200px]">
@@ -202,7 +224,7 @@ export function ChatThread({
           "flex-shrink-0 p-3 border-t border-border/30 bg-background",
           stickyInput && "fixed left-0 right-0 z-50"
         )}
-        style={stickyInput ? { bottom: stickyInputBottomOffset } : undefined}
+        style={stickyInput ? { bottom: stickyInputBottomOffset + keyboardOffset } : undefined}
       >
         <form onSubmit={handleSubmit} className="w-full">
           <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">

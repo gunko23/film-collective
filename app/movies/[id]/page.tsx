@@ -505,6 +505,7 @@ export default function FilmDetailPage() {
   // Fetch movie data
   const { data: movie, error: movieError, isLoading: movieLoading } = useSWR(`/api/movies/tmdb/${id}`, fetcher)
   const { data: communityStats } = useSWR(`/api/movies/${id}/stats`, fetcher)
+  const { data: parentalGuide } = useSWR(`/api/movies/${id}/parental-guide`, fetcher)
   const { data: collectivesData } = useSWR(user ? "/api/collectives" : null, fetcher)
   const { data: userRatingData } = useSWR(user ? `/api/ratings?tmdbId=${id}` : null, fetcher)
 
@@ -1289,6 +1290,89 @@ export default function FilmDetailPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* Parental Guide */}
+                    {parentalGuide && (
+                      <div>
+                        <SectionLabel className="mb-3 lg:mb-4 block lg:text-[11px] lg:font-semibold lg:tracking-[0.12em]">Parental Guide</SectionLabel>
+
+                        {/* Mobile parental guide */}
+                        <div className="bg-surface rounded-xl p-4 border border-foreground/[0.06] space-y-3 lg:hidden">
+                          {[
+                            { label: "Sex & Nudity", value: parentalGuide.sexNudity },
+                            { label: "Violence & Gore", value: parentalGuide.violence },
+                            { label: "Profanity", value: parentalGuide.profanity },
+                            { label: "Alcohol, Drugs & Smoking", value: parentalGuide.alcoholDrugsSmoking },
+                            { label: "Frightening & Intense", value: parentalGuide.frighteningIntense },
+                          ].filter(item => item.value).map((item) => (
+                            <div key={item.label} className="flex items-center justify-between">
+                              <span className="text-[13px] text-foreground/50">{item.label}</span>
+                              <span
+                                className="text-[11px] font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide"
+                                style={{
+                                  backgroundColor:
+                                    item.value === "Severe" ? "rgba(239,68,68,0.15)" :
+                                    item.value === "Moderate" ? "rgba(245,158,11,0.15)" :
+                                    item.value === "Mild" ? "rgba(34,197,94,0.15)" :
+                                    "rgba(248,246,241,0.06)",
+                                  color:
+                                    item.value === "Severe" ? "#ef4444" :
+                                    item.value === "Moderate" ? "#f59e0b" :
+                                    item.value === "Mild" ? "#22c55e" :
+                                    "rgba(248,246,241,0.4)",
+                                }}
+                              >
+                                {item.value}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Desktop parental guide */}
+                        <div
+                          className="hidden lg:block rounded-2xl overflow-hidden"
+                          style={{
+                            background: "rgba(255,255,255,0.03)",
+                            border: "1px solid rgba(255,255,255,0.06)",
+                          }}
+                        >
+                          {[
+                            { label: "Sex & Nudity", value: parentalGuide.sexNudity },
+                            { label: "Violence & Gore", value: parentalGuide.violence },
+                            { label: "Profanity", value: parentalGuide.profanity },
+                            { label: "Alcohol, Drugs & Smoking", value: parentalGuide.alcoholDrugsSmoking },
+                            { label: "Frightening & Intense", value: parentalGuide.frighteningIntense },
+                          ].filter(item => item.value).map((item, i, arr) => (
+                            <div
+                              key={item.label}
+                              className="flex justify-between items-center px-6 py-4"
+                              style={{
+                                borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.04)" : undefined,
+                              }}
+                            >
+                              <span className="text-[14px] text-[#999]">{item.label}</span>
+                              <span
+                                className="text-[12px] font-semibold px-3 py-1 rounded-full uppercase tracking-wide"
+                                style={{
+                                  backgroundColor:
+                                    item.value === "Severe" ? "rgba(239,68,68,0.12)" :
+                                    item.value === "Moderate" ? "rgba(245,158,11,0.12)" :
+                                    item.value === "Mild" ? "rgba(34,197,94,0.12)" :
+                                    "rgba(255,255,255,0.04)",
+                                  color:
+                                    item.value === "Severe" ? "#ef4444" :
+                                    item.value === "Moderate" ? "#f59e0b" :
+                                    item.value === "Mild" ? "#22c55e" :
+                                    "#666",
+                                }}
+                              >
+                                {item.value}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Mobile action buttons */}
                     <div className="grid grid-cols-2 gap-2.5 lg:hidden">
