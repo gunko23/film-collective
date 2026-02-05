@@ -48,7 +48,7 @@ export function ChatThread({
     setOnNewMessage,
   } = useChat(chatConfig)
 
-  const { containerRef, bottomRef, handleScroll, scrollIfNeeded, shouldAutoScrollRef } = useAutoScroll()
+  const { containerRef, bottomRef, handleScroll, scrollToBottom, scrollIfNeeded, shouldAutoScrollRef } = useAutoScroll()
 
   const [newMessage, setNewMessage] = useState("")
   const [showPicker, setShowPicker] = useState(false)
@@ -76,10 +76,9 @@ export function ChatThread({
   // Wire up auto-scroll on new message
   useEffect(() => {
     setOnNewMessage(() => {
-      shouldAutoScrollRef.current = true
-      scrollIfNeeded()
+      scrollToBottom()
     })
-  }, [setOnNewMessage, scrollIfNeeded, shouldAutoScrollRef])
+  }, [setOnNewMessage, scrollToBottom])
 
   // Auto-scroll when messages change
   useEffect(() => {
@@ -227,7 +226,7 @@ export function ChatThread({
         style={stickyInput ? { bottom: stickyInputBottomOffset + keyboardOffset } : undefined}
       >
         <form onSubmit={handleSubmit} className="w-full">
-          <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all">
+          <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-accent/50 focus-within:ring-1 focus-within:ring-accent/20 transition-all">
             {/* Emoji/GIF button */}
             <div className="relative">
               <button
@@ -236,7 +235,7 @@ export function ChatThread({
                 className={cn(
                   "p-1.5 rounded-full transition-colors flex-shrink-0",
                   showPicker
-                    ? "bg-emerald-500/20 text-emerald-400"
+                    ? "bg-accent/20 text-accent"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 )}
               >
