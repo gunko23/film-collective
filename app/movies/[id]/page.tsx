@@ -1589,7 +1589,7 @@ export default function FilmDetailPage() {
                         </Link>
                       </div>
                     ) : (
-                      <div className="min-h-[400px]">
+                      <div style={{ height: `calc(100vh - ${HEADER_HEIGHT + 48}px)` }}>
                         <MovieDiscussion
                           collectiveId={selectedCollective.id}
                           tmdbId={id}
