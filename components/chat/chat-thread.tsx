@@ -73,6 +73,13 @@ export function ChatThread({
     }
   }, [stickyInput])
 
+  // Scroll to bottom when mobile keyboard opens so latest messages stay visible
+  useEffect(() => {
+    if (keyboardOffset > 0) {
+      scrollToBottom()
+    }
+  }, [keyboardOffset, scrollToBottom])
+
   // Wire up auto-scroll on new message
   useEffect(() => {
     setOnNewMessage(() => {
