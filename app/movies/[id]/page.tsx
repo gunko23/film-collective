@@ -154,7 +154,7 @@ function FilmTabBar({
   discussionCount: number
 }) {
   const tabs: { id: FilmTab; label: string; Icon: typeof InfoIcon; badge?: number }[] = [
-    { id: "info", label: "Info", Icon: InfoIcon },
+    { id: "info", label: "Details", Icon: InfoIcon },
     { id: "discussion", label: "Discussion", Icon: ChatIcon, badge: discussionCount > 0 ? discussionCount : undefined },
     { id: "ratings", label: "Ratings", Icon: UsersIcon },
   ]
@@ -209,7 +209,7 @@ function DesktopFilmTabBar({
   discussionCount: number
 }) {
   const tabs: { id: FilmTab; label: string }[] = [
-    { id: "info", label: "Info" },
+    { id: "info", label: "Details" },
     { id: "discussion", label: "Discussion" },
     { id: "ratings", label: "Ratings" },
   ]
@@ -499,6 +499,10 @@ export default function FilmDetailPage() {
   const [selectedCollectiveId, setSelectedCollectiveId] = useState<string | null>(null)
   const [ratingSaved, setRatingSaved] = useState(false)
   const [showTrailer, setShowTrailer] = useState(false)
+  const [userReview, setUserReview] = useState("")
+  const [isEditingReview, setIsEditingReview] = useState(false)
+  const [isSavingReview, setIsSavingReview] = useState(false)
+  const [reviewDraft, setReviewDraft] = useState("")
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -553,10 +557,13 @@ export default function FilmDetailPage() {
     }
   }, [collectivesData, selectedCollectiveId])
 
-  // Set existing user rating
+  // Set existing user rating and review
   useEffect(() => {
     if (userRatingData?.userRating?.score) {
       setUserRating(userRatingData.userRating.score)
+    }
+    if (userRatingData?.userRating?.userComment) {
+      setUserReview(userRatingData.userRating.userComment)
     }
   }, [userRatingData])
 
@@ -621,6 +628,32 @@ export default function FilmDetailPage() {
     } catch (error) {
       console.error("Error saving rating:", error)
       setUserRating(previousRating)
+    }
+  }
+
+  const handleSaveReview = async () => {
+    if (!user || !userRating) return
+    setIsSavingReview(true)
+    try {
+      await fetch("/api/ratings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mediaType: "movie",
+          tmdbId: Number(id),
+          score: userRating,
+          comment: reviewDraft,
+        }),
+      })
+      setUserReview(reviewDraft)
+      setIsEditingReview(false)
+      mutate(`/api/ratings?tmdbId=${id}`)
+      if (ratingsKey) mutate(ratingsKey)
+      mutate(`all-ratings-${id}`)
+    } catch (error) {
+      console.error("Error saving review:", error)
+    } finally {
+      setIsSavingReview(false)
     }
   }
 
@@ -928,6 +961,68 @@ export default function FilmDetailPage() {
                       {userRating > 0 ? "Tap a star to update" : "Tap a star to rate"}
                     </div>
                   )}
+
+                  {/* Desktop review section */}
+                  {userRating > 0 && (
+                    <div className="mt-4 pt-4 border-t border-foreground/[0.06]">
+                      {isEditingReview ? (
+                        <div className="space-y-3">
+                          <textarea
+                            value={reviewDraft}
+                            onChange={(e) => setReviewDraft(e.target.value)}
+                            placeholder="Write your thoughts about this film..."
+                            className="w-full bg-background/50 border border-foreground/[0.08] rounded-xl p-3.5 text-[13px] leading-relaxed text-foreground/80 placeholder:text-foreground/30 resize-none focus:outline-none focus:border-foreground/[0.15] transition-colors text-left"
+                            rows={4}
+                            autoFocus
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingReview(false)}
+                              className="px-3.5 py-1.5 text-[12px] text-foreground/50 hover:text-foreground/70 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSaveReview}
+                              disabled={isSavingReview}
+                              className="px-4 py-1.5 text-[12px] font-medium rounded-lg transition-colors"
+                              style={{
+                                backgroundColor: "rgba(212,117,62,0.15)",
+                                color: "#D4753E",
+                              }}
+                            >
+                              {isSavingReview ? "Saving..." : "Save Review"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : userReview ? (
+                        <div className="text-left">
+                          <p className="text-[13px] leading-relaxed text-foreground/50 italic">&ldquo;{userReview}&rdquo;</p>
+                          <button
+                            type="button"
+                            onClick={() => { setReviewDraft(userReview); setIsEditingReview(true) }}
+                            className="mt-2 text-[11px] text-[#D4753E]/70 hover:text-[#D4753E] transition-colors"
+                          >
+                            Edit review
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => { setReviewDraft(""); setIsEditingReview(true) }}
+                          className="w-full py-2 text-[12px] text-foreground/40 hover:text-foreground/60 transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                          Write a review
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1090,6 +1185,68 @@ export default function FilmDetailPage() {
                         <StarRating value={userRating} onChange={handleSaveRating} />
                         {userRating > 0 && (
                           <p className="text-center text-[11px] text-foreground/40 mt-2">Tap a star to update</p>
+                        )}
+
+                        {/* Review section */}
+                        {userRating > 0 && (
+                          <div className="mt-3 pt-3 border-t border-foreground/[0.06]">
+                            {isEditingReview ? (
+                              <div className="space-y-2.5">
+                                <textarea
+                                  value={reviewDraft}
+                                  onChange={(e) => setReviewDraft(e.target.value)}
+                                  placeholder="Write your thoughts about this film..."
+                                  className="w-full bg-background/50 border border-foreground/[0.08] rounded-lg p-3 text-[13px] leading-relaxed text-foreground/80 placeholder:text-foreground/30 resize-none focus:outline-none focus:border-foreground/[0.15] transition-colors"
+                                  rows={4}
+                                  autoFocus
+                                />
+                                <div className="flex gap-2 justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsEditingReview(false)}
+                                    className="px-3 py-1.5 text-[12px] text-foreground/50 hover:text-foreground/70 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleSaveReview}
+                                    disabled={isSavingReview}
+                                    className="px-3.5 py-1.5 text-[12px] font-medium rounded-lg transition-colors"
+                                    style={{
+                                      backgroundColor: "rgba(224,120,80,0.15)",
+                                      color: "#e07850",
+                                    }}
+                                  >
+                                    {isSavingReview ? "Saving..." : "Save Review"}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : userReview ? (
+                              <div>
+                                <p className="text-[13px] leading-relaxed text-foreground/60 italic">&ldquo;{userReview}&rdquo;</p>
+                                <button
+                                  type="button"
+                                  onClick={() => { setReviewDraft(userReview); setIsEditingReview(true) }}
+                                  className="mt-2 text-[11px] text-accent/70 hover:text-accent transition-colors"
+                                >
+                                  Edit review
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => { setReviewDraft(""); setIsEditingReview(true) }}
+                                className="w-full py-2 text-[12px] text-foreground/40 hover:text-foreground/60 transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                                Write a review
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -1371,6 +1528,10 @@ export default function FilmDetailPage() {
                             </div>
                           ))}
                         </div>
+
+                        <p className="mt-2.5 lg:mt-3 text-[11px] lg:text-[12px] text-foreground/30 lg:text-[#666]">
+                          Source: IMDb Parental Guide
+                        </p>
                       </div>
                     )}
 
@@ -1453,36 +1614,40 @@ export default function FilmDetailPage() {
                     {/* Your rating card */}
                     {user && userRating > 0 && (
                       <div
-                        className="flex items-center gap-3.5 lg:gap-4 p-3.5 lg:p-[18px] lg:px-6 rounded-xl lg:rounded-2xl"
+                        className="rounded-xl lg:rounded-2xl overflow-hidden"
                         style={{
                           backgroundColor: "rgba(224,120,80,0.1)",
                           border: "1px solid rgba(224,120,80,0.2)",
                         }}
                       >
-                        <Avatar size="md" className="lg:size-12">
-                          <AvatarImage src={user.profileImageUrl || undefined} />
-                          <AvatarFallback>{(user.displayName || "Y")[0].toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="text-sm lg:text-[15px] font-semibold mb-1">You</p>
-                          <div className="flex gap-0.5 lg:hidden">
-                            {[1, 2, 3, 4, 5].map((s) => (
-                              <span
-                                key={s}
-                                className="text-sm"
-                                style={{ color: s <= userRating ? "#e07850" : "rgba(248,246,241,0.2)" }}
-                              >
-                                ★
-                              </span>
-                            ))}
-                          </div>
-                          <div className="hidden lg:block">
-                            <DesktopStarRating value={userRating} readonly starSize={14} />
+                        <div className="flex items-center gap-3.5 lg:gap-4 p-3.5 lg:p-[18px] lg:px-6">
+                          <Avatar size="md" className="lg:size-12">
+                            <AvatarImage src={user.profileImageUrl || undefined} />
+                            <AvatarFallback>{(user.displayName || "Y")[0].toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="text-sm lg:text-[15px] font-semibold mb-1">You</p>
+                            <div className="flex gap-0.5 lg:hidden">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <span
+                                  key={s}
+                                  className="text-sm"
+                                  style={{ color: s <= userRating ? "#e07850" : "rgba(248,246,241,0.2)" }}
+                                >
+                                  ★
+                                </span>
+                              ))}
+                            </div>
+                            <div className="hidden lg:block">
+                              <DesktopStarRating value={userRating} readonly starSize={14} />
+                            </div>
                           </div>
                         </div>
-                        <span className="text-lg lg:text-[28px] font-semibold lg:font-bold text-accent">
-                          {userRating}
-                        </span>
+                        {userReview && (
+                          <div className="px-3.5 lg:px-6 pb-3.5 lg:pb-[18px]">
+                            <p className="text-[12px] lg:text-[13px] leading-relaxed text-foreground/50 italic">&ldquo;{userReview}&rdquo;</p>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1490,30 +1655,36 @@ export default function FilmDetailPage() {
                     {otherMemberRatingsAll.map((member) => (
                       <div
                         key={member.user_id}
-                        className="flex items-center gap-3.5 lg:gap-4 p-3.5 lg:p-[18px] lg:px-6 rounded-xl lg:rounded-2xl bg-surface border border-foreground/[0.06]"
+                        className="rounded-xl lg:rounded-2xl bg-surface border border-foreground/[0.06] overflow-hidden"
                       >
-                        <Avatar size="md" className="lg:size-12">
-                          <AvatarImage src={member.user_avatar || undefined} />
-                          <AvatarFallback>{(member.user_name || "U")[0].toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="text-sm lg:text-[15px] font-semibold mb-1">{member.user_name || "User"}</p>
-                          <div className="flex gap-0.5 lg:hidden">
-                            {[1, 2, 3, 4, 5].map((s) => (
-                              <span
-                                key={s}
-                                className="text-sm"
-                                style={{ color: s <= member.score ? "#e07850" : "rgba(248,246,241,0.2)" }}
-                              >
-                                ★
-                              </span>
-                            ))}
-                          </div>
-                          <div className="hidden lg:block">
-                            <DesktopStarRating value={member.score} readonly starSize={14} />
+                        <div className="flex items-center gap-3.5 lg:gap-4 p-3.5 lg:p-[18px] lg:px-6">
+                          <Avatar size="md" className="lg:size-12">
+                            <AvatarImage src={member.user_avatar || undefined} />
+                            <AvatarFallback>{(member.user_name || "U")[0].toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="text-sm lg:text-[15px] font-semibold mb-1">{member.user_name || "User"}</p>
+                            <div className="flex gap-0.5 lg:hidden">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <span
+                                  key={s}
+                                  className="text-sm"
+                                  style={{ color: s <= member.score ? "#e07850" : "rgba(248,246,241,0.2)" }}
+                                >
+                                  ★
+                                </span>
+                              ))}
+                            </div>
+                            <div className="hidden lg:block">
+                              <DesktopStarRating value={member.score} readonly starSize={14} />
+                            </div>
                           </div>
                         </div>
-                        <span className="text-lg lg:text-[28px] font-semibold lg:font-bold text-accent">{member.score}</span>
+                        {member.user_comment && (
+                          <div className="px-3.5 lg:px-6 pb-3.5 lg:pb-[18px]">
+                            <p className="text-[12px] lg:text-[13px] leading-relaxed text-foreground/50 italic">&ldquo;{member.user_comment}&rdquo;</p>
+                          </div>
+                        )}
                       </div>
                     ))}
 
