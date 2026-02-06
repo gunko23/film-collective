@@ -5,7 +5,6 @@ import Link from "next/link"
 import { Smile } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { REACTION_EMOJIS, getReactionEmoji } from "@/lib/chat/constants"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 export interface MessageReaction {
   id: string
@@ -26,11 +25,29 @@ interface MessageBubbleProps {
   isOwn: boolean
   showAvatar: boolean
   showUserName: boolean
+  isGroupStart?: boolean
+  isGroupEnd?: boolean
   reactions: MessageReaction[]
   currentUserId: string
   onReactionToggle: (messageId: string, reactionType: string) => void
   avatarLink?: (userId: string) => string
   reactionEmojis?: string[]
+}
+
+const SENDER_COLORS: [string, string][] = [
+  ["#c4616a", "#d88088"], // rose
+  ["#ff6b2d", "#ff8f5e"], // orange
+  ["#4a9e8e", "#6bc4b4"], // teal
+  ["#3d5a96", "#5a7cb8"], // blue
+  ["#2e4470", "#5a7cb8"], // muted blue
+]
+
+function getSenderColor(name: string): [string, string] {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return SENDER_COLORS[Math.abs(hash) % SENDER_COLORS.length]
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -66,18 +83,30 @@ function groupReactions(reactions: MessageReaction[]) {
   return grouped
 }
 
+function getBubbleRadius(isOwn: boolean, isGroupStart: boolean, isGroupEnd: boolean): string {
+  if (isOwn) {
+    if (!isGroupEnd) return "18px 6px 6px 18px"
+    if (isGroupStart) return "18px 18px 6px 18px"
+    return "18px 6px 18px 18px"
+  } else {
+    if (!isGroupEnd) return "6px 18px 18px 6px"
+    if (isGroupStart) return "18px 18px 18px 6px"
+    return "6px 18px 18px 18px"
+  }
+}
+
 export const MessageBubble = memo(function MessageBubble({
   id,
   content,
   gifUrl,
   userId,
   userName,
-  userAvatar,
   createdAt,
   isOptimistic,
   isOwn,
   showAvatar,
-  showUserName,
+  isGroupStart = true,
+  isGroupEnd = true,
   reactions,
   currentUserId,
   onReactionToggle,
@@ -100,74 +129,69 @@ export const MessageBubble = memo(function MessageBubble({
   }, [reactions, currentUserId])
 
   const timeDisplay = isOptimistic ? "Sending..." : formatRelativeTime(createdAt)
+  const senderColors = useMemo(() => getSenderColor(userName), [userName])
+  const initial = userName?.[0]?.toUpperCase() || "?"
 
-  const avatarContent = (
-    <Avatar size="md">
-      <AvatarImage src={userAvatar} alt={userName} />
-      <AvatarFallback>{userName?.[0]?.toUpperCase() || "?"}</AvatarFallback>
-    </Avatar>
+  const avatarEl = (
+    <div
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: "50%",
+        background: `linear-gradient(135deg, ${senderColors[0]}, ${senderColors[0]}80)`,
+        boxShadow: `0 2px 8px ${senderColors[0]}20`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 10,
+        fontWeight: 700,
+        color: "#0f0d0b",
+      }}
+    >
+      {initial}
+    </div>
   )
 
   return (
     <div
-      className="group animate-in fade-in slide-in-from-bottom-2 duration-300 mb-4"
+      className="group"
       style={{
         display: "flex",
-        gap: "12px",
         flexDirection: isOwn ? "row-reverse" : "row",
+        alignItems: "flex-end",
+        gap: 8,
+        marginTop: isGroupStart ? 14 : 3,
       }}
     >
-      {/* Avatar - ONLY for other users */}
+      {/* Avatar — only for others, only on group start */}
       {!isOwn && (
-        <div className="flex-shrink-0" style={{ width: "40px", height: "40px" }}>
-          {showAvatar && (
+        <div style={{ width: 28, flexShrink: 0 }}>
+          {isGroupStart && (
             avatarLink ? (
               <Link href={avatarLink(userId)} className="block">
-                {avatarContent}
+                {avatarEl}
               </Link>
             ) : (
-              avatarContent
+              avatarEl
             )
           )}
         </div>
       )}
 
       {/* Content */}
-      <div
-        style={{
-          maxWidth: isOwn ? "80%" : "70%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: isOwn ? "flex-end" : "flex-start",
-        }}
-      >
-        {/* Header: Username + Time - only for other users */}
-        {!isOwn && showUserName && (
+      <div style={{ maxWidth: "75%" }}>
+        {/* Sender name — only on group start, only for others */}
+        {isGroupStart && !isOwn && (
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              marginBottom: "6px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: senderColors[0],
+              marginBottom: 3,
+              paddingLeft: 2,
             }}
           >
-            <span
-              style={{
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "#f8f6f1",
-              }}
-            >
-              {userName}
-            </span>
-            <span
-              style={{
-                fontSize: "12px",
-                color: "rgba(248, 246, 241, 0.35)",
-              }}
-            >
-              {timeDisplay}
-            </span>
+            {userName}
           </div>
         )}
 
@@ -175,16 +199,17 @@ export const MessageBubble = memo(function MessageBubble({
         <div className="relative">
           <div
             style={{
-              backgroundColor: isOwn
-                ? "rgba(224, 120, 80, 0.18)"
-                : "#0f0f12",
-              padding: "12px 16px",
-              borderRadius: "16px",
-              borderTopLeftRadius: isOwn ? "16px" : "4px",
-              borderTopRightRadius: isOwn ? "4px" : "16px",
+              padding: "10px 16px",
+              borderRadius: getBubbleRadius(isOwn, isGroupStart, isGroupEnd),
+              background: isOwn
+                ? "linear-gradient(135deg, rgba(61, 90, 150, 0.22), rgba(61, 90, 150, 0.13))"
+                : "#1a1714",
               border: isOwn
-                ? "1px solid rgba(224, 120, 80, 0.25)"
-                : "1px solid rgba(248, 246, 241, 0.06)",
+                ? "1px solid rgba(61, 90, 150, 0.13)"
+                : "1px solid rgba(107, 99, 88, 0.05)",
+              fontSize: 14,
+              lineHeight: 1.5,
+              color: "#e8e2d6",
             }}
           >
             {gifUrl ? (
@@ -192,9 +217,6 @@ export const MessageBubble = memo(function MessageBubble({
             ) : (
               <p
                 style={{
-                  fontSize: "13px",
-                  lineHeight: 1.5,
-                  color: "#f8f6f1",
                   margin: 0,
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
@@ -211,14 +233,15 @@ export const MessageBubble = memo(function MessageBubble({
               type="button"
               onClick={() => setActiveReactionPicker(!activeReactionPicker)}
               className={cn(
-                "absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-surface opacity-0 group-hover:opacity-100 hover:bg-surface-hover transition-all",
+                "absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all",
                 isOwn ? "-left-8" : "-right-8"
               )}
               style={{
-                border: "1px solid rgba(248, 246, 241, 0.1)",
+                background: "#1a1714",
+                border: "1px solid rgba(107, 99, 88, 0.1)",
               }}
             >
-              <Smile className="h-4 w-4 text-foreground/50" />
+              <Smile className="h-3.5 w-3.5" style={{ color: "#6b6358" }} />
             </button>
           )}
 
@@ -226,11 +249,12 @@ export const MessageBubble = memo(function MessageBubble({
           {activeReactionPicker && (
             <div
               className={cn(
-                "absolute bottom-full mb-2 bg-surface backdrop-blur-sm rounded-xl shadow-xl p-2 z-50",
+                "absolute bottom-full mb-2 backdrop-blur-sm rounded-xl shadow-xl p-2 z-50",
                 isOwn ? "right-0" : "left-0"
               )}
               style={{
-                border: "1px solid rgba(248, 246, 241, 0.1)",
+                background: "#1a1714",
+                border: "1px solid rgba(107, 99, 88, 0.12)",
               }}
             >
               <div className="grid grid-cols-4 gap-1 w-[140px]">
@@ -242,10 +266,10 @@ export const MessageBubble = memo(function MessageBubble({
                       onReactionToggle(id, emoji)
                       setActiveReactionPicker(false)
                     }}
-                    className={cn(
-                      "p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-lg",
-                      userReactedSet.has(emoji) && "bg-accent/20"
-                    )}
+                    className="p-1.5 rounded-lg transition-colors text-lg"
+                    style={{
+                      background: userReactedSet.has(emoji) ? "rgba(61, 90, 150, 0.15)" : "transparent",
+                    }}
                   >
                     {getReactionEmoji(emoji)}
                   </button>
@@ -255,24 +279,49 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         </div>
 
+        {/* Time — only on last message in group */}
+        {isGroupEnd && (
+          <div
+            style={{
+              fontSize: 10,
+              color: "#6b6358",
+              marginTop: 3,
+              textAlign: isOwn ? "right" : "left",
+              padding: "0 2px",
+            }}
+          >
+            {timeDisplay}
+          </div>
+        )}
+
         {/* Reactions display */}
         {Object.keys(grouped).length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
             {Object.entries(grouped).map(([type, data]) => (
               <button
                 key={type}
                 type="button"
                 onClick={() => onReactionToggle(id, type)}
-                className={cn(
-                  "flex items-center gap-1 px-2 py-1 rounded-full transition-colors text-sm",
-                  userReactedSet.has(type)
-                    ? "bg-accent/20 border border-accent/30"
-                    : "bg-surface hover:bg-surface-hover border border-foreground/[0.06]"
-                )}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "4px 8px",
+                  borderRadius: 99,
+                  fontSize: 13,
+                  border: userReactedSet.has(type)
+                    ? "1px solid rgba(61, 90, 150, 0.2)"
+                    : "1px solid rgba(107, 99, 88, 0.06)",
+                  background: userReactedSet.has(type)
+                    ? "rgba(61, 90, 150, 0.12)"
+                    : "rgba(107, 99, 88, 0.06)",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
                 title={data.users.join(", ")}
               >
                 <span>{getReactionEmoji(type)}</span>
-                <span className="text-foreground/60 text-xs">{data.count}</span>
+                <span style={{ fontSize: 11, color: "rgba(232, 226, 214, 0.5)" }}>{data.count}</span>
               </button>
             ))}
           </div>

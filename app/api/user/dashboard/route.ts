@@ -107,8 +107,8 @@ export async function GET() {
         SELECT collective_id FROM collective_memberships WHERE user_id = ${userId}::uuid
       )
       SELECT * FROM (
-        -- Movie ratings
-        SELECT 
+        -- Movie ratings (use DISTINCT ON to avoid duplicates when rater is in multiple shared collectives)
+        SELECT DISTINCT ON (umr.id)
           'rating' as activity_type,
           umr.id as activity_id,
           umr.rated_at as created_at,
@@ -137,8 +137,8 @@ export async function GET() {
         
         UNION ALL
         
-        -- TV show ratings
-        SELECT 
+        -- TV show ratings (use DISTINCT ON to avoid duplicates when rater is in multiple shared collectives)
+        SELECT DISTINCT ON (utsr.id)
           'rating' as activity_type,
           utsr.id as activity_id,
           utsr.rated_at as created_at,

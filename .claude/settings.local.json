@@ -25,7 +25,10 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:www.themoviedb.org)",
       "WebFetch(domain:devliz.mintlify.app)",
-      "WebFetch(domain:image.tmdb.org)"
+      "WebFetch(domain:image.tmdb.org)",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell -File:*)",
+      "Bash(pwsh:*)"
     ]
   }
 }

@@ -29,12 +29,28 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 // Emoji map for reactions
 const emojiMap: Record<string, string> = {
-  thumbsup: "👍",
-  heart: "❤️",
-  laughing: "😂",
-  fire: "🔥",
-  mindblown: "🤯",
-  party: "🎉",
+  thumbsup: "\ud83d\udc4d",
+  heart: "\u2764\ufe0f",
+  laughing: "\ud83d\ude02",
+  fire: "\ud83d\udd25",
+  mindblown: "\ud83e\udd2f",
+  party: "\ud83c\udf89",
+}
+
+const AVATAR_GRADIENTS: [string, string][] = [
+  ["#ff6b2d", "#ff8f5e"],
+  ["#3d5a96", "#6b8fd4"],
+  ["#2a9d8f", "#5ec4b6"],
+  ["#e07878", "#f0a0a0"],
+  ["#7b6fa6", "#a99cd4"],
+]
+
+function getActorGradient(name: string): [string, string] {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length]
 }
 
 export function NotificationBell() {
@@ -82,9 +98,9 @@ export function NotificationBell() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "comment":
-        return <MessageCircle className="h-4 w-4 text-blue-500" />
+        return <MessageCircle className="h-4 w-4 text-blue" />
       case "reaction":
-        return <Heart className="h-4 w-4 text-pink-500" />
+        return <Heart className="h-4 w-4 text-rose" />
       default:
         return <Bell className="h-4 w-4" />
     }
@@ -94,16 +110,16 @@ export function NotificationBell() {
     if (notification.type === "comment") {
       return (
         <>
-          <span className="font-medium">{notification.actor_name}</span> commented on your rating of{" "}
-          <span className="font-medium">{notification.media_title}</span>
+          <span className="font-medium text-cream">{notification.actor_name}</span> commented on your rating of{" "}
+          <span className="font-medium text-cream">{notification.media_title}</span>
         </>
       )
     } else if (notification.type === "reaction") {
       const emoji = emojiMap[notification.content || ""] || notification.content
       return (
         <>
-          <span className="font-medium">{notification.actor_name}</span> reacted {emoji} to your rating of{" "}
-          <span className="font-medium">{notification.media_title}</span>
+          <span className="font-medium text-cream">{notification.actor_name}</span> reacted {emoji} to your rating of{" "}
+          <span className="font-medium text-cream">{notification.media_title}</span>
         </>
       )
     }
@@ -114,32 +130,32 @@ export function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative flex items-center justify-center h-9 w-9 rounded-full bg-secondary/50 hover:bg-secondary transition-colors"
+        className="relative flex items-center justify-center h-9 w-9 rounded-[10px] border border-cream-faint/[0.08] hover:bg-cream/[0.03] transition-colors"
       >
-        <Bell className="h-5 w-5 text-muted-foreground" />
+        <Bell className="h-[18px] w-[18px] text-cream-faint" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-accent-foreground animate-pulse">
+          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-orange text-[10px] font-bold text-warm-black animate-pulse">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-border bg-card shadow-xl z-50 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-cream-faint/[0.08] bg-card shadow-xl z-50 overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/30">
-            <h3 className="font-semibold text-foreground">Notifications</h3>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-cream-faint/[0.06] bg-background/50">
+            <h3 className="font-semibold text-cream">Notifications</h3>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
                 <button
                   onClick={() => markAsRead()}
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  className="text-xs text-cream-faint hover:text-cream flex items-center gap-1"
                 >
                   <CheckCheck className="h-3 w-3" />
                   Mark all read
                 </button>
               )}
-              <button onClick={() => setIsOpen(false)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => setIsOpen(false)} className="text-cream-faint hover:text-cream">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -148,58 +164,61 @@ export function NotificationBell() {
           {/* Notifications List */}
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center text-muted-foreground">
+              <div className="px-4 py-8 text-center text-cream-faint">
                 <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No notifications yet</p>
               </div>
             ) : (
-              notifications.map((notification) => (
-                <Link
-                  key={notification.id}
-                  href={`/collectives/${notification.collective_id}/conversation/${notification.rating_id}`}
-                  onClick={() => {
-                    if (!notification.is_read) {
-                      markAsRead([notification.id])
-                    }
-                    setIsOpen(false)
-                  }}
-                  className={`flex gap-3 px-4 py-3 hover:bg-secondary/50 transition-colors border-b border-border/50 last:border-0 ${
-                    !notification.is_read ? "bg-accent/5" : ""
-                  }`}
-                >
-                  <Avatar className="h-10 w-10 flex-shrink-0">
-                    <AvatarImage src={notification.actor_avatar || undefined} />
-                    <AvatarFallback className="bg-accent/20 text-accent text-sm">
-                      {notification.actor_name?.charAt(0).toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <p className="text-sm text-foreground leading-snug">{getNotificationText(notification)}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          {getNotificationIcon(notification.type)}
-                          <span className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                          </span>
-                          <span className="text-xs text-muted-foreground">• {notification.collective_name}</span>
+              notifications.map((notification) => {
+                const gradient = getActorGradient(notification.actor_name || "?")
+                return (
+                  <Link
+                    key={notification.id}
+                    href={`/collectives/${notification.collective_id}/conversation/${notification.rating_id}`}
+                    onClick={() => {
+                      if (!notification.is_read) {
+                        markAsRead([notification.id])
+                      }
+                      setIsOpen(false)
+                    }}
+                    className={`flex gap-3 px-4 py-3 hover:bg-cream/[0.02] transition-colors border-b border-cream-faint/[0.04] last:border-0 ${
+                      !notification.is_read ? "bg-orange/[0.03]" : ""
+                    }`}
+                  >
+                    <Avatar className="h-10 w-10 flex-shrink-0" gradient={!notification.actor_avatar ? gradient : undefined}>
+                      <AvatarImage src={notification.actor_avatar || undefined} />
+                      <AvatarFallback>
+                        {notification.actor_name?.charAt(0).toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1">
+                          <p className="text-sm text-cream-muted leading-snug">{getNotificationText(notification)}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            {getNotificationIcon(notification.type)}
+                            <span className="text-xs text-cream-faint">
+                              {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                            </span>
+                            <span className="text-xs text-cream-faint">&middot; {notification.collective_name}</span>
+                          </div>
                         </div>
+                        {!notification.is_read && <div className="h-2 w-2 rounded-full bg-orange flex-shrink-0 mt-2" />}
                       </div>
-                      {!notification.is_read && <div className="h-2 w-2 rounded-full bg-accent flex-shrink-0 mt-2" />}
                     </div>
-                  </div>
-                </Link>
-              ))
+                  </Link>
+                )
+              })
             )}
           </div>
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="border-t border-border px-4 py-2 bg-secondary/30">
+            <div className="border-t border-cream-faint/[0.06] px-4 py-2 bg-background/50">
               <Link
                 href="/notifications"
                 onClick={() => setIsOpen(false)}
-                className="text-sm text-accent hover:text-accent/80 font-medium"
+                className="text-sm text-orange hover:text-orange-light font-medium"
               >
                 View all notifications
               </Link>

@@ -18,7 +18,7 @@ const HEADER_HEIGHT = 102 // 48px safe area + 40px buttons + 14px padding
 
 // ─── Icons ──────────────────────────────────────────────────
 
-function BackIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function BackIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M19 12H5M12 19L5 12L12 5" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -26,7 +26,7 @@ function BackIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: num
   )
 }
 
-function MoreIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function MoreIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="1.5" fill={color} />
@@ -36,7 +36,7 @@ function MoreIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: num
   )
 }
 
-function InfoIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function InfoIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" />
@@ -45,7 +45,7 @@ function InfoIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: num
   )
 }
 
-function ChatIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function ChatIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M21 12C21 16.4183 16.9706 20 12 20C10.4607 20 9.01172 19.6565 7.74467 19.0511L3 20L4.39499 16.28C3.51156 15.0423 3 13.5743 3 12C3 7.58172 7.02944 4 12 4C16.9706 4 21 7.58172 21 12Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
@@ -54,7 +54,7 @@ function ChatIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: num
   )
 }
 
-function UsersIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function UsersIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <circle cx="9" cy="8" r="3.5" stroke={color} strokeWidth="1.5" />
@@ -65,7 +65,7 @@ function UsersIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: nu
   )
 }
 
-function ChevronDownIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function ChevronDownIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M6 9L12 15L18 9" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -73,7 +73,7 @@ function ChevronDownIcon({ color = "#f8f6f1", size = 24 }: { color?: string; siz
   )
 }
 
-function HeartIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function HeartIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M12 20L4.5 12.5C2.5 10.5 2.5 7 4.5 5C6.5 3 10 3 12 5.5C14 3 17.5 3 19.5 5C21.5 7 21.5 10.5 19.5 12.5L12 20Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
@@ -81,7 +81,7 @@ function HeartIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: nu
   )
 }
 
-function ShareIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function ShareIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <circle cx="18" cy="5" r="3" stroke={color} strokeWidth="1.5" />
@@ -92,7 +92,7 @@ function ShareIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: nu
   )
 }
 
-function PlayIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function PlayIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M6.5 4.8C6.5 4.1 7.3 3.7 7.9 4.1L19.4 11.3C19.9 11.6 19.9 12.4 19.4 12.7L7.9 19.9C7.3 20.3 6.5 19.9 6.5 19.2V4.8Z" fill={color} />
@@ -100,7 +100,7 @@ function PlayIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: num
   )
 }
 
-function CloseIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function CloseIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M18 6L6 18M6 6L18 18" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -108,7 +108,7 @@ function CloseIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: nu
   )
 }
 
-function PlusIcon({ color = "#f8f6f1", size = 24 }: { color?: string; size?: number }) {
+function PlusIcon({ color = "#e8e2d6", size = 24 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M12 5V19M5 12H19" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
@@ -171,19 +171,19 @@ function FilmTabBar({
               onClick={() => onTabChange(tab.id)}
               className="flex items-center gap-1.5 px-3.5 py-3 transition-colors"
               style={{
-                borderBottom: isActive ? "2px solid #e07850" : "2px solid transparent",
+                borderBottom: isActive ? "2px solid #ff6b2d" : "2px solid transparent",
                 marginBottom: "-1px",
-                color: isActive ? "#f8f6f1" : "rgba(248,246,241,0.5)",
+                color: isActive ? "#e8e2d6" : "rgba(232,226,214,0.5)",
               }}
             >
-              <tab.Icon color={isActive ? "#e07850" : "rgba(248,246,241,0.4)"} size={16} />
+              <tab.Icon color={isActive ? "#ff6b2d" : "rgba(232,226,214,0.4)"} size={16} />
               <span className={`text-[13px] ${isActive ? "font-medium" : "font-normal"}`}>{tab.label}</span>
               {tab.badge !== undefined && (
                 <span
                   className="px-1.5 py-0.5 rounded-full text-[11px]"
                   style={{
-                    backgroundColor: isActive ? "rgba(224,120,80,0.2)" : "rgba(248,246,241,0.1)",
-                    color: isActive ? "#e07850" : "rgba(248,246,241,0.5)",
+                    backgroundColor: isActive ? "rgba(255,107,45,0.2)" : "rgba(232,226,214,0.1)",
+                    color: isActive ? "#ff6b2d" : "rgba(232,226,214,0.5)",
                   }}
                 >
                   {tab.badge}
@@ -235,8 +235,8 @@ function DesktopFilmTabBar({
                 <span
                   className="text-[11px] font-semibold rounded-[10px] px-[7px] leading-4"
                   style={{
-                    backgroundColor: isActive ? "#D4753E" : "#444",
-                    color: "#fff",
+                    backgroundColor: isActive ? "#ff6b2d" : "#3a352f",
+                    color: "#e8e2d6",
                   }}
                 >
                   {discussionCount}
@@ -280,7 +280,7 @@ function CollectiveDropdown({
               <HeartIcon color={collective.color} size={16} />
             </div>
             <span className="flex-1 text-left text-[13px] lg:text-[15px] font-medium">{collective.name}</span>
-            {collectives.length > 1 && <ChevronDownIcon color="rgba(248,246,241,0.4)" size={18} />}
+            {collectives.length > 1 && <ChevronDownIcon color="rgba(232,226,214,0.4)" size={18} />}
           </button>
 
           {showDropdown && collectives.length > 1 && (
@@ -313,10 +313,10 @@ function CollectiveDropdown({
           className="w-full p-2.5 px-3.5 bg-surface rounded-[10px] border border-foreground/[0.06] flex items-center gap-2.5"
         >
           <div className="size-7 rounded-lg flex items-center justify-center bg-foreground/10">
-            <HeartIcon color="rgba(248,246,241,0.4)" size={16} />
+            <HeartIcon color="rgba(232,226,214,0.4)" size={16} />
           </div>
           <span className="flex-1 text-left text-[13px] text-foreground/50">Join a collective to discuss</span>
-          <ChevronDownIcon color="rgba(248,246,241,0.4)" size={18} />
+          <ChevronDownIcon color="rgba(232,226,214,0.4)" size={18} />
         </Link>
       )}
     </div>
@@ -363,7 +363,7 @@ function StarRating({
           disabled={readonly}
           className={`${sizeClasses[size]} transition-transform ${paddingClasses[size]}`}
           style={{
-            color: star <= displayValue ? "#e07850" : "rgba(248,246,241,0.2)",
+            color: star <= displayValue ? "#ff6b2d" : "rgba(232,226,214,0.2)",
             transform: star <= displayValue ? "scale(1.1)" : "scale(1)",
             cursor: readonly ? "default" : "pointer",
             background: "none",
@@ -469,7 +469,7 @@ function TrailerModal({
       <div
         className="relative z-10 w-[94vw] max-w-[1100px] aspect-video rounded-xl lg:rounded-2xl overflow-hidden animate-trailer-scale-in"
         style={{
-          boxShadow: "0 40px 100px rgba(0,0,0,0.8), 0 0 120px rgba(224,120,80,0.08)",
+          boxShadow: "0 40px 100px rgba(0,0,0,0.8), 0 0 120px rgba(255,107,45,0.08)",
           border: "1px solid rgba(255,255,255,0.06)",
         }}
       >
@@ -593,7 +593,7 @@ export default function FilmDetailPage() {
   const collectives: Collective[] = collectivesList.map((c: any, index: number) => ({
     id: c.id,
     name: c.name,
-    color: ["#f472b6", "#7b8cde", "#e07850", "#d4a574"][index % 4],
+    color: ["#f472b6", "#3d5a96", "#ff6b2d", "#ff8f5e"][index % 4],
   }))
 
   const selectedCollective = collectives.find((c) => c.id === selectedCollectiveId) || null
@@ -835,7 +835,7 @@ export default function FilmDetailPage() {
             <div
               className="absolute inset-0 lg:hidden"
               style={{
-                background: "linear-gradient(180deg, rgba(224,120,80,0.3) 0%, rgba(123,140,222,0.2) 50%, #08080a 100%)",
+                background: "linear-gradient(180deg, rgba(255,107,45,0.3) 0%, rgba(61,90,150,0.2) 50%, #08080a 100%)",
               }}
             />
 
@@ -886,7 +886,7 @@ export default function FilmDetailPage() {
           {/* Mobile poster overlapping bottom — outside overflow-hidden so it won't clip */}
           <div
             className="absolute -bottom-10 left-5 w-20 h-[110px] rounded-lg overflow-hidden shadow-xl z-10 lg:hidden"
-            style={{ border: "1px solid rgba(248,246,241,0.1)" }}
+            style={{ border: "1px solid rgba(232,226,214,0.1)" }}
           >
             {posterUrl ? (
               <Image src={posterUrl} alt={title} fill className="object-cover" />
@@ -1059,7 +1059,7 @@ export default function FilmDetailPage() {
 
               {/* ──── Title Section ──── */}
               <div className="pt-14 px-5 pb-4 lg:pt-0 lg:px-0 lg:pb-0 lg:mb-2">
-                <h1 className="text-[22px] lg:text-[48px] font-semibold lg:font-bold tracking-tight text-cream mb-1 lg:mb-0 lg:leading-[1.1] lg:tracking-[-0.01em] lg:font-serif lg:text-white">
+                <h1 className="text-[22px] lg:text-[48px] font-semibold lg:font-bold tracking-tight text-cream mb-1 lg:mb-0 lg:leading-[1.1] lg:tracking-[-0.01em] lg:font-bold lg:text-white">
                   {title}
                 </h1>
                 <div className="lg:flex lg:items-center lg:gap-3 lg:mt-3.5 lg:flex-wrap">
@@ -1088,7 +1088,7 @@ export default function FilmDetailPage() {
                           key={star}
                           className="text-sm lg:hidden"
                           style={{
-                            color: star <= Math.round(communityStats.averageScore || 0) ? "#e07850" : "rgba(248,246,241,0.2)"
+                            color: star <= Math.round(communityStats.averageScore || 0) ? "#ff6b2d" : "rgba(232,226,214,0.2)"
                           }}
                         >
                           ★
@@ -1117,11 +1117,11 @@ export default function FilmDetailPage() {
                     <span
                       className="size-9 lg:size-10 rounded-full flex items-center justify-center transition-all group-hover:scale-105"
                       style={{
-                        background: "linear-gradient(135deg, #e07850, #c45a30)",
-                        boxShadow: "0 4px 16px rgba(224,120,80,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
+                        background: "linear-gradient(135deg, #ff6b2d, #c45a30)",
+                        boxShadow: "0 4px 16px rgba(255,107,45,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
                       }}
                     >
-                      <PlayIcon color="#fff" size={16} />
+                      <PlayIcon color="#e8e2d6" size={16} />
                     </span>
                     <span className="text-[13px] lg:text-[15px] font-medium text-foreground/70 group-hover:text-foreground/90 transition-colors">
                       Watch Trailer
@@ -1215,8 +1215,8 @@ export default function FilmDetailPage() {
                                     disabled={isSavingReview}
                                     className="px-3.5 py-1.5 text-[12px] font-medium rounded-lg transition-colors"
                                     style={{
-                                      backgroundColor: "rgba(224,120,80,0.15)",
-                                      color: "#e07850",
+                                      backgroundColor: "rgba(255,107,45,0.15)",
+                                      color: "#ff6b2d",
                                     }}
                                   >
                                     {isSavingReview ? "Saving..." : "Save Review"}
@@ -1254,7 +1254,7 @@ export default function FilmDetailPage() {
 
                     {/* Tagline */}
                     {tagline && (
-                      <p className="text-sm lg:text-xl italic text-foreground/50 lg:text-[#b8a898] text-center lg:text-left lg:font-serif lg:mt-0">
+                      <p className="text-sm lg:text-xl italic text-foreground/50 lg:text-[#b8a898] text-center lg:text-left lg:font-bold lg:mt-0">
                         &ldquo;{tagline}&rdquo;
                       </p>
                     )}
@@ -1472,12 +1472,12 @@ export default function FilmDetailPage() {
                                     item.value === "Severe" ? "rgba(239,68,68,0.15)" :
                                     item.value === "Moderate" ? "rgba(245,158,11,0.15)" :
                                     item.value === "Mild" ? "rgba(34,197,94,0.15)" :
-                                    "rgba(248,246,241,0.06)",
+                                    "rgba(232,226,214,0.06)",
                                   color:
                                     item.value === "Severe" ? "#ef4444" :
                                     item.value === "Moderate" ? "#f59e0b" :
                                     item.value === "Mild" ? "#22c55e" :
-                                    "rgba(248,246,241,0.4)",
+                                    "rgba(232,226,214,0.4)",
                                 }}
                               >
                                 {item.value}
@@ -1697,8 +1697,8 @@ export default function FilmDetailPage() {
                       <div
                         className="rounded-xl lg:rounded-2xl overflow-hidden"
                         style={{
-                          backgroundColor: "rgba(224,120,80,0.1)",
-                          border: "1px solid rgba(224,120,80,0.2)",
+                          backgroundColor: "rgba(255,107,45,0.1)",
+                          border: "1px solid rgba(255,107,45,0.2)",
                         }}
                       >
                         <div className="flex items-center gap-3.5 lg:gap-4 p-3.5 lg:p-[18px] lg:px-6">
@@ -1713,7 +1713,7 @@ export default function FilmDetailPage() {
                                 <span
                                   key={s}
                                   className="text-sm"
-                                  style={{ color: s <= userRating ? "#e07850" : "rgba(248,246,241,0.2)" }}
+                                  style={{ color: s <= userRating ? "#ff6b2d" : "rgba(232,226,214,0.2)" }}
                                 >
                                   ★
                                 </span>
@@ -1750,7 +1750,7 @@ export default function FilmDetailPage() {
                                 <span
                                   key={s}
                                   className="text-sm"
-                                  style={{ color: s <= member.score ? "#e07850" : "rgba(248,246,241,0.2)" }}
+                                  style={{ color: s <= member.score ? "#ff6b2d" : "rgba(232,226,214,0.2)" }}
                                 >
                                   ★
                                 </span>
@@ -1810,7 +1810,7 @@ export default function FilmDetailPage() {
                           >
                             <div className="text-[11px] font-semibold tracking-[0.1em] text-[#888] uppercase mb-3">Average</div>
                             <div className="flex items-baseline justify-center gap-2">
-                              <span className="text-[44px] font-bold text-white font-serif">
+                              <span className="text-[44px] font-bold text-white font-bold">
                                 {communityStats.averageScore?.toFixed(1)}
                               </span>
                               <svg width="22" height="22" viewBox="0 0 24 24" fill="#D4753E" stroke="none">
@@ -1826,7 +1826,7 @@ export default function FilmDetailPage() {
                             }}
                           >
                             <div className="text-[11px] font-semibold tracking-[0.1em] text-[#888] uppercase mb-3">Total Ratings</div>
-                            <span className="text-[44px] font-bold text-white font-serif">{communityStats.ratingCount}</span>
+                            <span className="text-[44px] font-bold text-white font-bold">{communityStats.ratingCount}</span>
                           </div>
                         </div>
                       </div>

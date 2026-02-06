@@ -21,9 +21,9 @@ function Logo({ size = "sm" }: { size?: "sm" | "md" }) {
 }
 
 const messages = [
-  { user: "Sarah", color: "#7b8cde", content: "Just finished Past Lives... I'm not okay 😭" },
-  { user: "Mike", color: "#e07850", content: "RIGHT?? That ending scene..." },
-  { user: "Dan", color: "#d4a574", content: "Adding it to my list now 👀" },
+  { user: "Sarah", color: "#3d5a96", content: "Just finished Past Lives... I'm not okay 😭" },
+  { user: "Mike", color: "#ff6b2d", content: "RIGHT?? That ending scene..." },
+  { user: "Dan", color: "#ff8f5e", content: "Adding it to my list now 👀" },
 ]
 
 const features = [
@@ -115,12 +115,12 @@ export function LandingPage() {
         className="fixed inset-0 pointer-events-none z-0 hidden lg:block transition-[background] duration-500"
         style={{
           background: `
-            radial-gradient(ellipse 80% 50% at ${25 + mousePos.x * 15}% ${20 + mousePos.y * 15}%, rgba(224,120,80,0.07) 0%, transparent 50%),
-            radial-gradient(ellipse 60% 60% at ${75 - mousePos.x * 10}% ${70 + mousePos.y * 10}%, rgba(123,140,222,0.03) 0%, transparent 45%)
+            radial-gradient(ellipse 80% 50% at ${25 + mousePos.x * 15}% ${20 + mousePos.y * 15}%, rgba(255,107,45,0.07) 0%, transparent 50%),
+            radial-gradient(ellipse 60% 60% at ${75 - mousePos.x * 10}% ${70 + mousePos.y * 10}%, rgba(61,90,150,0.03) 0%, transparent 45%)
           `,
         }}
       />
-      <div className="absolute -top-[20%] -left-[20%] w-[140%] h-[50%] bg-[radial-gradient(ellipse,_rgba(224,120,80,0.08)_0%,_transparent_60%)] pointer-events-none lg:hidden" />
+      <div className="absolute -top-[20%] -left-[20%] w-[140%] h-[50%] bg-[radial-gradient(ellipse,_rgba(255,107,45,0.08)_0%,_transparent_60%)] pointer-events-none lg:hidden" />
 
       {/* Navigation */}
       <nav
@@ -201,7 +201,7 @@ export function LandingPage() {
               </div>
 
               {/* Headline */}
-              <h1 className="text-[40px] lg:text-[48px] font-light leading-none lg:leading-[0.98] tracking-tighter lg:tracking-[-0.03em] mb-5 lg:mb-10">
+              <h1 className="text-[40px] lg:text-[48px] font-normal leading-none lg:leading-[0.98] tracking-tighter lg:tracking-[-0.03em] mb-5 lg:mb-10">
                 <span
                   className="block"
                   style={{
@@ -279,13 +279,13 @@ export function LandingPage() {
                 }}
               >
                 <AvatarGroup>
-                  <Avatar size="sm" color="#e07850">
+                  <Avatar size="sm" color="#ff6b2d">
                     <AvatarFallback>A</AvatarFallback>
                   </Avatar>
-                  <Avatar size="sm" color="#7b8cde">
+                  <Avatar size="sm" color="#3d5a96">
                     <AvatarFallback>M</AvatarFallback>
                   </Avatar>
-                  <Avatar size="sm" color="#d4a574">
+                  <Avatar size="sm" color="#ff8f5e">
                     <AvatarFallback>S</AvatarFallback>
                   </Avatar>
                   <Avatar size="sm" color="rgba(248,246,241,0.15)">
@@ -315,13 +315,13 @@ export function LandingPage() {
       <section className="relative z-10 px-6 pb-8 lg:hidden">
         <div className="flex items-center gap-3.5">
           <AvatarGroup>
-            <Avatar size="sm" color="#e07850">
+            <Avatar size="sm" color="#ff6b2d">
               <AvatarFallback>A</AvatarFallback>
             </Avatar>
-            <Avatar size="sm" color="#7b8cde">
+            <Avatar size="sm" color="#3d5a96">
               <AvatarFallback>M</AvatarFallback>
             </Avatar>
-            <Avatar size="sm" color="#d4a574">
+            <Avatar size="sm" color="#ff8f5e">
               <AvatarFallback>S</AvatarFallback>
             </Avatar>
             <Avatar size="sm" color="rgba(248,246,241,0.15)">
@@ -368,7 +368,7 @@ export function LandingPage() {
           ═══════════════════════════════════════════════════ */}
       <section className="relative z-10 px-6 py-8 border-t border-border lg:px-14 lg:py-28">
         {/* Section number — desktop only */}
-        <div className="hidden lg:block absolute top-40 right-14 text-[140px] font-extralight text-foreground/[0.03] leading-none select-none">
+        <div className="hidden lg:block absolute top-40 right-14 text-[140px] font-normal text-foreground/[0.03] leading-none select-none">
           01
         </div>
 
@@ -399,7 +399,7 @@ export function LandingPage() {
               <SectionLabel color="cool" className="mb-6 block">
                 Your collective, your space
               </SectionLabel>
-              <h2 className="text-[48px] font-light leading-[1.1] tracking-[-0.02em] mb-6">
+              <h2 className="text-[48px] font-normal leading-[1.1] tracking-[-0.02em] mb-6">
                 More than just
                 <span className="italic text-accent"> recommendations</span>
               </h2>
@@ -421,9 +421,9 @@ export function LandingPage() {
                     style={{
                       backgroundColor:
                         feature.color === "cool"
-                          ? "rgba(123,140,222,0.12)"
+                          ? "rgba(61,90,150,0.12)"
                           : feature.color === "accent"
-                            ? "rgba(224,120,80,0.12)"
+                            ? "rgba(255,107,45,0.12)"
                             : "rgba(212,165,116,0.12)",
                     }}
                   >
@@ -462,7 +462,7 @@ export function LandingPage() {
                 <div
                   className="w-full aspect-[2/3] rounded-md mb-2.5"
                   style={{
-                    background: `linear-gradient(135deg, rgba(224,120,80,${0.3 - i * 0.08}), rgba(123,140,222,${0.2 - i * 0.05}))`,
+                    background: `linear-gradient(135deg, rgba(255,107,45,${0.3 - i * 0.08}), rgba(61,90,150,${0.2 - i * 0.05}))`,
                   }}
                 />
                 <div className="px-2 py-1 rounded bg-cool/15 text-xs font-semibold text-cool text-center">
@@ -481,7 +481,7 @@ export function LandingPage() {
               <SectionLabel color="accent" className="mb-6 block">
                 When you can&apos;t decide
               </SectionLabel>
-              <h2 className="text-[48px] font-light leading-[1.1] tracking-[-0.02em] mb-6">
+              <h2 className="text-[48px] font-normal leading-[1.1] tracking-[-0.02em] mb-6">
                 Find something
                 <span className="italic text-cool"> everyone</span> will love
               </h2>
@@ -546,7 +546,7 @@ export function LandingPage() {
                     <div
                       className="w-9 h-[50px] rounded-md shrink-0"
                       style={{
-                        background: `linear-gradient(135deg, rgba(224,120,80,${0.35 - i * 0.07}), rgba(123,140,222,0.2))`,
+                        background: `linear-gradient(135deg, rgba(255,107,45,${0.35 - i * 0.07}), rgba(61,90,150,0.2))`,
                       }}
                     />
                     <div className="flex-1 min-w-0">
@@ -604,7 +604,7 @@ export function LandingPage() {
         <div className="max-w-[1200px] mx-auto">
           <div className="text-center mb-16">
             <SectionLabel className="mb-5 block">From our collectives</SectionLabel>
-            <h2 className="text-[48px] font-light tracking-[-0.02em]">
+            <h2 className="text-[48px] font-normal tracking-[-0.02em]">
               People are <span className="italic text-accent">loving</span> it
             </h2>
           </div>
@@ -633,7 +633,7 @@ export function LandingPage() {
         <div className="relative px-6 py-10 rounded-3xl bg-gradient-to-br from-accent/[0.13] to-cool/[0.09] text-center overflow-hidden">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-[200px] rounded-full border border-foreground/[0.06]" />
           <div className="relative z-10">
-            <h3 className="text-2xl font-light tracking-tight leading-snug mb-2">
+            <h3 className="text-2xl font-normal tracking-tight leading-snug mb-2">
               Start your
               <br />
               <span className="italic text-accent">film club</span>
@@ -653,7 +653,7 @@ export function LandingPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-[400px] rounded-full border border-foreground/[0.04]" />
 
         <div className="relative z-10 max-w-[700px] mx-auto">
-          <h2 className="text-[clamp(40px,5vw,60px)] font-light leading-[1.1] tracking-[-0.02em] mb-6">
+          <h2 className="text-[clamp(40px,5vw,60px)] font-normal leading-[1.1] tracking-[-0.02em] mb-6">
             Start your
             <br />
             <span className="italic text-accent">film club</span>

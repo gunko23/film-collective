@@ -54,8 +54,8 @@ function InsightsIcon({ color, size = 18 }: IconProps) {
   )
 }
 
-const ACTIVE_ICON = "#e07850"
-const INACTIVE_ICON = "rgba(248,246,241,0.25)"
+const ACTIVE_ICON = "#ff6b2d"
+const INACTIVE_ICON = "#6b6358"
 
 const tabs: { id: CollectiveTab; label: string; Icon: typeof HomeIcon }[] = [
   { id: "feed", label: "Feed", Icon: HomeIcon },
@@ -68,7 +68,7 @@ export function CollectiveTabBar({ activeTab, onTabChange, className }: Collecti
   return (
     <div
       className={cn(
-        "px-5 border-b border-foreground/[0.08]",
+        "px-5 border-b border-cream-faint/[0.08]",
         className,
       )}
     >
@@ -83,8 +83,8 @@ export function CollectiveTabBar({ activeTab, onTabChange, className }: Collecti
               className={cn(
                 "flex items-center gap-2 px-4 py-3 whitespace-nowrap -mb-px border-b-2 transition-colors",
                 isActive
-                  ? "border-accent text-cream"
-                  : "border-transparent text-foreground/50 hover:text-foreground/70",
+                  ? "border-orange text-cream"
+                  : "border-transparent text-cream-faint/50 hover:text-cream-faint/70",
               )}
             >
               <Icon color={isActive ? ACTIVE_ICON : INACTIVE_ICON} size={18} />

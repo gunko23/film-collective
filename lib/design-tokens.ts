@@ -1,34 +1,48 @@
-// Film Collective Design Tokens
-// Reference: /designs/FILM-COLLECTIVE-DESIGN-SYSTEM.md
+// Film Collective Design Tokens — Soulframe Design System
 
 export const colors = {
   // Backgrounds
-  bg: "#08080a",
-  surface: "#0f0f12",
-  surfaceLight: "#161619",
-  surfaceHover: "#1c1c20",
+  bg: "#0f0d0b",
+  surface: "#1a1714",
+  surfaceLight: "#211e19",
+  surfaceHover: "#252119",
 
   // Text
-  cream: "#f8f6f1",
-  textSecondary: "rgba(248, 246, 241, 0.7)",
-  textTertiary: "rgba(248, 246, 241, 0.5)",
-  textMuted: "rgba(248, 246, 241, 0.4)",
-  textSubtle: "rgba(248, 246, 241, 0.2)",
+  cream: "#e8e2d6",
+  textSecondary: "#a69e90",
+  textTertiary: "#a69e90",
+  textMuted: "#6b6358",
+  textSubtle: "rgba(232, 226, 214, 0.2)",
 
   // Accent colors
-  accent: "#e07850",
-  accentSoft: "#d4a574",
-  cool: "#7b8cde",
+  accent: "#ff6b2d",
+  accentSoft: "#ff8f5e",
+  cool: "#3d5a96",
 
   // Borders
-  border: "rgba(248, 246, 241, 0.06)",
-  borderLight: "rgba(248, 246, 241, 0.1)",
-  borderAccent: "rgba(224, 120, 80, 0.25)",
+  border: "rgba(107, 99, 88, 0.12)",
+  borderLight: "rgba(107, 99, 88, 0.18)",
+  borderAccent: "rgba(255, 107, 45, 0.25)",
+
+  // Soulframe extended palette
+  blue: "#3d5a96",
+  blueMuted: "#2e4470",
+  blueLight: "#5a7cb8",
+  blueGlow: "rgba(61, 90, 150, 0.18)",
+  orange: "#ff6b2d",
+  orangeMuted: "#cc5624",
+  orangeLight: "#ff8f5e",
+  orangeGlow: "rgba(255, 107, 45, 0.14)",
+  warmBlack: "#0a0908",
+  teal: "#4a9e8e",
+  rose: "#c4616a",
+  creamMuted: "#a69e90",
+  creamFaint: "#6b6358",
 } as const
 
 export const typography = {
   fontFamily:
-    '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif',
 
   fontSize: {
     xs: "10px",
@@ -61,7 +75,6 @@ export const typography = {
   },
 
   fontWeight: {
-    light: 300,
     normal: 400,
     medium: 500,
     semibold: 600,
@@ -104,10 +117,10 @@ export const borderRadius = {
 } as const
 
 export const shadows = {
-  card: "0 20px 40px rgba(0, 0, 0, 0.4)",
-  cardHover: "0 30px 60px rgba(0, 0, 0, 0.5)",
-  poster: "0 20px 40px rgba(0, 0, 0, 0.4)",
-  phone: "0 50px 100px rgba(0, 0, 0, 0.5)",
+  card: "0 4px 16px rgba(10, 9, 8, 0.3)",
+  cardHover: "0 8px 28px rgba(10, 9, 8, 0.4)",
+  poster: "0 20px 40px rgba(10, 9, 8, 0.4)",
+  phone: "0 50px 100px rgba(10, 9, 8, 0.5)",
 } as const
 
 export const breakpoints = {

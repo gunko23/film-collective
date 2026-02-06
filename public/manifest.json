@@ -4,8 +4,8 @@
   "description": "Rate and discuss films and TV shows with your collective",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d0b09",
-  "theme_color": "#e07850",
+  "background_color": "#0f0d0b",
+  "theme_color": "#0f0d0b",
   "orientation": "portrait-primary",
   "icons": [
     {

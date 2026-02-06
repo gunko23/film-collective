@@ -4,6 +4,7 @@ import { useUser } from "@stackframe/stack"
 import { Header } from "@/components/header"
 import { UserDashboard } from "@/components/user-dashboard"
 import { LandingPage } from "@/components/landing-page"
+import { LightLeaks } from "@/components/soulframe/light-leaks"
 
 export default function HomePage() {
   const user = useUser()
@@ -13,9 +14,10 @@ export default function HomePage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-background overflow-hidden">
+    <div className="relative min-h-screen bg-background">
+      <LightLeaks />
       <Header />
-      <main className="relative z-10 pt-2 lg:pt-20">
+      <main className="relative z-10 pt-2 lg:pt-16">
         <UserDashboard />
       </main>
     </div>
