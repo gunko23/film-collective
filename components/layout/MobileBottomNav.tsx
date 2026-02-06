@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { useNotificationStream } from "@/hooks/use-notification-stream"
 
@@ -78,6 +79,36 @@ export function MobileBottomNav({ className }: { className?: string }) {
   const pathname = usePathname()
   const { unreadCount } = useNotificationStream()
   const currentRoute = getActiveRoute(pathname)
+  const [isTonightsPickActive, setIsTonightsPickActive] = useState(false)
+
+  // Watch for Tonight's Pick tab activation via data attribute
+  useEffect(() => {
+    const checkTonightsPick = () => {
+      setIsTonightsPickActive(document.body.hasAttribute("data-tonights-pick-active"))
+    }
+
+    // Check initially
+    checkTonightsPick()
+
+    // Use MutationObserver to watch for attribute changes
+    const observer = new MutationObserver(checkTonightsPick)
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["data-tonights-pick-active"]
+    })
+
+    return () => observer.disconnect()
+  }, [])
+
+  // Hide on Tonight's Pick flow and film details pages for fullscreen experience
+  const shouldHide =
+    pathname.includes("/tonights-pick") ||
+    pathname.match(/^\/movies\/\d+$/) ||
+    isTonightsPickActive
+
+  if (shouldHide) {
+    return null
+  }
 
   return (
     <nav

@@ -303,6 +303,19 @@ export function MobileCollectiveView({
     }
   }
 
+  // Set data attribute on body for fullscreen Tonight's Pick experience
+  useEffect(() => {
+    if (activeTab === "tonights-pick") {
+      document.body.setAttribute("data-tonights-pick-active", "true")
+    } else {
+      document.body.removeAttribute("data-tonights-pick-active")
+    }
+
+    return () => {
+      document.body.removeAttribute("data-tonights-pick-active")
+    }
+  }, [activeTab])
+
   const roleText = userRole === "owner" ? "You're the owner" : "Member"
 
   return (
@@ -636,6 +649,7 @@ export function MobileCollectiveView({
       </main>
 
       {/* ─── Mobile Header ────────────────────────────────── */}
+      {activeTab !== "tonights-pick" && (
       <div className="lg:hidden px-5 pt-3 pb-4">
         {/* Top row: back + settings */}
         <div className="flex items-center justify-between mb-4">
@@ -675,14 +689,17 @@ export function MobileCollectiveView({
           </div>
         </div>
       </div>
+      )}
 
       {/* ─── Mobile Tab Bar ─────────────────────────────── */}
+      {activeTab !== "tonights-pick" && (
       <div className="lg:hidden">
         <CollectiveTabBar activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
+      )}
 
       {/* ─── Mobile Tab Content ─────────────────────────── */}
-      <div className={`lg:hidden ${activeTab === "chat" ? "fixed inset-x-0 bottom-20 top-[180px]" : "px-5 py-5"}`}>
+      <div className={`lg:hidden ${activeTab === "chat" ? "fixed inset-x-0 bottom-20 top-[180px]" : activeTab === "tonights-pick" ? "" : "px-5 py-5"}`}>
 
         {/* Feed Tab */}
         {activeTab === "feed" && (
@@ -824,17 +841,7 @@ export function MobileCollectiveView({
 
         {/* Tonight's Pick Tab */}
         {activeTab === "tonights-pick" && (
-          <div>
-            <button
-              type="button"
-              onClick={() => setActiveTab("feed")}
-              className="flex items-center gap-1.5 text-sm text-foreground/60 mb-4"
-            >
-              <BackIcon size={18} color="rgba(248,246,241,0.6)" />
-              Back to Feed
-            </button>
-            <TonightsPick collectiveId={collectiveId} currentUserId={currentUserId} />
-          </div>
+          <TonightsPick collectiveId={collectiveId} currentUserId={currentUserId} onBack={() => setActiveTab("feed")} />
         )}
 
         {/* Chat Tab */}

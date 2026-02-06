@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { mood, maxRuntime, contentRating, parentalFilters, page, era, startYear } = body
+    const { mood, maxRuntime, contentRating, parentalFilters, page, era, startYear, streamingProviders } = body
 
     const result = await getSoloTonightsPick({
       userId: user.id,
@@ -21,6 +21,7 @@ export async function POST(request: Request) {
       page: page || 1,
       era: era || null,
       startYear: startYear || null,
+      streamingProviders: streamingProviders || null,
     })
 
     return NextResponse.json(result)

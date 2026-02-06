@@ -510,6 +510,7 @@ export default function FilmDetailPage() {
   const { data: movie, error: movieError, isLoading: movieLoading } = useSWR(`/api/movies/tmdb/${id}`, fetcher)
   const { data: communityStats } = useSWR(`/api/movies/${id}/stats`, fetcher)
   const { data: parentalGuide } = useSWR(`/api/movies/${id}/parental-guide`, fetcher)
+  const { data: watchProviders } = useSWR(`/api/movies/${id}/watch-providers`, fetcher)
   const { data: collectivesData } = useSWR(user ? "/api/collectives" : null, fetcher)
   const { data: userRatingData } = useSWR(user ? `/api/ratings?tmdbId=${id}` : null, fetcher)
 
@@ -1532,6 +1533,86 @@ export default function FilmDetailPage() {
                         <p className="mt-2.5 lg:mt-3 text-[11px] lg:text-[12px] text-foreground/30 lg:text-[#666]">
                           Source: IMDb Parental Guide
                         </p>
+                      </div>
+                    )}
+
+                    {/* Where to Watch */}
+                    {watchProviders && (watchProviders.flatrate?.length > 0 || watchProviders.ads?.length > 0) && (
+                      <div>
+                        <SectionLabel className="mb-3 lg:mb-4 block lg:text-[11px] lg:font-semibold lg:tracking-[0.12em]">Where to Watch</SectionLabel>
+
+                        <div className="space-y-3 lg:space-y-4">
+                          {/* Streaming */}
+                          {watchProviders.flatrate?.length > 0 && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-foreground/40 lg:text-[#888] mb-2 font-semibold">Stream</p>
+                              <div className="flex flex-wrap gap-2.5">
+                                {watchProviders.flatrate.map((p: any) => (
+                                  <div
+                                    key={p.providerId}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface border border-foreground/[0.06]"
+                                  >
+                                    {p.logoPath && (
+                                      <Image
+                                        src={getImageUrl(p.logoPath, "w92") || ""}
+                                        alt={p.providerName}
+                                        width={24}
+                                        height={24}
+                                        className="rounded-md"
+                                      />
+                                    )}
+                                    <span className="text-[12px] lg:text-[13px] font-medium">{p.providerName}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Free with Ads */}
+                          {watchProviders.ads?.length > 0 && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-foreground/40 lg:text-[#888] mb-2 font-semibold">Free with Ads</p>
+                              <div className="flex flex-wrap gap-2.5">
+                                {watchProviders.ads.map((p: any) => (
+                                  <div
+                                    key={p.providerId}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface border border-foreground/[0.06]"
+                                  >
+                                    {p.logoPath && (
+                                      <Image
+                                        src={getImageUrl(p.logoPath, "w92") || ""}
+                                        alt={p.providerName}
+                                        width={24}
+                                        height={24}
+                                        className="rounded-md"
+                                      />
+                                    )}
+                                    <span className="text-[12px] lg:text-[13px] font-medium">{p.providerName}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* JustWatch attribution — required by TMDB terms */}
+                        <div className="mt-3 lg:mt-4 flex items-center gap-1.5">
+                          <span className="text-[10px] lg:text-[11px] text-foreground/30 lg:text-[#666]">
+                            Streaming data by
+                          </span>
+                          {watchProviders.link ? (
+                            <a
+                              href={watchProviders.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] lg:text-[11px] font-semibold text-[#ffd740] hover:underline"
+                            >
+                              JustWatch
+                            </a>
+                          ) : (
+                            <span className="text-[10px] lg:text-[11px] font-semibold text-[#ffd740]">JustWatch</span>
+                          )}
+                        </div>
                       </div>
                     )}
 
