@@ -88,6 +88,8 @@ export function SoloTonightsPick() {
   const [selectedMood, setSelectedMood] = useState<Mood>(null)
   const [maxRuntime, setMaxRuntime] = useState<number | null>(null)
   const [contentRating, setContentRating] = useState<string | null>(null)
+  const [era, setEra] = useState<string | null>(null)
+  const [startYear, setStartYear] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<SoloPickResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -113,6 +115,8 @@ export function SoloTonightsPick() {
           mood: selectedMood,
           maxRuntime,
           contentRating,
+          era,
+          startYear,
           page,
           parentalFilters: {
             maxViolence,
@@ -306,6 +310,73 @@ export function SoloTonightsPick() {
             </p>
           </div>
 
+          {/* Era Filter */}
+          <div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Era (optional)
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { value: null, label: "Any" },
+                { value: "1960s", label: "60s" },
+                { value: "1970s", label: "70s" },
+                { value: "1980s", label: "80s" },
+                { value: "1990s", label: "90s" },
+                { value: "2000s", label: "00s" },
+                { value: "2010s", label: "10s" },
+                { value: "2020s", label: "20s" },
+              ].map((option) => (
+                <button
+                  key={option.value || "any"}
+                  onClick={() => setEra(option.value)}
+                  className={`py-3 rounded-xl border text-sm font-medium transition-all ${
+                    era === option.value
+                      ? "border-accent bg-accent/10 text-foreground"
+                      : "border-border/50 text-muted-foreground hover:border-accent/50 active:bg-accent/5"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Released After Filter */}
+          <div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Released after (optional)
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { value: null, label: "Any" },
+                { value: 1970, label: "1970+" },
+                { value: 1980, label: "1980+" },
+                { value: 1990, label: "1990+" },
+                { value: 2000, label: "2000+" },
+                { value: 2010, label: "2010+" },
+                { value: 2020, label: "2020+" },
+                { value: 2024, label: "2024+" },
+              ].map((option) => (
+                <button
+                  key={option.value || "any"}
+                  onClick={() => setStartYear(option.value)}
+                  className={`py-3 rounded-xl border text-sm font-medium transition-all ${
+                    startYear === option.value
+                      ? "border-accent bg-accent/10 text-foreground"
+                      : "border-border/50 text-muted-foreground hover:border-accent/50 active:bg-accent/5"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {era && startYear ? (
+              <p className="text-xs text-muted-foreground mt-2">
+                Era filter takes priority over released after
+              </p>
+            ) : null}
+          </div>
+
           {/* Parental Content Filters */}
           <div className="border border-border/50 rounded-xl overflow-hidden">
             <button
@@ -420,60 +491,38 @@ export function SoloTonightsPick() {
             )}
           </div>
 
-          {/* Get Recommendations Button */}
-          <div className="pt-2">
-            <button
-              onClick={() => getRecommendations(1)}
-              disabled={loading}
-              className="w-full h-12 rounded-xl text-base font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: '#e07850',
-                color: '#08080a',
-              }}
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="h-5 w-5 animate-spin" />
-                  Finding films...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-5 w-5" />
-                  Get Recommendations
-                </>
-              )}
-            </button>
-          </div>
+        </div>
+      )}
+      {/* Sticky Get Recommendations Button */}
+      {step === "mood" && (
+        <div className="sticky bottom-20 lg:bottom-0 z-10 pt-3 pb-2 -mx-4 px-4 bg-gradient-to-t from-background via-background to-transparent">
+          <button
+            onClick={() => getRecommendations(1)}
+            disabled={loading}
+            className="w-full h-12 rounded-xl text-base font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: '#e07850',
+              color: '#08080a',
+            }}
+          >
+            {loading ? (
+              <>
+                <RefreshCw className="h-5 w-5 animate-spin" />
+                Finding films...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-5 w-5" />
+                Get Recommendations
+              </>
+            )}
+          </button>
         </div>
       )}
 
       {/* Step 2: Results */}
       {step === "results" && results && (
         <div className="space-y-4 sm:space-y-6">
-          {/* Action Buttons */}
-          <div className="flex items-center justify-between gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => setStep("mood")}
-              className="gap-2 h-9 text-sm"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <Button
-              variant="outline"
-              onClick={shuffleResults}
-              disabled={loading}
-              className="gap-2 h-9 text-sm"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Shuffle
-            </Button>
-          </div>
 
           {/* User Profile Summary */}
           <div className="rounded-xl border border-border/50 bg-card/50 p-3 sm:p-4">
@@ -701,6 +750,41 @@ export function SoloTonightsPick() {
               ))}
             </div>
           )}
+        </div>
+      )}
+      {/* Sticky Results Buttons */}
+      {step === "results" && results && (
+        <div className="sticky bottom-20 lg:bottom-0 z-10 pt-3 pb-2 -mx-4 px-4 bg-gradient-to-t from-background via-background to-transparent">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setStep("mood")}
+              className="flex-1 h-11 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all"
+              style={{
+                backgroundColor: '#0f0f12',
+                border: '1px solid rgba(248, 246, 241, 0.1)',
+                color: '#f8f6f1',
+              }}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </button>
+            <button
+              onClick={shuffleResults}
+              disabled={loading}
+              className="flex-1 h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: '#e07850',
+                color: '#08080a',
+              }}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Shuffle
+            </button>
+          </div>
         </div>
       )}
     </div>

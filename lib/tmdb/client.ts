@@ -312,6 +312,8 @@ class TMDBClient {
       withRuntimeLte?: number
       certificationCountry?: string
       certificationLte?: string
+      primaryReleaseDateGte?: string
+      primaryReleaseDateLte?: string
     } = {},
   ): Promise<TMDBMovieListResponse> {
     const params: Record<string, string> = {}
@@ -324,6 +326,8 @@ class TMDBClient {
     if (options.withRuntimeLte) params["with_runtime.lte"] = options.withRuntimeLte.toString()
     if (options.certificationCountry) params.certification_country = options.certificationCountry
     if (options.certificationLte) params["certification.lte"] = options.certificationLte
+    if (options.primaryReleaseDateGte) params["primary_release_date.gte"] = options.primaryReleaseDateGte
+    if (options.primaryReleaseDateLte) params["primary_release_date.lte"] = options.primaryReleaseDateLte
 
     return this.fetch<TMDBMovieListResponse>("/discover/movie", params)
   }

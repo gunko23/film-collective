@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { stackServerApp } from "@/stack"
-import { getSoloTonightsPick } from "@/lib/recommendations/tonight-pick-service"
+import { getSoloTonightsPick } from "@/lib/recommendations/recommendation-service"
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { mood, maxRuntime, contentRating, parentalFilters, page } = body
+    const { mood, maxRuntime, contentRating, parentalFilters, page, era, startYear } = body
 
     const result = await getSoloTonightsPick({
       userId: user.id,
@@ -19,6 +19,8 @@ export async function POST(request: Request) {
       contentRating: contentRating || null,
       parentalFilters: parentalFilters || null,
       page: page || 1,
+      era: era || null,
+      startYear: startYear || null,
     })
 
     return NextResponse.json(result)

@@ -130,6 +130,8 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
   const [selectedMood, setSelectedMood] = useState<Mood>(null)
   const [maxRuntime, setMaxRuntime] = useState<number | null>(null)
   const [contentRating, setContentRating] = useState<string | null>(null) // "G", "PG", "PG-13", "R", or null for any
+  const [era, setEra] = useState<string | null>(null) // "1980s", "1990s", etc. or null for any
+  const [startYear, setStartYear] = useState<number | null>(null) // e.g. 2000 — movies from this year onwards
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [results, setResults] = useState<TonightPickResponse | null>(null)
@@ -187,6 +189,8 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
           mood: selectedMood,
           maxRuntime,
           contentRating,
+          era,
+          startYear,
           page, // Pass page for different results
           parentalFilters: {
             maxViolence,
@@ -372,7 +376,11 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
           <div className="text-center text-sm text-muted-foreground py-2">
             {selectedMembers.length} of {members.length} selected
           </div>
-
+        </div>
+      )}
+      {/* Sticky Continue Button */}
+      {step === "members" && (
+        <div className="sticky bottom-20 lg:bottom-0 z-10 pt-3 pb-2 -mx-4 px-4 bg-gradient-to-t from-background via-background to-transparent">
           <button
             onClick={() => setStep("mood")}
             disabled={selectedMembers.length === 0}
@@ -477,6 +485,73 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
             <p className="text-xs text-muted-foreground mt-2">
               Selecting a rating will include that rating and below (e.g., PG-13 includes G, PG, and PG-13)
             </p>
+          </div>
+
+          {/* Era Filter */}
+          <div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Era (optional)
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { value: null, label: "Any" },
+                { value: "1960s", label: "60s" },
+                { value: "1970s", label: "70s" },
+                { value: "1980s", label: "80s" },
+                { value: "1990s", label: "90s" },
+                { value: "2000s", label: "00s" },
+                { value: "2010s", label: "10s" },
+                { value: "2020s", label: "20s" },
+              ].map((option) => (
+                <button
+                  key={option.value || "any"}
+                  onClick={() => setEra(option.value)}
+                  className={`py-3 rounded-xl border text-sm font-medium transition-all ${
+                    era === option.value
+                      ? "border-accent bg-accent/10 text-foreground"
+                      : "border-border/50 text-muted-foreground hover:border-accent/50 active:bg-accent/5"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Released After Filter */}
+          <div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Released after (optional)
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { value: null, label: "Any" },
+                { value: 1970, label: "1970+" },
+                { value: 1980, label: "1980+" },
+                { value: 1990, label: "1990+" },
+                { value: 2000, label: "2000+" },
+                { value: 2010, label: "2010+" },
+                { value: 2020, label: "2020+" },
+                { value: 2024, label: "2024+" },
+              ].map((option) => (
+                <button
+                  key={option.value || "any"}
+                  onClick={() => setStartYear(option.value)}
+                  className={`py-3 rounded-xl border text-sm font-medium transition-all ${
+                    startYear === option.value
+                      ? "border-accent bg-accent/10 text-foreground"
+                      : "border-border/50 text-muted-foreground hover:border-accent/50 active:bg-accent/5"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {era && startYear ? (
+              <p className="text-xs text-muted-foreground mt-2">
+                Era filter takes priority over released after
+              </p>
+            ) : null}
           </div>
 
           {/* Parental Content Filters - Collapsible */}
@@ -702,8 +777,12 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
             )}
           </div>
 
-          {/* Navigation buttons - Stacked on mobile */}
-          <div className="flex flex-col gap-2 pt-2">
+        </div>
+      )}
+      {/* Sticky Mood Navigation Buttons */}
+      {step === "mood" && (
+        <div className="sticky bottom-20 lg:bottom-0 z-10 pt-3 pb-2 -mx-4 px-4 bg-gradient-to-t from-background via-background to-transparent">
+          <div className="flex flex-col gap-2">
             <button
               onClick={() => getRecommendations(1)}
               disabled={loading}
@@ -743,37 +822,6 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
       {/* Step 3: Results - Mobile Optimized */}
       {step === "results" && results && (
         <div className="space-y-4 sm:space-y-6">
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setStep("mood")}
-              className="flex-1 h-11 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all"
-              style={{
-                backgroundColor: '#0f0f12',
-                border: '1px solid rgba(248, 246, 241, 0.1)',
-                color: '#f8f6f1',
-              }}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </button>
-            <button
-              onClick={shuffleResults}
-              disabled={loading}
-              className="flex-1 h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: '#e07850',
-                color: '#08080a',
-              }}
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Shuffle
-            </button>
-          </div>
 
           {/* Group Profile Summary */}
           <div className="rounded-xl border border-border/50 bg-card/50 p-3 sm:p-4">
@@ -1005,6 +1053,41 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
               ))}
             </div>
           )}
+        </div>
+      )}
+      {/* Sticky Results Buttons */}
+      {step === "results" && results && (
+        <div className="sticky bottom-20 lg:bottom-0 z-10 pt-3 pb-2 -mx-4 px-4 bg-gradient-to-t from-background via-background to-transparent">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setStep("mood")}
+              className="flex-1 h-11 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all"
+              style={{
+                backgroundColor: '#0f0f12',
+                border: '1px solid rgba(248, 246, 241, 0.1)',
+                color: '#f8f6f1',
+              }}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </button>
+            <button
+              onClick={shuffleResults}
+              disabled={loading}
+              className="flex-1 h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: '#e07850',
+                color: '#08080a',
+              }}
+            >
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Shuffle
+            </button>
+          </div>
         </div>
       )}
     </div>
