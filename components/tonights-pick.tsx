@@ -32,6 +32,8 @@ import {
 } from "lucide-react"
 import { getImageUrl } from "@/lib/tmdb/image"
 import { Button } from "@/components/ui/button"
+import { US_SUBSCRIPTION_PROVIDERS } from "@/lib/streaming/providers"
+import { TonightsPickLoading } from "@/components/tonights-pick-loading"
 
 type GroupMember = {
   userId: string
@@ -121,9 +123,10 @@ function getInitials(name: string): string {
 type Props = {
   collectiveId: string
   currentUserId: string
+  onBack?: () => void
 }
 
-export function TonightsPick({ collectiveId, currentUserId }: Props) {
+export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
   const [step, setStep] = useState<"members" | "mood" | "results">("members")
   const [members, setMembers] = useState<GroupMember[]>([])
   const [selectedMembers, setSelectedMembers] = useState<string[]>([])
@@ -132,6 +135,7 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
   const [contentRating, setContentRating] = useState<string | null>(null) // "G", "PG", "PG-13", "R", or null for any
   const [era, setEra] = useState<string | null>(null) // "1980s", "1990s", etc. or null for any
   const [startYear, setStartYear] = useState<number | null>(null) // e.g. 2000 — movies from this year onwards
+  const [streamingProviders, setStreamingProviders] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [results, setResults] = useState<TonightPickResponse | null>(null)
@@ -166,6 +170,26 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
     fetchMembers()
   }, [collectiveId, currentUserId])
 
+  // Load user's saved streaming providers on mount
+  useEffect(() => {
+    fetch("/api/streaming-providers")
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.providers?.length > 0) {
+          setStreamingProviders(data.providers.map((p: any) => p.providerId))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const toggleStreamingProvider = (providerId: number) => {
+    setStreamingProviders(prev =>
+      prev.includes(providerId)
+        ? prev.filter(id => id !== providerId)
+        : [...prev, providerId]
+    )
+  }
+
   const toggleMember = (userId: string) => {
     setSelectedMembers((prev) =>
       prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
@@ -191,7 +215,8 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
           contentRating,
           era,
           startYear,
-          page, // Pass page for different results
+          streamingProviders: streamingProviders.length > 0 ? streamingProviders : null,
+          page,
           parentalFilters: {
             maxViolence,
             maxSexNudity,
@@ -233,7 +258,7 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
   // Avatar component with fallback for broken images
   const Avatar = ({ member, size = "md" }: { member: GroupMember; size?: "sm" | "md" | "lg" }) => {
     const [imgError, setImgError] = useState(false)
-    
+
     const sizeClasses = {
       sm: "h-8 w-8 text-xs",
       md: "h-10 w-10 text-sm",
@@ -269,6 +294,298 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
     )
   }
 
+  // Fit Score Ring Component
+  const FitScoreRing = ({ score }: { score: number }) => {
+    const radius = 18
+    const circumference = 2 * Math.PI * radius
+    const progress = (score / 100) * circumference
+    const color = score >= 80 ? "#6abf6e" : score >= 60 ? "#D4753E" : "#a09890"
+
+    return (
+      <div className="relative w-12 h-12 flex-shrink-0">
+        <svg width="48" height="48" viewBox="0 0 48 48" className="transform -rotate-90">
+          <circle cx="24" cy="24" r={radius} fill="none" stroke="rgba(232,224,216,0.08)" strokeWidth="3" />
+          <circle
+            cx="24" cy="24" r={radius} fill="none"
+            stroke={color} strokeWidth="3"
+            strokeDasharray={circumference}
+            strokeDashoffset={circumference - progress}
+            strokeLinecap="round"
+            style={{ transition: "stroke-dashoffset 0.6s ease" }}
+          />
+        </svg>
+        <div
+          className="absolute inset-0 flex items-center justify-center font-mono text-[13px] font-semibold"
+          style={{ color }}
+        >
+          {score}
+        </div>
+      </div>
+    )
+  }
+
+  // Parental Badge Component
+  const ParentalBadge = ({ category, severity }: { category: string; severity: string }) => {
+    if (!severity || severity === "None") return null
+
+    const severityColors = {
+      None: { bg: "rgba(76, 175, 80, 0.12)", text: "#6abf6e", border: "rgba(76, 175, 80, 0.25)" },
+      Mild: { bg: "rgba(212, 117, 62, 0.10)", text: "#D4753E", border: "rgba(212, 117, 62, 0.25)" },
+      Moderate: { bg: "rgba(255, 183, 77, 0.10)", text: "#ffb74d", border: "rgba(255, 183, 77, 0.25)" },
+      Severe: { bg: "rgba(244, 67, 54, 0.10)", text: "#f44336", border: "rgba(244, 67, 54, 0.25)" },
+    }
+
+    const severityLabels: Record<string, string> = {
+      violence: "Violence",
+      sexNudity: "Sex/Nudity",
+      profanity: "Language",
+      alcoholDrugsSmoking: "Substances",
+      frighteningIntense: "Intense",
+    }
+
+    const colors = severityColors[severity as keyof typeof severityColors] || severityColors.Mild
+
+    return (
+      <div
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium"
+        style={{
+          background: colors.bg,
+          border: `1px solid ${colors.border}`,
+          color: colors.text,
+        }}
+      >
+        <span>{severityLabels[category]}: {severity}</span>
+      </div>
+    )
+  }
+
+  // Recommendation Card Component
+  const RecommendationCard = ({ movie, index }: { movie: MovieRecommendation; index: number }) => {
+    const [parentalGuideOpen, setParentalGuideOpen] = useState(false)
+
+    const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : ""
+    const hours = movie.runtime ? Math.floor(movie.runtime / 60) : 0
+    const mins = movie.runtime ? movie.runtime % 60 : 0
+    const runtimeStr = movie.runtime ? `${hours}h ${mins}m` : null
+    const reasoningText = movie.reasoning?.[0] || ""
+
+    // Check if parental guide has any content
+    const guide = movie.parentalGuide
+    const categories = ["violence", "sexNudity", "profanity", "alcoholDrugsSmoking", "frighteningIntense"] as const
+    const hasParentalContent = guide && categories.some(c => guide[c] && guide[c] !== "None")
+
+    // Find highest severity for summary
+    const severityRank = { None: 0, Mild: 1, Moderate: 2, Severe: 3 }
+    const maxSeverity = guide ? categories.reduce((max, cat) => {
+      const level = guide[cat] || "None"
+      return severityRank[level as keyof typeof severityRank] > severityRank[max as keyof typeof severityRank] ? level : max
+    }, "None") : "None"
+
+    const summaryColors = {
+      None: { bg: "rgba(76, 175, 80, 0.12)", text: "#6abf6e", border: "rgba(76, 175, 80, 0.25)" },
+      Mild: { bg: "rgba(212, 117, 62, 0.10)", text: "#D4753E", border: "rgba(212, 117, 62, 0.25)" },
+      Moderate: { bg: "rgba(255, 183, 77, 0.10)", text: "#ffb74d", border: "rgba(255, 183, 77, 0.25)" },
+      Severe: { bg: "rgba(244, 67, 54, 0.10)", text: "#f44336", border: "rgba(244, 67, 54, 0.25)" },
+    }
+    const summaryColor = summaryColors[maxSeverity as keyof typeof summaryColors] || summaryColors.Mild
+
+    return (
+      <div
+        className="rounded-2xl border overflow-hidden transition-all duration-300 hover:shadow-lg"
+        style={{
+          background: "linear-gradient(135deg, rgba(30,26,22,0.95) 0%, rgba(20,17,14,0.98) 100%)",
+          borderColor: "rgba(232,224,216,0.07)",
+          animation: `fadeSlideIn 0.4s ease ${index * 0.08}s both`,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = "rgba(212,117,62,0.25)"
+          e.currentTarget.style.boxShadow = "0 8px 32px rgba(0,0,0,0.3)"
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "rgba(232,224,216,0.07)"
+          e.currentTarget.style.boxShadow = "none"
+        }}
+      >
+        {/* Header: Poster + Meta */}
+        <div className="flex gap-3.5 p-4 pb-0">
+          {/* Poster */}
+          <div className="flex-shrink-0">
+            {movie.posterPath ? (
+              <Image
+                src={getImageUrl(movie.posterPath, "w185") || ""}
+                alt={movie.title}
+                width={80}
+                height={120}
+                className="rounded-lg object-cover w-20 h-[120px] shadow-lg"
+                style={{ boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}
+              />
+            ) : (
+              <div className="w-20 h-[120px] bg-[rgba(232,224,216,0.05)] rounded-lg flex items-center justify-center shadow-lg">
+                <Film className="h-6 w-6 text-[#a09890]" />
+              </div>
+            )}
+          </div>
+
+          {/* Title + meta */}
+          <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+            <div className="flex justify-between items-start gap-2">
+              <h3 className="text-[17px] font-bold leading-[1.25] text-[#e8e0d8] line-clamp-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+                {movie.title}
+              </h3>
+              <FitScoreRing score={movie.groupFitScore} />
+            </div>
+
+            {/* Year · Rating · Runtime row */}
+            <div className="flex items-center gap-2 flex-wrap text-[13px] text-[#a09890]">
+              <span>{year}</span>
+              <span style={{ opacity: 0.3 }}>·</span>
+              <span className="inline-flex items-center gap-1">
+                <span className="text-[#D4753E] text-[13px]">★</span>
+                <span className="text-[#e8e0d8] font-mono font-medium text-[13px]">
+                  {movie.voteAverage?.toFixed(1)}
+                </span>
+              </span>
+              {runtimeStr && (
+                <>
+                  <span style={{ opacity: 0.3 }}>·</span>
+                  <span>{runtimeStr}</span>
+                </>
+              )}
+            </div>
+
+            {/* Genre pills */}
+            <div className="flex gap-1.5 flex-wrap mt-0.5">
+              {movie.genres?.slice(0, 3).map(g => (
+                <span
+                  key={g.id}
+                  className="inline-block px-2 py-0.5 rounded text-[11px] font-medium text-[#a09890]"
+                  style={{
+                    background: "rgba(232,224,216,0.06)",
+                    border: "1px solid rgba(232,224,216,0.08)",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  {g.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Reasoning Section */}
+        <div className="px-4 pt-3.5">
+          <div
+            className="rounded-[10px] p-3.5"
+            style={{
+              background: "rgba(212,117,62,0.04)",
+              borderLeft: "3px solid rgba(212,117,62,0.35)",
+            }}
+          >
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Check className="h-3.5 w-3.5 text-[#D4753E] opacity-70" />
+              <span
+                className="text-[10px] font-semibold text-[#D4753E] opacity-70 uppercase tracking-wider"
+              >
+                Why we picked this
+              </span>
+            </div>
+            <p className="text-[13.5px] leading-[1.55] text-[#c8c0b8] m-0">
+              {reasoningText}
+            </p>
+          </div>
+        </div>
+
+        {/* Seen By */}
+        {movie.seenBy?.length > 0 && (
+          <div className="px-4 pt-2 flex items-center gap-1.5 text-[11px] text-[#a09890] opacity-70">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            <span>Seen by {movie.seenBy.join(", ")}</span>
+          </div>
+        )}
+
+        {/* Parental Guide (collapsed) */}
+        {hasParentalContent && (
+          <div className="px-4 pt-2">
+            <button
+              onClick={() => setParentalGuideOpen(!parentalGuideOpen)}
+              className="inline-flex items-center gap-1.5 bg-transparent border-none cursor-pointer p-1 text-[12px] opacity-85 hover:opacity-100 transition-opacity"
+              style={{ color: summaryColor.text }}
+            >
+              <Info className="h-3.5 w-3.5" />
+              <span className="font-medium">Parental Guide</span>
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                style={{
+                  background: summaryColor.bg,
+                  border: `1px solid ${summaryColor.border}`,
+                }}
+              >
+                Up to {maxSeverity}
+              </span>
+              <ChevronDown
+                className={`h-3 w-3 transition-transform duration-200 ${parentalGuideOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {parentalGuideOpen && guide && (
+              <div
+                className="flex flex-wrap gap-1.5 mt-2 pt-2"
+                style={{
+                  borderTop: "1px solid rgba(232,224,216,0.06)",
+                  animation: "fadeSlideIn 0.2s ease",
+                }}
+              >
+                {categories.map(cat => (
+                  <ParentalBadge key={cat} category={cat} severity={guide[cat] || "None"} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer Actions */}
+        <div className="flex justify-end items-center gap-2 px-4 py-3.5 pt-3">
+          <button
+            onClick={() => window.location.href = `/movies/${movie.tmdbId}`}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-150"
+            style={{
+              background: "rgba(212,117,62,0.12)",
+              border: "1px solid rgba(212,117,62,0.2)",
+              color: "#D4753E",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(212,117,62,0.2)"
+              e.currentTarget.style.borderColor = "rgba(212,117,62,0.35)"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(212,117,62,0.12)"
+              e.currentTarget.style.borderColor = "rgba(212,117,62,0.2)"
+            }}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            View Details
+          </button>
+        </div>
+
+        <style jsx>{`
+          @keyframes fadeSlideIn {
+            from {
+              opacity: 0;
+              transform: translateY(8px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
+      </div>
+    )
+  }
+
   if (initialLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -280,8 +597,29 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
     )
   }
 
+  // Show fullscreen loading when fetching recommendations
+  if (loading) {
+    return <TonightsPickLoading />
+  }
+
+  // Fullscreen mobile mode (when accessed from collective tab)
+  const isFullscreenMobile = !!onBack
+
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className={isFullscreenMobile ? "min-h-screen flex flex-col" : ""}>
+      {/* Back Button - Mobile Only */}
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm text-foreground/60 px-5 pt-3 mb-[15px] lg:hidden"
+        >
+          <ChevronLeft size={18} />
+          Back to Feed
+        </button>
+      )}
+
+      <div className={`space-y-4 sm:space-y-6 flex-1 ${isFullscreenMobile ? "px-5 pb-5" : ""}`}>
       {/* Progress Steps - Mobile Optimized */}
       <div className="flex items-center justify-between rounded-xl bg-muted/30 p-2 sm:p-3 sm:justify-start sm:gap-4">
         {["members", "mood", "results"].map((s, i) => {
@@ -380,7 +718,7 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
       )}
       {/* Sticky Continue Button */}
       {step === "members" && (
-        <div className="sticky bottom-20 lg:bottom-0 z-10 pt-3 pb-2 -mx-4 px-4 bg-gradient-to-t from-background via-background to-transparent">
+        <div className={`sticky ${isFullscreenMobile ? "bottom-0" : "bottom-20 lg:bottom-0"} z-10 pt-3 pb-2 ${isFullscreenMobile ? "" : "-mx-4 px-4"} bg-gradient-to-t from-background via-background to-transparent`}>
           <button
             onClick={() => setStep("mood")}
             disabled={selectedMembers.length === 0}
@@ -552,6 +890,49 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
                 Era filter takes priority over released after
               </p>
             ) : null}
+          </div>
+
+          {/* Streaming Services Filter */}
+          <div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Streaming services (optional)
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {US_SUBSCRIPTION_PROVIDERS.map((provider) => {
+                const isSelected = streamingProviders.includes(provider.id)
+                return (
+                  <button
+                    key={provider.id}
+                    onClick={() => toggleStreamingProvider(provider.id)}
+                    className={`flex items-center gap-2 py-2.5 px-3 rounded-xl border text-sm font-medium transition-all ${
+                      isSelected
+                        ? "border-accent bg-accent/10 text-foreground"
+                        : "border-border/50 text-muted-foreground hover:border-accent/50 active:bg-accent/5"
+                    }`}
+                  >
+                    <Image
+                      src={getImageUrl(provider.logoPath, "w92") || ""}
+                      alt={provider.shortName}
+                      width={22}
+                      height={22}
+                      className="rounded-md flex-shrink-0"
+                    />
+                    <span className="text-xs truncate">{provider.shortName}</span>
+                  </button>
+                )
+              })}
+            </div>
+            {streamingProviders.length > 0 && (
+              <button
+                onClick={() => setStreamingProviders([])}
+                className="mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Clear streaming filter
+              </button>
+            )}
+            <p className="text-[10px] text-muted-foreground/60 mt-2">
+              Streaming data by JustWatch
+            </p>
           </div>
 
           {/* Parental Content Filters - Collapsible */}
@@ -781,7 +1162,7 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
       )}
       {/* Sticky Mood Navigation Buttons */}
       {step === "mood" && (
-        <div className="sticky bottom-20 lg:bottom-0 z-10 pt-3 pb-2 -mx-4 px-4 bg-gradient-to-t from-background via-background to-transparent">
+        <div className={`sticky ${isFullscreenMobile ? "bottom-0" : "bottom-20 lg:bottom-0"} z-10 pt-3 pb-2 ${isFullscreenMobile ? "" : "-mx-4 px-4"} bg-gradient-to-t from-background via-background to-transparent`}>
           <div className="flex flex-col gap-2">
             <button
               onClick={() => getRecommendations(1)}
@@ -858,198 +1239,8 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
             </div>
           ) : (
             <div className="grid gap-3 sm:gap-4">
-              {results.recommendations.map((movie) => (
-                <div
-                  key={movie.tmdbId}
-                  className="group relative rounded-xl border border-border/50 bg-card/50 overflow-hidden hover:border-accent/30 transition-all"
-                >
-                  <div className="flex gap-3 sm:gap-4 p-3 sm:p-4">
-                    {/* Poster - Smaller on mobile */}
-                    <div className="flex-shrink-0">
-                      {movie.posterPath ? (
-                        <Image
-                          src={getImageUrl(movie.posterPath, "w185") || ""}
-                          alt={movie.title}
-                          width={80}
-                          height={120}
-                          className="rounded-lg object-cover w-[70px] h-[105px] sm:w-[100px] sm:h-[150px]"
-                        />
-                      ) : (
-                        <div className="w-[70px] h-[105px] sm:w-[100px] sm:h-[150px] bg-muted rounded-lg flex items-center justify-center">
-                          <Film className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      {/* Title and Score Row */}
-                      <div className="flex items-start justify-between gap-2 mb-1.5 sm:mb-2">
-                        <h3 className="font-semibold text-foreground text-sm sm:text-lg leading-tight line-clamp-2">
-                          {movie.title}
-                        </h3>
-                        {/* Group Fit Score Badge */}
-                        <div
-                          className={`flex-shrink-0 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium ${
-                            movie.groupFitScore >= 70
-                              ? "bg-emerald-500/20 text-emerald-400"
-                              : movie.groupFitScore >= 50
-                                ? "bg-amber-500/20 text-amber-400"
-                                : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {movie.groupFitScore}%
-                        </div>
-                      </div>
-
-                      {/* Meta info */}
-                      <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground mb-2">
-                        {movie.releaseDate && (
-                          <span>{new Date(movie.releaseDate).getFullYear()}</span>
-                        )}
-                        {movie.runtime && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {movie.runtime}m
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                          {movie.voteAverage.toFixed(1)}
-                        </span>
-                      </div>
-
-                      {/* Genres - Fewer on mobile */}
-                      <div className="flex flex-wrap gap-1 mb-2 sm:mb-3">
-                        {movie.genres.slice(0, 3).map((genre) => (
-                          <span
-                            key={genre.id}
-                            className="px-1.5 sm:px-2 py-0.5 rounded-full bg-muted text-[10px] sm:text-xs text-muted-foreground"
-                          >
-                            {genre.name}
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Overview - Hidden on mobile, shown on larger screens */}
-                      <p className="hidden sm:block text-sm text-muted-foreground line-clamp-2 mb-3">
-                        {movie.overview}
-                      </p>
-
-                      {/* Reasoning */}
-                      {movie.reasoning.length > 0 && (
-                        <div className="flex items-start gap-1.5 sm:gap-2 text-[10px] sm:text-xs">
-                          <Info className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-accent flex-shrink-0 mt-0.5" />
-                          <p className="text-muted-foreground line-clamp-2">
-                            {movie.reasoning.slice(0, 2).join(" • ")}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Parental Guide Warnings */}
-                      {movie.parentalGuide && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {movie.parentalGuide.violence && movie.parentalGuide.violence !== "None" && (
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${
-                              movie.parentalGuide.violence === "Severe" 
-                                ? "bg-red-500/20 text-red-400"
-                                : movie.parentalGuide.violence === "Moderate"
-                                  ? "bg-orange-500/20 text-orange-400"
-                                  : "bg-yellow-500/20 text-yellow-500"
-                            }`}>
-                              <Swords className="h-2.5 w-2.5" />
-                              Violence: {movie.parentalGuide.violence}
-                            </span>
-                          )}
-                          {movie.parentalGuide.sexNudity && movie.parentalGuide.sexNudity !== "None" && (
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${
-                              movie.parentalGuide.sexNudity === "Severe" 
-                                ? "bg-red-500/20 text-red-400"
-                                : movie.parentalGuide.sexNudity === "Moderate"
-                                  ? "bg-orange-500/20 text-orange-400"
-                                  : "bg-yellow-500/20 text-yellow-500"
-                            }`}>
-                              <Heart className="h-2.5 w-2.5" />
-                              Sex/Nudity: {movie.parentalGuide.sexNudity}
-                            </span>
-                          )}
-                          {movie.parentalGuide.profanity && movie.parentalGuide.profanity !== "None" && (
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${
-                              movie.parentalGuide.profanity === "Severe" 
-                                ? "bg-red-500/20 text-red-400"
-                                : movie.parentalGuide.profanity === "Moderate"
-                                  ? "bg-orange-500/20 text-orange-400"
-                                  : "bg-yellow-500/20 text-yellow-500"
-                            }`}>
-                              <Volume2 className="h-2.5 w-2.5" />
-                              Language: {movie.parentalGuide.profanity}
-                            </span>
-                          )}
-                          {movie.parentalGuide.alcoholDrugsSmoking && movie.parentalGuide.alcoholDrugsSmoking !== "None" && (
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${
-                              movie.parentalGuide.alcoholDrugsSmoking === "Severe" 
-                                ? "bg-red-500/20 text-red-400"
-                                : movie.parentalGuide.alcoholDrugsSmoking === "Moderate"
-                                  ? "bg-orange-500/20 text-orange-400"
-                                  : "bg-yellow-500/20 text-yellow-500"
-                            }`}>
-                              <Wine className="h-2.5 w-2.5" />
-                              Substances: {movie.parentalGuide.alcoholDrugsSmoking}
-                            </span>
-                          )}
-                          {movie.parentalGuide.frighteningIntense && movie.parentalGuide.frighteningIntense !== "None" && (
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${
-                              movie.parentalGuide.frighteningIntense === "Severe" 
-                                ? "bg-red-500/20 text-red-400"
-                                : movie.parentalGuide.frighteningIntense === "Moderate"
-                                  ? "bg-orange-500/20 text-orange-400"
-                                  : "bg-yellow-500/20 text-yellow-500"
-                            }`}>
-                              <Ghost className="h-2.5 w-2.5" />
-                              Intense: {movie.parentalGuide.frighteningIntense}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Seen By Warning */}
-                      {movie.seenBy.length > 0 && (
-                        <div className="mt-1.5 sm:mt-2 text-[10px] sm:text-xs text-amber-500/80">
-                          ⚠️ {movie.seenBy.slice(0, 2).join(", ")}{movie.seenBy.length > 2 ? ` +${movie.seenBy.length - 2}` : ""} may have seen this
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Action Footer */}
-                  <div className="flex items-center justify-end gap-2 px-3 sm:px-4 py-2 sm:py-3 border-t border-border/30 bg-muted/30">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1.5 h-8 text-xs sm:text-sm"
-                      onClick={() =>
-                        window.open(
-                          `https://www.themoviedb.org/movie/${movie.tmdbId}`,
-                          "_blank"
-                        )
-                      }
-                    >
-                      <ExternalLink className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                      <span className="hidden sm:inline">TMDB</span>
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="gap-1.5 h-8 text-xs sm:text-sm"
-                      onClick={() => {
-                        window.location.href = `/movies/${movie.tmdbId}`
-                      }}
-                    >
-                      <Film className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                      View Details
-                    </Button>
-                  </div>
-                </div>
+              {results.recommendations.map((movie, index) => (
+                <RecommendationCard key={movie.tmdbId} movie={movie} index={index} />
               ))}
             </div>
           )}
@@ -1057,7 +1248,7 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
       )}
       {/* Sticky Results Buttons */}
       {step === "results" && results && (
-        <div className="sticky bottom-20 lg:bottom-0 z-10 pt-3 pb-2 -mx-4 px-4 bg-gradient-to-t from-background via-background to-transparent">
+        <div className={`sticky ${isFullscreenMobile ? "bottom-0" : "bottom-20 lg:bottom-0"} z-10 pt-3 pb-2 ${isFullscreenMobile ? "" : "-mx-4 px-4"} bg-gradient-to-t from-background via-background to-transparent`}>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setStep("mood")}
@@ -1090,6 +1281,7 @@ export function TonightsPick({ collectiveId, currentUserId }: Props) {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { createTMDBClient, TMDBClient } from "@/lib/tmdb/client"
 import { getParentalGuideBatch, type ParentalGuideResult } from "@/lib/parental-guide/parental-guide-service"
 import { batchGetCachedOmdbScores, getMoviesNeedingOmdbFetch, backgroundFetchOmdbBatch, type CachedOmdbScores } from "@/lib/omdb/omdb-cache"
 import { calculateCompositeQualityScore, getQualityBonus, getAcclaimedMoodBonus } from "@/lib/recommendations/quality-score"
+import { generateRecommendationReasoning, getLovedMovies, getDislikedMovies } from "@/lib/recommendations/reasoning-service"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -97,6 +98,7 @@ export type TonightPickRequest = {
   page?: number // For pagination/shuffle - different pages return different results
   era?: string | null // e.g. "1980s", "1990s" — filters to that decade
   startYear?: number | null // e.g. 2000 — only movies from this year onwards
+  streamingProviders?: number[] | null // TMDB watch provider IDs to filter by
   includeTV?: boolean
 }
 
@@ -118,6 +120,7 @@ export type SoloTonightPickRequest = {
   page?: number
   era?: string | null
   startYear?: number | null
+  streamingProviders?: number[] | null
 }
 
 export type SoloTonightPickResponse = {
@@ -795,14 +798,17 @@ type FetchAndScoreOptions = {
   soloMode?: boolean
   era?: string | null
   startYear?: number | null
+  streamingProviders?: number[] | null
 }
 
 async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   recommendations: MovieRecommendation[]
   genres: GenrePreference[]
   totalRatings: number
+  lovedMovies: { title: string; avgScore: number }[]
+  dislikedMovies: { title: string; avgScore: number }[]
 }> {
-  const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, soloMode = false, era, startYear } = options
+  const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, soloMode = false, era, startYear, streamingProviders } = options
 
   const pageOffset = (page - 1) * 3
 
@@ -858,6 +864,13 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     filterPressure += activeParentalFilters * 0.5
   }
 
+  if (streamingProviders && streamingProviders.length > 0) {
+    // Streaming filter is quite restrictive — pressure scales with fewer services
+    if (streamingProviders.length <= 2) filterPressure += 3
+    else if (streamingProviders.length <= 4) filterPressure += 2
+    else filterPressure += 1
+  }
+
   const pressureTier = filterPressure <= 3 ? "low"
                      : filterPressure <= 6 ? "medium"
                      : "high"
@@ -893,6 +906,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     era: era || startYear || "none",
     maxRuntime: maxRuntime || "none",
     contentRating: contentRating || "none",
+    streamingProviders: streamingProviders?.length || 0,
     totalSeen,
     voteCountFloor,
     voteAverageFloor,
@@ -955,6 +969,15 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     discoverOptions.primaryReleaseDateLte = eraDateRange.primaryReleaseDateLte
   }
 
+  // Streaming provider filter — applied to all discover calls
+  const streamingParams: { withWatchProviders?: string; watchRegion?: string; withWatchMonetizationTypes?: string } = {}
+  if (streamingProviders && streamingProviders.length > 0) {
+    streamingParams.withWatchProviders = streamingProviders.join("|")
+    streamingParams.watchRegion = "US"
+    streamingParams.withWatchMonetizationTypes = "flatrate"
+    Object.assign(discoverOptions, streamingParams)
+  }
+
   // ── Phase 2: Crew affinities + collab recs + TMDB discovers in parallel ──
   const seenTmdbIds = new Set(seenMovies.keys())
 
@@ -971,18 +994,20 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
       ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
       ...eraDateRange,
+      ...streamingParams,
     }),
   ]
 
   if (!contentRating) {
-    if (eraDateRange.primaryReleaseDateGte || eraDateRange.primaryReleaseDateLte) {
+    if (eraDateRange.primaryReleaseDateGte || eraDateRange.primaryReleaseDateLte || streamingParams.withWatchProviders) {
+      // When streaming, era, or date filters are active, use discover endpoint (popular/top-rated endpoints don't support these params)
       tmdbDiscoverPromises.push(
-        tmdb.discoverMovies({ sortBy: "popularity.desc", page: 1 + pageOffset, voteCountGte: voteCountFloor, ...eraDateRange }),
-        tmdb.discoverMovies({ sortBy: "popularity.desc", page: 2 + pageOffset, voteCountGte: voteCountFloor, ...eraDateRange }),
+        tmdb.discoverMovies({ sortBy: "popularity.desc", page: 1 + pageOffset, voteCountGte: voteCountFloor, ...eraDateRange, ...streamingParams }),
+        tmdb.discoverMovies({ sortBy: "popularity.desc", page: 2 + pageOffset, voteCountGte: voteCountFloor, ...eraDateRange, ...streamingParams }),
       )
       if (!maxRuntime) {
         tmdbDiscoverPromises.push(
-          tmdb.discoverMovies({ sortBy: "vote_average.desc", page: 1 + pageOffset, voteAverageGte: Math.max(voteAverageFloor, 7.0), voteCountGte: Math.max(voteCountFloor, 300), ...eraDateRange }),
+          tmdb.discoverMovies({ sortBy: "vote_average.desc", page: 1 + pageOffset, voteAverageGte: Math.max(voteAverageFloor, 7.0), voteCountGte: Math.max(voteCountFloor, 300), ...eraDateRange, ...streamingParams }),
         )
       }
     } else {
@@ -1067,6 +1092,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
       ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
       ...eraDateRange,
+      ...streamingParams,
     })
     candidateMovies.push(...genrelessDiscover.results)
   }
@@ -1125,6 +1151,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
       ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
       ...eraDateRange,
+      ...streamingParams,
     }
 
     for (let p = 1; p <= 5; p++) {
@@ -1311,13 +1338,16 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   // ── Franchise deduplication ──
   // Keep only the highest-scoring movie from each franchise to prevent sequel flooding
   scoredMovies = deduplicateFranchises(scoredMovies)
+  console.log(`[Recommendations] Post-dedup pool: ${scoredMovies.length} movies`)
 
-  // ── Phase 6: Parental guide filtering ──
+  // ── Phase 6: Parental guide filtering + taste context (parallel) ──
   let candidates = scoredMovies.slice(0, 50)
 
-  const parentalGuideData = await getParentalGuideBatch(
-    candidates.map(m => ({ tmdbId: m.tmdbId }))
-  )
+  const [parentalGuideData, lovedMovies, dislikedMovies] = await Promise.all([
+    getParentalGuideBatch(candidates.map(m => ({ tmdbId: m.tmdbId }))),
+    getLovedMovies(memberIds),
+    getDislikedMovies(memberIds),
+  ])
 
   const hasParentalFilters = parentalFilters && (
     parentalFilters.maxViolence ||
@@ -1352,10 +1382,10 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
     filteredMovies.push(movie)
 
-    if (filteredMovies.length >= 12) break
+    if (filteredMovies.length >= 10) break
   }
 
-  const finalResults = filteredMovies.slice(0, 12)
+  const finalResults = filteredMovies.slice(0, 10)
 
   // ── Background OMDb fetch trigger ──
   // Fire-and-forget: find scored movies missing OMDb data and fetch in background
@@ -1375,6 +1405,8 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     recommendations: finalResults,
     genres: groupGenres.slice(0, 5),
     totalRatings: groupGenres.reduce((sum, g) => sum + g.ratingCount, 0),
+    lovedMovies,
+    dislikedMovies,
   }
 }
 
@@ -1383,7 +1415,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 // ============================================
 
 export async function getTonightsPick(request: TonightPickRequest): Promise<TonightPickResponse> {
-  const { collectiveId, memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear } = request
+  const { collectiveId, memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders } = request
 
   // Validate members belong to the collective
   const validMembers = await sql`
@@ -1409,7 +1441,25 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     page,
     era,
     startYear,
+    streamingProviders,
   })
+
+  // Generate LLM reasoning (post-processing — does not affect ranking)
+  const llmReasoning = await generateRecommendationReasoning({
+    recommendations: result.recommendations,
+    lovedMovies: result.lovedMovies,
+    dislikedMovies: result.dislikedMovies,
+    mood: mood || null,
+    soloMode: false,
+    memberCount: validMemberIds.length,
+  })
+
+  for (const rec of result.recommendations) {
+    const llmText = llmReasoning.get(rec.tmdbId)
+    if (llmText) {
+      rec.reasoning = [llmText]
+    }
+  }
 
   return {
     recommendations: result.recommendations,
@@ -1426,7 +1476,7 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
 // ============================================
 
 export async function getSoloTonightsPick(request: SoloTonightPickRequest): Promise<SoloTonightPickResponse> {
-  const { userId, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear } = request
+  const { userId, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders } = request
 
   // Validate user exists
   const userResult = await sql`SELECT id FROM users WHERE id = ${userId}::uuid`
@@ -1444,7 +1494,25 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
     soloMode: true,
     era,
     startYear,
+    streamingProviders,
   })
+
+  // Generate LLM reasoning (post-processing — does not affect ranking)
+  const llmReasoning = await generateRecommendationReasoning({
+    recommendations: result.recommendations,
+    lovedMovies: result.lovedMovies,
+    dislikedMovies: result.dislikedMovies,
+    mood: mood || null,
+    soloMode: true,
+    memberCount: 1,
+  })
+
+  for (const rec of result.recommendations) {
+    const llmText = llmReasoning.get(rec.tmdbId)
+    if (llmText) {
+      rec.reasoning = [llmText]
+    }
+  }
 
   return {
     recommendations: result.recommendations,

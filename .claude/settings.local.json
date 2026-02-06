@@ -20,7 +20,12 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: give discussion chat a bounded height so scroll works on mobile\n\nThe ChatThread''s messages container needs a fixed-height parent to create\nan independent scroll context. Without it, scrollToBottom\\(\\) has no effect\nbecause the container isn''t actually scrollable. Set the wrapper to\ncalc\\(100vh - header - tabs\\) and add a keyboard-open scroll trigger.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git fetch:*)",
       "Bash(findstr:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.themoviedb.org)",
+      "WebFetch(domain:devliz.mintlify.app)",
+      "WebFetch(domain:image.tmdb.org)"
     ]
   }
 }

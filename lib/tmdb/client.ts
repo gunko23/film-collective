@@ -188,6 +188,26 @@ export type TMDBMultiSearchResponse = {
   total_results: number
 }
 
+export type TMDBWatchProvider = {
+  logo_path: string
+  provider_id: number
+  provider_name: string
+  display_priority: number
+}
+
+export type TMDBWatchProviderCountryResult = {
+  link: string  // JustWatch deep link
+  flatrate?: TMDBWatchProvider[]     // subscription streaming
+  rent?: TMDBWatchProvider[]         // rental
+  buy?: TMDBWatchProvider[]          // purchase
+  ads?: TMDBWatchProvider[]          // free with ads
+}
+
+export type TMDBWatchProvidersResponse = {
+  id: number
+  results: Record<string, TMDBWatchProviderCountryResult>
+}
+
 class TMDBClient {
   private apiKey: string
 
@@ -314,6 +334,9 @@ class TMDBClient {
       certificationLte?: string
       primaryReleaseDateGte?: string
       primaryReleaseDateLte?: string
+      withWatchProviders?: string   // pipe-separated provider IDs e.g. "8|337|9"
+      watchRegion?: string          // ISO 3166-1 country code e.g. "US"
+      withWatchMonetizationTypes?: string // "flatrate", "rent", "buy", "ads", or combo "flatrate|ads"
     } = {},
   ): Promise<TMDBMovieListResponse> {
     const params: Record<string, string> = {}
@@ -328,6 +351,9 @@ class TMDBClient {
     if (options.certificationLte) params["certification.lte"] = options.certificationLte
     if (options.primaryReleaseDateGte) params["primary_release_date.gte"] = options.primaryReleaseDateGte
     if (options.primaryReleaseDateLte) params["primary_release_date.lte"] = options.primaryReleaseDateLte
+    if (options.withWatchProviders) params.with_watch_providers = options.withWatchProviders
+    if (options.watchRegion) params.watch_region = options.watchRegion
+    if (options.withWatchMonetizationTypes) params.with_watch_monetization_types = options.withWatchMonetizationTypes
 
     return this.fetch<TMDBMovieListResponse>("/discover/movie", params)
   }
@@ -373,6 +399,11 @@ class TMDBClient {
       query,
       page: page.toString(),
     })
+  }
+
+  // Get movie watch providers (streaming, rental, purchase)
+  async getMovieWatchProviders(movieId: number): Promise<TMDBWatchProvidersResponse> {
+    return this.fetch<TMDBWatchProvidersResponse>(`/movie/${movieId}/watch/providers`)
   }
 
   // Multi search for movies, TV shows, and people
@@ -444,6 +475,13 @@ export async function getTVSeasonDetails(tvId: number, seasonNumber: number): Pr
   const client = createTMDBClient()
   if (!client) return null
   return client.getTVSeasonDetails(tvId, seasonNumber)
+}
+
+export async function getMovieWatchProviders(movieId: number, country: string = "US"): Promise<TMDBWatchProviderCountryResult | null> {
+  const client = createTMDBClient()
+  if (!client) return null
+  const response = await client.getMovieWatchProviders(movieId)
+  return response.results[country] || null
 }
 
 export { TMDBClient }
