@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { stackServerApp } from "@/stack"
-import { getTonightsPick, getCollectiveMembersForPick } from "@/lib/recommendations/tonight-pick-service"
+import { getTonightsPick, getCollectiveMembersForPick } from "@/lib/recommendations/recommendation-service"
 import { getCollectiveForUser } from "@/lib/collectives/collective-service"
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -44,7 +44,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const body = await request.json()
-    const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page } = body
+    const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page, era, startYear } = body
 
     if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
       return NextResponse.json({ error: "At least one member must be selected" }, { status: 400 })
@@ -59,6 +59,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       contentRating: contentRating || null,
       parentalFilters: parentalFilters || null,
       page: page || 1,
+      era: era || null,
+      startYear: startYear || null,
     })
 
     return NextResponse.json(result)
