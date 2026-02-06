@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 
 type AvatarSize = "xs" | "sm" | "md" | "lg"
 
-const AvatarContext = React.createContext<{ size: AvatarSize; color?: string }>({
+const AvatarContext = React.createContext<{ size: AvatarSize; color?: string; gradient?: [string, string] }>({
   size: "sm",
 })
 
@@ -29,13 +29,15 @@ function Avatar({
   className,
   size = "sm",
   color,
+  gradient,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Root> & {
   size?: AvatarSize
   color?: string
+  gradient?: [string, string]
 }) {
   return (
-    <AvatarContext.Provider value={{ size, color }}>
+    <AvatarContext.Provider value={{ size, color, gradient }}>
       <AvatarPrimitive.Root
         data-slot="avatar"
         className={cn(
@@ -67,17 +69,29 @@ function AvatarFallback({
   style,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Fallback>) {
-  const { size, color } = React.useContext(AvatarContext)
+  const { size, color, gradient } = React.useContext(AvatarContext)
+
+  const gradientStyle = gradient
+    ? {
+        background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})`,
+        color: "#0f0d0b",
+        boxShadow: `0 2px 12px ${gradient[0]}22`,
+        ...style,
+      }
+    : color
+      ? { backgroundColor: color, ...style }
+      : style
+
   return (
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "flex size-full items-center justify-center rounded-full font-medium",
-        !color && "bg-surface-light text-cream",
+        "flex size-full items-center justify-center rounded-full font-bold",
+        !color && !gradient && "bg-surface-light text-cream",
         fallbackTextClasses[size],
         className,
       )}
-      style={color ? { backgroundColor: color, ...style } : style}
+      style={gradientStyle}
       {...props}
     />
   )

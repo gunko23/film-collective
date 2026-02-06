@@ -14,22 +14,36 @@ function Card({
   className,
   padding = "default",
   accent = false,
+  accentColor,
   ...props
 }: React.ComponentProps<"div"> & {
   padding?: CardPadding
   accent?: boolean
+  accentColor?: string
 }) {
   return (
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-2xl border border-border shadow-card",
+        "bg-card text-card-foreground flex flex-col gap-6 rounded-[14px] border border-cream-faint/[0.05] shadow-card relative transition-all duration-[400ms]",
         accent && "border-accent/25",
         paddingClasses[padding],
         className,
       )}
       {...props}
-    />
+    >
+      {accent && (
+        <div
+          className="absolute top-0 left-0 right-0 h-[2px] rounded-t-[14px]"
+          style={{
+            background: accentColor
+              ? `linear-gradient(to right, ${accentColor}, transparent)`
+              : "linear-gradient(to right, var(--fc-orange), transparent)",
+          }}
+        />
+      )}
+      {props.children}
+    </div>
   )
 }
 

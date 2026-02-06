@@ -59,8 +59,8 @@ function ChevronDownIcon({ color, size = 18 }: IconProps) {
   )
 }
 
-const ACTIVE_ICON = "#e07850"
-const INACTIVE_ICON = "rgba(248,246,241,0.25)"
+const ACTIVE_ICON = "#ff6b2d"
+const INACTIVE_ICON = "#6b6358"
 
 const tabs: { id: FilmDetailTab; label: string; Icon: typeof InfoIcon }[] = [
   { id: "info", label: "Info", Icon: InfoIcon },
@@ -81,14 +81,14 @@ export function FilmStickyHeader({
     <div
       className={cn(
         "bg-background z-50 transition-shadow duration-200",
-        isSticky && "fixed top-0 left-0 right-0 border-b border-foreground/[0.06] shadow-[0_4px_20px_rgba(0,0,0,0.3)]",
+        isSticky && "fixed top-0 left-0 right-0 border-b border-cream-faint/[0.06] shadow-[0_4px_20px_rgba(0,0,0,0.3)]",
         className,
       )}
     >
       {/* Collective context bar */}
       <div
         className={cn(
-          "mx-5 flex items-center gap-2.5 px-3.5 py-2.5 bg-surface rounded-[10px] border border-foreground/[0.04] cursor-pointer",
+          "mx-5 flex items-center gap-2.5 px-3.5 py-2.5 bg-card rounded-[10px] border border-cream-faint/[0.04] cursor-pointer",
           isSticky ? "my-3" : "mb-3",
         )}
         role="button"
@@ -108,11 +108,11 @@ export function FilmStickyHeader({
           <span style={{ fontSize: "14px" }}>{collective.icon}</span>
         </div>
         <p className="flex-1 text-[13px] font-medium text-cream truncate">{collective.name}</p>
-        <ChevronDownIcon color="rgba(248,246,241,0.25)" size={18} />
+        <ChevronDownIcon color="#6b6358" size={18} />
       </div>
 
       {/* Tab bar */}
-      <div className="px-5 border-b border-foreground/[0.08]">
+      <div className="px-5 border-b border-cream-faint/[0.08]">
         <div className="flex">
           {tabs.map(({ id, label, Icon }) => {
             const isActive = activeTab === id
@@ -125,8 +125,8 @@ export function FilmStickyHeader({
                 className={cn(
                   "flex items-center gap-1.5 px-3.5 py-3 -mb-px border-b-2 transition-colors",
                   isActive
-                    ? "border-accent text-cream"
-                    : "border-transparent text-foreground/50 hover:text-foreground/70",
+                    ? "border-orange text-cream"
+                    : "border-transparent text-cream-faint/50 hover:text-cream-faint/70",
                 )}
               >
                 <Icon color={isActive ? ACTIVE_ICON : INACTIVE_ICON} size={16} />
@@ -135,7 +135,7 @@ export function FilmStickyHeader({
                   <span
                     className={cn(
                       "px-1.5 py-0.5 rounded-[10px] text-[11px]",
-                      isActive ? "bg-accent/20 text-accent" : "bg-surface-light text-foreground/50",
+                      isActive ? "bg-orange/20 text-orange" : "bg-card text-cream-faint/50",
                     )}
                   >
                     {discussionCount}

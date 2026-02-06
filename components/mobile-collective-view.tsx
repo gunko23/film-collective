@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -14,10 +14,33 @@ import { SectionLabel } from "@/components/ui/section-label"
 import { getImageUrl } from "@/lib/tmdb/image"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { formatDistanceToNow } from "date-fns"
+import { CollectiveBadge, getCollectiveGradient, getCollectiveInitials } from "@/components/soulframe/collective-badge"
+import { LogFilmFAB } from "@/components/soulframe/fab"
+
+// ─── Color helpers ──────────────────────────────────────────
+
+const MEMBER_COLORS: [string, string][] = [
+  ["#4a9e8e", "#6bc4b4"], // teal
+  ["#c4616a", "#d88088"], // rose
+  ["#ff6b2d", "#ff8f5e"], // orange
+  ["#3d5a96", "#5a7cb8"], // blue
+  ["#2e4470", "#5a7cb8"], // muted blue
+]
+
+const FILM_COLORS = [
+  "#ff6b2d", "#ff8f5e", "#3d5a96", "#4a9e8e", "#2e4470",
+  "#c4616a", "#ff6b2d", "#cc5624", "#6b6358",
+]
+
+function getMemberColor(name: string): [string, string] {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return MEMBER_COLORS[Math.abs(hash) % MEMBER_COLORS.length]
+}
 
 // ─── Icons ──────────────────────────────────────────────────
 
-function BackIcon({ color = "#f8f6f1", size = 22 }: { color?: string; size?: number }) {
+function BackIcon({ color = "#e8e2d6", size = 22 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M19 12H5M12 19L5 12L12 5" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -25,7 +48,7 @@ function BackIcon({ color = "#f8f6f1", size = 22 }: { color?: string; size?: num
   )
 }
 
-function FeedIcon({ color = "#f8f6f1", size = 18 }: { color?: string; size?: number }) {
+function FeedIcon({ color = "#e8e2d6", size = 18 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M3 9.5L12 3L21 9.5" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -34,7 +57,7 @@ function FeedIcon({ color = "#f8f6f1", size = 18 }: { color?: string; size?: num
   )
 }
 
-function ChatIcon({ color = "#f8f6f1", size = 18 }: { color?: string; size?: number }) {
+function ChatIcon({ color = "#e8e2d6", size = 18 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M21 12C21 16.4183 16.9706 20 12 20C10.4607 20 9.01172 19.6565 7.74467 19.0511L3 20L4.39499 16.28C3.51156 15.0423 3 13.5743 3 12C3 7.58172 7.02944 4 12 4C16.9706 4 21 7.58172 21 12Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
@@ -43,7 +66,7 @@ function ChatIcon({ color = "#f8f6f1", size = 18 }: { color?: string; size?: num
   )
 }
 
-function FilmIcon({ color = "#f8f6f1", size = 18 }: { color?: string; size?: number }) {
+function FilmIcon({ color = "#e8e2d6", size = 18 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <rect x="2" y="4" width="20" height="16" rx="2" stroke={color} strokeWidth="1.5" />
@@ -52,7 +75,7 @@ function FilmIcon({ color = "#f8f6f1", size = 18 }: { color?: string; size?: num
   )
 }
 
-function InsightsIcon({ color = "#f8f6f1", size = 18 }: { color?: string; size?: number }) {
+function InsightsIcon({ color = "#e8e2d6", size = 18 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M4 20V14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
@@ -67,7 +90,24 @@ function InsightsIcon({ color = "#f8f6f1", size = 18 }: { color?: string; size?:
   )
 }
 
-function TonightsPickIcon({ color = "#e07850", size = 20 }: { color?: string; size?: number }) {
+function SearchIcon({ color = "#e8e2d6", size = 14 }: { color?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.35-4.35" />
+    </svg>
+  )
+}
+
+function PlusIcon({ color = "#6b6358", size = 16 }: { color?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+function TonightsPickIcon({ color = "#ff6b2d", size = 20 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
@@ -76,10 +116,18 @@ function TonightsPickIcon({ color = "#e07850", size = 20 }: { color?: string; si
   )
 }
 
-function DiscussionIcon({ color = "#f8f6f1", size = 20 }: { color?: string; size?: number }) {
+function DiscussionIcon({ color = "#e8e2d6", size = 20 }: { color?: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M21 12C21 16.4183 16.9706 20 12 20C10.4607 20 9.01172 19.6565 7.74467 19.0511L3 20L4.39499 16.28C3.51156 15.0423 3 13.5743 3 12C3 7.58172 7.02944 4 12 4C16.9706 4 21 7.58172 21 12Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function StarIcon({ filled = false, size = 12 }: { filled?: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? "#ff6b2d" : "none"} stroke={filled ? "#ff6b2d" : "rgba(107,99,88,0.35)"} strokeWidth="2">
+      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
     </svg>
   )
 }
@@ -170,14 +218,22 @@ const REACTION_EMOJI_MAP: Record<string, string> = {
   celebrate: "\uD83C\uDF89",
 }
 
-// ─── Tab Bar Component ──────────────────────────────────────
+const EASING = "cubic-bezier(0.16, 1, 0.3, 1)"
 
-function CollectiveTabBar({
+// ─── Pill Tab Bar ───────────────────────────────────────────
+
+function PillTabBar({
   activeTab,
-  onTabChange
+  onTabChange,
+  iconSize = 13,
+  fontSize = "13px",
+  padding = "9px 16px",
 }: {
   activeTab: CollectiveTab
   onTabChange: (tab: CollectiveTab) => void
+  iconSize?: number
+  fontSize?: string
+  padding?: string
 }) {
   const tabs: { id: CollectiveTab; label: string; Icon: typeof FeedIcon }[] = [
     { id: "feed", label: "Feed", Icon: FeedIcon },
@@ -187,8 +243,8 @@ function CollectiveTabBar({
   ]
 
   return (
-    <div className="border-b border-foreground/[0.06]">
-      <div className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <>
+      <div style={{ display: "flex", gap: 6, padding: "20px 24px 0" }}>
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id
           return (
@@ -196,65 +252,35 @@ function CollectiveTabBar({
               key={tab.id}
               type="button"
               onClick={() => onTabChange(tab.id)}
-              className="flex items-center gap-2 px-4 py-3 whitespace-nowrap transition-colors"
               style={{
-                borderBottom: isActive ? "2px solid #e07850" : "2px solid transparent",
-                marginBottom: "-1px",
-                color: isActive ? "#f8f6f1" : "rgba(248,246,241,0.5)",
+                padding,
+                borderRadius: 22,
+                fontSize,
+                fontWeight: isActive ? 500 : 400,
+                background: isActive
+                  ? "linear-gradient(135deg, rgba(61,90,150,0.13), rgba(255,107,45,0.06))"
+                  : "transparent",
+                color: isActive ? "#e8e2d6" : "#6b6358",
+                border: `1px solid ${isActive ? "rgba(61,90,150,0.16)" : "transparent"}`,
+                transition: `all 0.35s ${EASING}`,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                cursor: "pointer",
+                whiteSpace: "nowrap" as const,
               }}
             >
-              <tab.Icon color={isActive ? "#e07850" : "rgba(248,246,241,0.4)"} size={18} />
-              <span className={`text-sm ${isActive ? "font-medium" : "font-normal"}`}>{tab.label}</span>
+              <tab.Icon color={isActive ? "#e8e2d6" : "rgba(107,99,88,0.7)"} size={iconSize} />
+              {tab.label}
             </button>
           )
         })}
       </div>
-    </div>
-  )
-}
-
-// ─── Main Component ─────────────────────────────────────────
-
-// ─── Desktop Tab Bar ─────────────────────────────────────────
-
-function DesktopTabBar({
-  activeTab,
-  onTabChange
-}: {
-  activeTab: CollectiveTab
-  onTabChange: (tab: CollectiveTab) => void
-}) {
-  const tabs: { id: CollectiveTab; label: string; Icon: typeof FeedIcon }[] = [
-    { id: "feed", label: "Feed", Icon: FeedIcon },
-    { id: "chat", label: "Chat", Icon: ChatIcon },
-    { id: "films", label: "Films", Icon: FilmIcon },
-    { id: "insights", label: "Insights", Icon: InsightsIcon },
-  ]
-
-  return (
-    <div className="border-b border-foreground/[0.06] bg-background">
-      <div className="flex gap-2 pt-6 px-12">
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onTabChange(tab.id)}
-              className="flex items-center gap-2 px-5 py-3.5 transition-colors"
-              style={{
-                borderBottom: isActive ? "2px solid #e07850" : "2px solid transparent",
-                marginBottom: "-1px",
-                color: isActive ? "#f8f6f1" : "rgba(248,246,241,0.5)",
-              }}
-            >
-              <tab.Icon color={isActive ? "#e07850" : "rgba(248,246,241,0.4)"} size={20} />
-              <span className={`text-[15px] ${isActive ? "font-medium" : "font-normal"}`}>{tab.label}</span>
-            </button>
-          )
-        })}
+      {/* Gradient divider */}
+      <div style={{ padding: "14px 24px 0" }}>
+        <div style={{ height: 1, background: "linear-gradient(to right, rgba(61,90,150,0.07), rgba(255,107,45,0.05), transparent)" }} />
       </div>
-    </div>
+    </>
   )
 }
 
@@ -280,6 +306,8 @@ export function MobileCollectiveView({
   const [recentActivity, setRecentActivity] = useState<Activity[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
   const [showMembersModal, setShowMembersModal] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Fetch recent activity for feed tab
   useEffect(() => {
@@ -310,120 +338,147 @@ export function MobileCollectiveView({
     } else {
       document.body.removeAttribute("data-tonights-pick-active")
     }
-
-    return () => {
-      document.body.removeAttribute("data-tonights-pick-active")
-    }
+    return () => { document.body.removeAttribute("data-tonights-pick-active") }
   }, [activeTab])
 
+  // Scroll tracking for mobile sticky nav
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 40)
+    }
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
+
   const roleText = userRole === "owner" ? "You're the owner" : "Member"
+  const badgeColors = getCollectiveGradient(0)
+  const badgeInitials = getCollectiveInitials(collectiveName)
 
   return (
     <div className="min-h-screen bg-background pb-20 lg:pb-0 lg:flex">
       {/* ─── Desktop Sidebar ─────────────────────────────── */}
-      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-[300px] lg:bg-surface lg:border-r lg:border-foreground/[0.06] lg:p-6">
-        {/* Back button */}
+      <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-[300px] lg:border-r lg:p-6"
+        style={{ background: "#1a1714", borderColor: "rgba(107,99,88,0.06)" }}
+      >
         <button
           type="button"
           onClick={() => router.push("/collectives")}
-          className="flex items-center gap-2.5 text-foreground/60 hover:text-foreground/80 transition-colors mb-6"
+          className="flex items-center gap-2.5 mb-6"
+          style={{ color: "#a69e90", transition: `color 0.2s` }}
         >
           <BackIcon size={20} color="currentColor" />
-          <span className="text-sm">Back to Dashboard</span>
+          <span style={{ fontSize: 14 }}>Back to Dashboard</span>
         </button>
 
-        {/* Collective header card */}
-        <div className="bg-surface-light rounded-2xl p-5 mb-6 text-center">
-          <div
-            className="size-[72px] rounded-[20px] flex items-center justify-center text-4xl mx-auto mb-4"
-            style={{
-              backgroundColor: "rgba(123, 140, 222, 0.15)",
-              border: "2px solid rgba(123, 140, 222, 0.3)",
-            }}
-          >
-            👥
+        {/* Collective header */}
+        <div className="flex items-center gap-3.5 mb-6 p-4 rounded-2xl" style={{ background: "rgba(107,99,88,0.06)" }}>
+          <CollectiveBadge initials={badgeInitials} colors={badgeColors} size={52} />
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#e8e2d6", letterSpacing: "-0.02em" }}>{collectiveName}</h2>
+            <p style={{ fontSize: 13, color: "#a69e90", marginTop: 2 }}>
+              {memberCount} member{memberCount !== 1 ? "s" : ""}
+              <span style={{ color: "rgba(107,99,88,0.4)", margin: "0 6px" }}>·</span>
+              <span style={{ color: "#3d5a96" }}>{roleText}</span>
+            </p>
           </div>
-          <h2 className="text-xl font-semibold text-cream mb-1">{collectiveName}</h2>
-          <p className="text-[13px] text-foreground/50">
-            {memberCount} member{memberCount !== 1 ? "s" : ""} · {roleText}
-          </p>
         </div>
 
         {/* Members list */}
         <div className="flex-1 overflow-y-auto">
-          <p className="text-[10px] tracking-[0.12em] uppercase text-foreground/40 mb-3">Members</p>
-          <div className="space-y-1.5">
-            {members.map((member) => (
-              <Link
-                key={member.id}
-                href={`/user/${member.id}`}
-                className="flex items-center gap-3 p-3 rounded-xl hover:bg-foreground/[0.04] transition-colors"
-              >
-                <Avatar size="md">
-                  <AvatarImage src={member.avatar_url || undefined} />
-                  <AvatarFallback>{(member.name || member.email)[0].toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-sm font-medium">{member.name || member.email}</p>
-                  <p className="text-[11px] text-foreground/45 capitalize">{member.role}</p>
-                </div>
-              </Link>
-            ))}
+          <p style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "#6b6358", marginBottom: 12 }}>Members</p>
+          <div className="space-y-1">
+            {members.map((member) => {
+              const name = member.name || member.email
+              const colors = getMemberColor(name)
+              return (
+                <Link
+                  key={member.id}
+                  href={`/user/${member.id}`}
+                  className="flex items-center gap-3 p-3 rounded-xl transition-colors"
+                  style={{ background: "transparent" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(107,99,88,0.04)" }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
+                >
+                  <div
+                    style={{
+                      width: 34, height: 34, borderRadius: "50%",
+                      background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 12, fontWeight: 700, color: "#0f0d0b",
+                      boxShadow: `0 2px 8px ${colors[0]}22`,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {name[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 500, color: "#e8e2d6" }}>{name}</p>
+                    <p style={{ fontSize: 11, color: "#6b6358", textTransform: "capitalize" as const }}>{member.role}</p>
+                  </div>
+                </Link>
+              )
+            })}
           </div>
         </div>
 
-        {/* Settings button */}
         <Link
           href={`/collectives/${collectiveId}/settings`}
-          className="flex items-center gap-2.5 p-3 text-foreground/50 hover:text-foreground/70 transition-colors"
+          className="flex items-center gap-2.5 p-3 transition-colors"
+          style={{ color: "#6b6358" }}
         >
           <Settings className="h-5 w-5" />
-          <span className="text-sm">Collective Settings</span>
+          <span style={{ fontSize: 14 }}>Collective Settings</span>
         </Link>
       </aside>
 
       {/* ─── Main Content Area (Desktop) ─────────────────── */}
       <main className="hidden lg:flex lg:flex-col lg:flex-1 lg:ml-[300px] lg:h-screen">
-        {/* Desktop Tab bar */}
-        <DesktopTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <div style={{ borderBottom: "1px solid rgba(107,99,88,0.06)", background: "#0f0d0b" }}>
+          <PillTabBar activeTab={activeTab} onTabChange={setActiveTab} iconSize={15} fontSize="15px" padding="10px 18px" />
+        </div>
 
-        {/* Desktop Tab Content */}
         <div className="flex-1 overflow-y-auto">
           {/* Feed Tab - Desktop */}
           {activeTab === "feed" && (
             <div className="p-8 px-12 max-w-[800px]">
               {/* Quick Actions */}
-              <div className="grid grid-cols-2 gap-4 mb-10">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("tonights-pick")}
-                  className="p-6 rounded-[14px] text-left flex items-center gap-4"
-                  style={{
-                    background: "linear-gradient(135deg, rgba(224, 120, 80, 0.15), rgba(224, 120, 80, 0.05))",
-                    border: "1px solid rgba(224, 120, 80, 0.25)",
-                  }}
-                >
-                  <div className="size-[52px] rounded-[14px] flex items-center justify-center bg-accent/20">
-                    <TonightsPickIcon color="#e07850" size={26} />
-                  </div>
-                  <div>
-                    <p className="text-base font-medium text-cream">Tonight's Pick</p>
-                    <p className="text-[13px] text-foreground/50 mt-0.5">Find something to watch together</p>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("chat")}
-                  className="p-6 rounded-[14px] text-left flex items-center gap-4 bg-surface border border-foreground/[0.06]"
-                >
-                  <div className="size-[52px] rounded-[14px] flex items-center justify-center bg-surface-light">
-                    <DiscussionIcon size={26} />
-                  </div>
-                  <div>
-                    <p className="text-base font-medium text-cream">Start Discussion</p>
-                    <p className="text-[13px] text-foreground/50 mt-0.5">Talk about a film you watched</p>
-                  </div>
-                </button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 40 }}>
+                {[
+                  { title: "Tonight's Pick", sub: "AI-powered suggestion", color: "#3d5a96", colorLight: "#5a7cb8", icon: "search" as const, tab: "tonights-pick" as CollectiveTab },
+                  { title: "Start Discussion", sub: "Share your thoughts", color: "#ff6b2d", colorLight: "#ff8f5e", icon: "chat" as const, tab: "chat" as CollectiveTab },
+                ].map((action, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setActiveTab(action.tab)}
+                    className="text-left relative"
+                    style={{
+                      padding: "20px 18px",
+                      borderRadius: 14,
+                      background: `linear-gradient(155deg, ${action.color}14, #1a1714)`,
+                      border: `1px solid ${action.color}18`,
+                      transition: `all 0.4s ${EASING}`,
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-2px)"
+                      e.currentTarget.style.borderColor = `${action.color}35`
+                      e.currentTarget.style.boxShadow = `0 8px 24px ${action.color}14`
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "none"
+                      e.currentTarget.style.borderColor = `${action.color}18`
+                      e.currentTarget.style.boxShadow = "none"
+                    }}
+                  >
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, borderRadius: "14px 14px 0 0", background: `linear-gradient(to right, ${action.color}, ${action.colorLight}50, transparent)` }} />
+                    <div style={{ width: 30, height: 30, borderRadius: "50%", background: `${action.color}15`, border: `1px solid ${action.color}22`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                      {action.icon === "search" ? <SearchIcon color={action.color} size={14} /> : <DiscussionIcon color={action.color} size={14} />}
+                    </div>
+                    <div style={{ fontSize: 16, color: "#e8e2d6", fontWeight: 600, lineHeight: 1.2, letterSpacing: "-0.02em" }}>{action.title}</div>
+                    <div style={{ fontSize: 12, color: "#a69e90", marginTop: 4 }}>{action.sub}</div>
+                  </button>
+                ))}
               </div>
 
               {/* Recent Activity */}
@@ -439,52 +494,63 @@ export function MobileCollectiveView({
                 }
                 if (othersActivity.length === 0) {
                   return (
-                    <div className="py-12 text-center bg-surface rounded-[14px] border border-foreground/[0.04]">
-                      <p className="text-sm text-foreground/50">No recent activity</p>
-                      <p className="text-xs text-foreground/[0.25] mt-1">Rate some films to get started</p>
+                    <div className="py-12 text-center" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
+                      <p style={{ fontSize: 14, color: "#6b6358" }}>No recent activity</p>
+                      <p style={{ fontSize: 12, color: "rgba(107,99,88,0.4)", marginTop: 4 }}>Rate some films to get started</p>
                     </div>
                   )
                 }
                 return (
-                  <div className="space-y-3">
-                    {othersActivity.slice(0, 8).map((item) => (
-                    <Link
-                      key={item.id}
-                      href={`/collectives/${collectiveId}/movie/${item.tmdb_id}/conversation`}
-                      className="flex items-start gap-3.5 p-5 bg-surface rounded-[14px] border border-foreground/[0.04] hover:border-foreground/[0.1] transition-colors"
-                    >
-                      <Avatar size="md">
-                        <AvatarImage src={item.user_avatar || undefined} />
-                        <AvatarFallback>{(item.user_name || "U")[0].toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[15px] leading-[1.4]">
-                          <span className="font-semibold">{item.user_name || "Someone"}</span>
-                          {item.activity_type === "comment" ? (
-                            <>
-                              <span className="text-foreground/60"> commented on </span>
-                              <span className="font-medium">{item.rating_owner_name}'s</span>
-                              <span className="text-foreground/60"> review</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="text-foreground/60"> reacted </span>
-                              <span>{REACTION_EMOJI_MAP[item.reaction_type || ""] || item.reaction_type}</span>
-                              <span className="text-foreground/60"> to </span>
-                              <span className="font-medium">{item.rating_owner_name}'s</span>
-                              <span className="text-foreground/60"> review</span>
-                            </>
-                          )}
-                        </p>
-                        {item.media_title && (
-                          <p className="text-[13px] text-foreground/40 mt-1 truncate">{item.media_title}</p>
-                        )}
-                        <p className="text-[12px] text-foreground/[0.25] mt-1">
-                          {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
+                  <div>
+                    {othersActivity.slice(0, 8).map((item) => {
+                      const name = item.user_name || "Someone"
+                      const colors = getMemberColor(name)
+                      return (
+                        <Link
+                          key={item.id}
+                          href={`/collectives/${collectiveId}/movie/${item.tmdb_id}/conversation`}
+                          className="flex items-start gap-3.5"
+                          style={{ padding: "14px 0", borderBottom: "1px solid rgba(107,99,88,0.05)" }}
+                        >
+                          <div
+                            style={{
+                              width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                              background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]}80)`,
+                              boxShadow: `0 2px 10px ${colors[0]}22`,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 13, fontWeight: 700, color: "#0f0d0b",
+                            }}
+                          >
+                            {name[0].toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 13.5, color: "#e8e2d6", lineHeight: 1.5 }}>
+                              <span style={{ fontWeight: 500 }}>{name}</span>{" "}
+                              {item.activity_type === "comment" ? (
+                                <>
+                                  <span style={{ color: "#a69e90" }}>commented on </span>
+                                  <span style={{ fontWeight: 500 }}>{item.rating_owner_name}&apos;s review</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span style={{ color: "#a69e90" }}>reacted </span>
+                                  <span>{REACTION_EMOJI_MAP[item.reaction_type || ""] || item.reaction_type}</span>
+                                  <span style={{ color: "#a69e90" }}> to </span>
+                                  <span style={{ fontWeight: 500 }}>{item.rating_owner_name}&apos;s review</span>
+                                </>
+                              )}
+                            </p>
+                            {item.media_title && (
+                              <div style={{ fontSize: 12, color: "#6b6358", marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontWeight: 500, color: "#a69e90" }}>{item.media_title}</span>
+                                <span style={{ color: "rgba(107,99,88,0.4)" }}>·</span>
+                                <span>{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
+                              </div>
+                            )}
+                          </div>
+                        </Link>
+                      )
+                    })}
                   </div>
                 )
               })()}
@@ -497,7 +563,8 @@ export function MobileCollectiveView({
               <button
                 type="button"
                 onClick={() => setActiveTab("feed")}
-                className="flex items-center gap-1.5 text-sm text-foreground/60 mb-6 hover:text-foreground/80 transition-colors"
+                className="flex items-center gap-1.5 text-sm mb-6 transition-colors"
+                style={{ color: "#a69e90" }}
               >
                 <BackIcon size={18} color="currentColor" />
                 Back to Feed
@@ -510,63 +577,64 @@ export function MobileCollectiveView({
           {activeTab === "chat" && (
             <div className="flex flex-col h-full">
               <div className="flex-1 max-w-[800px]">
-                <GeneralDiscussion
-                  collectiveId={collectiveId}
-                  currentUserId={currentUserId}
-                  currentUserName={currentUserName}
-                />
+                <GeneralDiscussion collectiveId={collectiveId} currentUserId={currentUserId} currentUserName={currentUserName} />
               </div>
             </div>
           )}
 
           {/* Films Tab - Desktop */}
           {activeTab === "films" && (
-            <div className="p-8 px-12">
-              <SectionLabel className="mb-5 block">
-                Films in this collective ({movieStats.length})
-              </SectionLabel>
-
+            <div style={{ padding: "20px 48px 24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+                <SectionLabel>Films in this Collective</SectionLabel>
+                <span style={{ fontSize: 12, color: "#a69e90" }}>{movieStats.length} films</span>
+              </div>
               {movieStats.length === 0 ? (
-                <div className="py-12 text-center bg-surface rounded-[14px] border border-foreground/[0.04]">
-                  <p className="text-sm text-foreground/50">No films rated yet</p>
-                  <p className="text-xs text-foreground/[0.25] mt-1">Rate your first film to see it here</p>
+                <div className="py-12 text-center" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
+                  <p style={{ fontSize: 14, color: "#6b6358" }}>No films rated yet</p>
+                  <p style={{ fontSize: 12, color: "rgba(107,99,88,0.4)", marginTop: 4 }}>Rate your first film to see it here</p>
                 </div>
               ) : (
-                <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
-                  {movieStats.map((movie) => (
-                    <Link
-                      key={movie.tmdb_id}
-                      href={`/collectives/${collectiveId}/movie/${movie.tmdb_id}/conversation`}
-                      className="block group"
-                    >
-                      <div className="aspect-[2/3] rounded-[10px] overflow-hidden bg-surface-light mb-3 ring-2 ring-transparent group-hover:ring-accent/30 transition-all">
-                        {movie.poster_path ? (
-                          <Image
-                            src={getImageUrl(movie.poster_path, "w342") || ""}
-                            alt={movie.title}
-                            width={342}
-                            height={513}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <FilmIcon color="rgba(248,246,241,0.2)" size={32} />
+                <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
+                  {movieStats.map((movie, i) => {
+                    const filmColor = FILM_COLORS[i % FILM_COLORS.length]
+                    const score = (movie.avg_score / 20).toFixed(1)
+                    return (
+                      <Link key={movie.tmdb_id} href={`/collectives/${collectiveId}/movie/${movie.tmdb_id}/conversation`} className="block group">
+                        <div
+                          className="relative"
+                          style={{
+                            width: "100%", aspectRatio: "2/3", borderRadius: 10, overflow: "hidden",
+                            border: "1px solid rgba(107,99,88,0.06)",
+                            transition: `all 0.4s ${EASING}`,
+                          }}
+                        >
+                          {/* Accent bar */}
+                          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, borderRadius: "10px 10px 0 0", background: `linear-gradient(to right, ${filmColor}50, transparent)`, zIndex: 2 }} />
+                          {movie.poster_path ? (
+                            <>
+                              <Image src={getImageUrl(movie.poster_path, "w342") || ""} alt={movie.title} width={342} height={513} className="w-full h-full object-cover" />
+                              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "70%", background: "linear-gradient(to top, rgba(10,9,8,0.85), transparent)", zIndex: 1 }} />
+                            </>
+                          ) : (
+                            <div style={{ width: "100%", height: "100%", background: `linear-gradient(155deg, ${filmColor}15, #1a1714 40%, #252119)`, display: "flex", flexDirection: "column" as const, justifyContent: "flex-end", padding: 10 }}>
+                              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "70%", background: "linear-gradient(to top, rgba(10,9,8,0.85), transparent)" }} />
+                            </div>
+                          )}
+                          <div style={{ position: "absolute", bottom: 10, left: 10, right: 10, zIndex: 2 }}>
+                            <div style={{ fontWeight: 600, fontSize: 12, color: "#e8e2d6", lineHeight: 1.25, letterSpacing: "-0.01em" }}>{movie.title}</div>
+                            {movie.release_date && (
+                              <div style={{ fontSize: 10, color: "#6b6358", marginTop: 2 }}>{new Date(movie.release_date).getFullYear()}</div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <p className="text-sm font-medium truncate mb-1">{movie.title}</p>
-                      <div className="flex items-center gap-2">
-                        {movie.release_date && (
-                          <span className="text-[13px] text-foreground/45">
-                            {new Date(movie.release_date).getFullYear()}
-                          </span>
-                        )}
-                        <span className="text-[13px] text-accent">
-                          ★ {(movie.avg_score / 20).toFixed(1)}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, paddingLeft: 2 }}>
+                          <StarIcon filled size={10} />
+                          <span style={{ fontSize: 11, color: "#a69e90", fontWeight: 600 }}>{score}</span>
+                        </div>
+                      </Link>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -575,7 +643,6 @@ export function MobileCollectiveView({
           {/* Insights Tab - Desktop */}
           {activeTab === "insights" && (
             <div className="p-8 px-12 max-w-[900px]">
-              {/* Stats Grid - 4 columns */}
               <div className="grid grid-cols-4 gap-4 mb-10">
                 {[
                   { label: "Films Rated", value: analytics.total_movies_rated },
@@ -583,53 +650,41 @@ export function MobileCollectiveView({
                   { label: "Avg Rating", value: analytics.avg_collective_score > 0 ? (analytics.avg_collective_score / 20).toFixed(1) : "—" },
                   { label: "Active Raters", value: analytics.active_raters },
                 ].map((stat, i) => (
-                  <div
-                    key={i}
-                    className="p-6 bg-surface rounded-[14px] border border-foreground/[0.04] text-center"
-                  >
-                    <p className="text-[32px] font-semibold text-cream mb-1">{stat.value}</p>
-                    <p className="text-[12px] text-foreground/45 uppercase tracking-[0.1em]">{stat.label}</p>
+                  <div key={i} className="p-6 text-center" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
+                    <p style={{ fontSize: 32, fontWeight: 600, color: "#e8e2d6", marginBottom: 4 }}>{stat.value}</p>
+                    <p style={{ fontSize: 12, color: "#6b6358", textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>{stat.label}</p>
                   </div>
                 ))}
               </div>
 
-              {/* Taste Compatibility */}
               {(() => {
-                // Filter to only show matches involving the current user
-                const myMatches = memberSimilarity.filter(
-                  match => match.user1_id === currentUserId || match.user2_id === currentUserId
-                )
+                const myMatches = memberSimilarity.filter(match => match.user1_id === currentUserId || match.user2_id === currentUserId)
                 if (myMatches.length === 0) return null
                 return (
                   <div className="mb-10">
                     <SectionLabel className="mb-4 block">Taste Compatibility</SectionLabel>
-                    <div className="bg-surface rounded-[14px] border border-foreground/[0.04] p-6 space-y-5">
+                    <div className="space-y-5 p-6" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
                       {myMatches.slice(0, 5).map((match, i) => {
                         const otherUserId = match.user1_id === currentUserId ? match.user2_id : match.user1_id
                         const otherUserName = match.user1_id === currentUserId ? match.user2_name : match.user1_name
-                        const member = members.find(m => m.id === otherUserId)
                         const score = Math.round(match.similarity_score * 100)
-
+                        const colors = getMemberColor(otherUserName || "U")
                         return (
                           <div key={i}>
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-3.5">
-                                <Avatar size="md">
-                                  <AvatarImage src={member?.avatar_url || undefined} />
-                                  <AvatarFallback>{(otherUserName || "U")[0].toUpperCase()}</AvatarFallback>
-                                </Avatar>
+                                <div style={{ width: 36, height: 36, borderRadius: "50%", background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#0f0d0b", boxShadow: `0 2px 8px ${colors[0]}22`, flexShrink: 0 }}>
+                                  {(otherUserName || "U")[0].toUpperCase()}
+                                </div>
                                 <div>
-                                  <p className="text-base font-medium">{otherUserName}</p>
-                                  <p className="text-[13px] text-foreground/45">Based on {analytics.total_movies_rated} shared films</p>
+                                  <p style={{ fontSize: 15, fontWeight: 500, color: "#e8e2d6" }}>{otherUserName}</p>
+                                  <p style={{ fontSize: 13, color: "#6b6358" }}>Based on {analytics.total_movies_rated} shared films</p>
                                 </div>
                               </div>
-                              <span className="text-2xl font-semibold text-cool">{score}%</span>
+                              <span style={{ fontSize: 22, fontWeight: 600, color: "#3d5a96" }}>{score}%</span>
                             </div>
-                            <div className="h-2 bg-surface-light rounded-full overflow-hidden">
-                              <div
-                                className="h-full rounded-full bg-cool"
-                                style={{ width: `${score}%` }}
-                              />
+                            <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(107,99,88,0.08)" }}>
+                              <div className="h-full rounded-full" style={{ width: `${score}%`, background: "#3d5a96" }} />
                             </div>
                           </div>
                         )
@@ -639,109 +694,126 @@ export function MobileCollectiveView({
                 )
               })()}
 
-              {/* Additional Insights */}
-              <div className="[&>*]:!px-0 [&>*]:!mx-0">
-                {insightsContent}
-              </div>
+              <div className="[&>*]:!px-0 [&>*]:!mx-0">{insightsContent}</div>
             </div>
           )}
         </div>
       </main>
 
-      {/* ─── Mobile Header ────────────────────────────────── */}
+      {/* ─── Mobile: Sticky Top Nav ─────────────────────── */}
       {activeTab !== "tonights-pick" && (
-      <div className="lg:hidden px-5 pt-3 pb-4">
-        {/* Top row: back + settings */}
-        <div className="flex items-center justify-between mb-4">
-          <button
-            type="button"
-            onClick={() => router.push("/collectives")}
-            className="p-2 -ml-2"
-          >
-            <BackIcon size={22} />
-          </button>
-          <Link
-            href={`/collectives/${collectiveId}/settings`}
-            className="p-2 -mr-2"
-          >
-            <Settings className="h-[22px] w-[22px] text-foreground/60" />
-          </Link>
-        </div>
-
-        {/* Collective info */}
-        <div className="flex items-center gap-3.5">
-          <div
-            className="size-14 rounded-2xl flex items-center justify-center text-2xl"
-            style={{
-              backgroundColor: "rgba(123, 140, 222, 0.15)",
-              border: "1px solid rgba(123, 140, 222, 0.3)",
-            }}
-          >
-            👥
+        <div
+          className="lg:hidden fixed top-0 left-0 right-0 z-[500]"
+          style={{
+            background: scrolled ? "#0f0d0be8" : "transparent",
+            backdropFilter: scrolled ? "blur(16px)" : "none",
+            WebkitBackdropFilter: scrolled ? "blur(16px)" : "none",
+            borderBottom: scrolled ? "1px solid rgba(107,99,88,0.05)" : "1px solid transparent",
+            transition: `all 0.35s ${EASING}`,
+            padding: scrolled ? "10px 24px" : "14px 24px 10px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <button type="button" onClick={() => router.push("/collectives")} style={{ padding: 4, cursor: "pointer", background: "none", border: "none" }}>
+                <BackIcon size={20} color="#a69e90" />
+              </button>
+              {/* Slide-in badge + name when scrolled */}
+              <div
+                style={{
+                  overflow: "hidden",
+                  transition: `all 0.35s ${EASING}`,
+                  maxWidth: scrolled ? 250 : 0,
+                  opacity: scrolled ? 1 : 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <CollectiveBadge initials={badgeInitials} colors={badgeColors} size="sm" />
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#e8e2d6", letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>
+                  {collectiveName}
+                </span>
+              </div>
+            </div>
+            <Link href={`/collectives/${collectiveId}/settings`} style={{ padding: 4 }}>
+              <Settings className="h-5 w-5" style={{ color: "#6b6358" }} />
+            </Link>
           </div>
-          <div>
-            <h1 className="text-[22px] font-semibold tracking-tight text-cream mb-1">
-              {collectiveName}
-            </h1>
-            <p className="text-[13px] text-foreground/50">
-              {memberCount} member{memberCount !== 1 ? "s" : ""} · {roleText}
-            </p>
-          </div>
         </div>
-      </div>
       )}
 
-      {/* ─── Mobile Tab Bar ─────────────────────────────── */}
+      {/* ─── Mobile: Collective Header ──────────────────── */}
       {activeTab !== "tonights-pick" && (
-      <div className="lg:hidden">
-        <CollectiveTabBar activeTab={activeTab} onTabChange={setActiveTab} />
-      </div>
+        <div className="lg:hidden sf-reveal" style={{ padding: "60px 24px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <CollectiveBadge initials={badgeInitials} colors={badgeColors} size={52} />
+            <div>
+              <h1 style={{ fontSize: 26, fontWeight: 700, color: "#e8e2d6", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+                {collectiveName}
+              </h1>
+              <div style={{ fontSize: 13, color: "#a69e90", marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                <span>{memberCount} member{memberCount !== 1 ? "s" : ""}</span>
+                <span style={{ color: "rgba(107,99,88,0.4)" }}>·</span>
+                <span style={{ color: "#3d5a96" }}>{roleText}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Mobile: Pill Tab Bar ───────────────────────── */}
+      {activeTab !== "tonights-pick" && (
+        <div className="lg:hidden sf-reveal sf-delay-1">
+          <PillTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+        </div>
       )}
 
       {/* ─── Mobile Tab Content ─────────────────────────── */}
-      <div className={`lg:hidden ${activeTab === "chat" ? "fixed inset-x-0 bottom-20 top-[180px]" : activeTab === "tonights-pick" ? "" : "px-5 py-5"}`}>
+      <div className={`lg:hidden sf-reveal sf-delay-2 ${activeTab === "chat" ? "fixed inset-x-0 bottom-20 top-[260px]" : activeTab === "tonights-pick" ? "" : ""}`}>
 
         {/* Feed Tab */}
         {activeTab === "feed" && (
-          <div className="space-y-5">
+          <div>
             {/* Quick Actions */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => setActiveTab("tonights-pick")}
-                className="p-4 rounded-xl text-left"
-                style={{
-                  background: "linear-gradient(135deg, rgba(224, 120, 80, 0.15), rgba(224, 120, 80, 0.05))",
-                  border: "1px solid rgba(224, 120, 80, 0.25)",
-                }}
-              >
-                <TonightsPickIcon color="#e07850" size={20} />
-                <p className="text-sm font-medium text-cream mt-2.5">Tonight's Pick</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("chat")}
-                className="p-4 rounded-xl text-left bg-surface border border-foreground/[0.06]"
-              >
-                <DiscussionIcon size={20} />
-                <p className="text-sm font-medium text-cream mt-2.5">Start Discussion</p>
-              </button>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: "20px 24px 0" }}>
+              {[
+                { title: "Tonight's Pick", sub: "AI-powered suggestion", color: "#3d5a96", colorLight: "#5a7cb8", icon: "search" as const, tab: "tonights-pick" as CollectiveTab },
+                { title: "Start Discussion", sub: "Share your thoughts", color: "#ff6b2d", colorLight: "#ff8f5e", icon: "chat" as const, tab: "chat" as CollectiveTab },
+              ].map((action, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setActiveTab(action.tab)}
+                  className="text-left relative"
+                  style={{
+                    padding: "20px 18px",
+                    borderRadius: 14,
+                    background: `linear-gradient(155deg, ${action.color}14, #1a1714)`,
+                    border: `1px solid ${action.color}18`,
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, borderRadius: "14px 14px 0 0", background: `linear-gradient(to right, ${action.color}, ${action.colorLight}50, transparent)` }} />
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", background: `${action.color}15`, border: `1px solid ${action.color}22`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                    {action.icon === "search" ? <SearchIcon color={action.color} size={14} /> : <DiscussionIcon color={action.color} size={14} />}
+                  </div>
+                  <div style={{ fontSize: 16, color: "#e8e2d6", fontWeight: 600, lineHeight: 1.2, letterSpacing: "-0.02em" }}>{action.title}</div>
+                  <div style={{ fontSize: 12, color: "#a69e90", marginTop: 4, lineHeight: 1.5 }}>{action.sub}</div>
+                </button>
+              ))}
             </div>
 
-            {/* Recent Activity - Limited to 5 */}
+            {/* Recent Activity */}
             {(() => {
               const othersActivity = recentActivity.filter(item => item.user_id !== currentUserId)
               return (
                 <div>
-                  <div className="flex items-center justify-between mb-3.5">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "30px 24px 12px" }}>
                     <SectionLabel>Recent Activity</SectionLabel>
                     {othersActivity.length > 5 && (
-                      <Link
-                        href={`/collectives/${collectiveId}/feed`}
-                        className="flex items-center gap-1 text-[13px] text-cool"
-                      >
-                        View All
-                        <ChevronRight className="h-3.5 w-3.5" />
+                      <Link href={`/collectives/${collectiveId}/feed`} className="flex items-center gap-1" style={{ fontSize: 12, color: "#3d5a96" }}>
+                        View all <ChevronRight className="h-3 w-3" />
                       </Link>
                     )}
                   </div>
@@ -751,50 +823,61 @@ export function MobileCollectiveView({
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent" />
                     </div>
                   ) : othersActivity.length === 0 ? (
-                    <div className="py-8 text-center bg-surface rounded-xl border border-foreground/[0.04]">
-                      <p className="text-sm text-foreground/50">No recent activity</p>
-                      <p className="text-xs text-foreground/[0.25] mt-1">Rate some films to get started</p>
+                    <div className="py-8 text-center mx-6" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
+                      <p style={{ fontSize: 14, color: "#6b6358" }}>No recent activity</p>
+                      <p style={{ fontSize: 12, color: "rgba(107,99,88,0.4)", marginTop: 4 }}>Rate some films to get started</p>
                     </div>
                   ) : (
-                    <div className="space-y-2.5">
-                      {othersActivity.slice(0, 5).map((item) => (
-                        <Link
-                          key={item.id}
-                          href={`/collectives/${collectiveId}/movie/${item.tmdb_id}/conversation`}
-                          className="flex items-start gap-3 p-4 bg-surface rounded-xl border border-foreground/[0.04]"
-                        >
-                          <Avatar size="sm">
-                            <AvatarImage src={item.user_avatar || undefined} />
-                            <AvatarFallback>{(item.user_name || "U")[0].toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm leading-[1.4]">
-                              <span className="font-semibold">{item.user_name || "Someone"}</span>
-                              {item.activity_type === "comment" ? (
-                                <>
-                                  <span className="text-foreground/60"> commented on </span>
-                                  <span className="font-medium">{item.rating_owner_name}'s</span>
-                                  <span className="text-foreground/60"> review</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="text-foreground/60"> reacted </span>
-                                  <span>{REACTION_EMOJI_MAP[item.reaction_type || ""] || item.reaction_type}</span>
-                                  <span className="text-foreground/60"> to </span>
-                                  <span className="font-medium">{item.rating_owner_name}'s</span>
-                                  <span className="text-foreground/60"> review</span>
-                                </>
+                    <div>
+                      {othersActivity.slice(0, 5).map((item) => {
+                        const name = item.user_name || "Someone"
+                        const colors = getMemberColor(name)
+                        return (
+                          <Link
+                            key={item.id}
+                            href={`/collectives/${collectiveId}/movie/${item.tmdb_id}/conversation`}
+                            className="flex items-start gap-3.5"
+                            style={{ padding: "14px 24px", borderBottom: "1px solid rgba(107,99,88,0.05)" }}
+                          >
+                            <div
+                              style={{
+                                width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                                background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]}80)`,
+                                boxShadow: `0 2px 10px ${colors[0]}22`,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 13, fontWeight: 700, color: "#0f0d0b",
+                              }}
+                            >
+                              {name[0].toUpperCase()}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 13.5, color: "#e8e2d6", lineHeight: 1.5 }}>
+                                <span style={{ fontWeight: 500 }}>{name}</span>{" "}
+                                {item.activity_type === "comment" ? (
+                                  <>
+                                    <span style={{ color: "#a69e90" }}>commented on </span>
+                                    <span style={{ fontWeight: 500 }}>{item.rating_owner_name}&apos;s review</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span style={{ color: "#a69e90" }}>reacted </span>
+                                    <span>{REACTION_EMOJI_MAP[item.reaction_type || ""] || item.reaction_type}</span>
+                                    <span style={{ color: "#a69e90" }}> to </span>
+                                    <span style={{ fontWeight: 500 }}>{item.rating_owner_name}&apos;s review</span>
+                                  </>
+                                )}
+                              </p>
+                              {item.media_title && (
+                                <div style={{ fontSize: 12, color: "#6b6358", marginTop: 4, display: "flex", alignItems: "center", gap: 8, lineHeight: 1.5 }}>
+                                  <span style={{ fontWeight: 500, color: "#a69e90" }}>{item.media_title}</span>
+                                  <span style={{ color: "rgba(107,99,88,0.4)" }}>·</span>
+                                  <span>{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
+                                </div>
                               )}
-                            </p>
-                            {item.media_title && (
-                              <p className="text-xs text-foreground/40 mt-1 truncate">{item.media_title}</p>
-                            )}
-                            <p className="text-[11px] text-foreground/[0.25] mt-1">
-                              {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
-                            </p>
-                          </div>
-                        </Link>
-                      ))}
+                            </div>
+                          </Link>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -803,37 +886,42 @@ export function MobileCollectiveView({
 
             {/* Members Section */}
             <div>
-              <div className="flex items-center justify-between mb-3.5">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "28px 24px 12px" }}>
                 <SectionLabel>Members</SectionLabel>
-                <button
-                  type="button"
-                  onClick={() => setShowMembersModal(true)}
-                  className="flex items-center gap-1 text-[13px] text-cool"
-                >
-                  View All
-                  <ChevronRight className="h-3.5 w-3.5" />
+                <button type="button" onClick={() => setShowMembersModal(true)} className="flex items-center gap-1" style={{ fontSize: 12, color: "#3d5a96", background: "none", border: "none", cursor: "pointer" }}>
+                  View all <ChevronRight className="h-3 w-3" />
                 </button>
               </div>
-              <div className="flex items-center gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {members.map((member) => (
-                  <Link
-                    key={member.id}
-                    href={`/user/${member.id}`}
-                    className="relative shrink-0 group"
-                  >
-                    <div className="size-12 rounded-full overflow-hidden ring-2 ring-transparent group-hover:ring-accent/50 transition-all">
-                      <Avatar size="lg" className="size-full">
-                        <AvatarImage src={member.avatar_url || undefined} />
-                        <AvatarFallback className="text-sm">{(member.name || member.email)[0].toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                    </div>
-                    {member.role === "owner" && (
-                      <div className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full bg-cool flex items-center justify-center">
-                        <span className="text-[8px] text-white font-bold">★</span>
+              <div style={{ display: "flex", gap: 16, padding: "0 24px 24px", overflowX: "auto", scrollbarWidth: "none" }} className="[&::-webkit-scrollbar]:hidden">
+                {members.map((member) => {
+                  const name = member.name || member.email
+                  const colors = getMemberColor(name)
+                  return (
+                    <Link key={member.id} href={`/user/${member.id}`} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 52 }}>
+                      <div style={{ position: "relative" }}>
+                        <div
+                          style={{
+                            width: 46, height: 46, borderRadius: "50%",
+                            background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
+                            boxShadow: `0 3px 12px ${colors[0]}22`,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 16, fontWeight: 700, color: "#0f0d0b",
+                          }}
+                        >
+                          {name[0].toUpperCase()}
+                        </div>
                       </div>
-                    )}
-                  </Link>
-                ))}
+                      <span style={{ fontSize: 11, color: "#a69e90" }}>{(name).split(" ")[0]}</span>
+                    </Link>
+                  )
+                })}
+                {/* Invite button */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 52, cursor: "pointer" }}>
+                  <div style={{ width: 46, height: 46, borderRadius: "50%", border: "1.5px dashed rgba(107,99,88,0.19)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <PlusIcon />
+                  </div>
+                  <span style={{ fontSize: 11, color: "#6b6358" }}>Invite</span>
+                </div>
               </div>
             </div>
           </div>
@@ -846,67 +934,80 @@ export function MobileCollectiveView({
 
         {/* Chat Tab */}
         {activeTab === "chat" && (
-          <GeneralDiscussion
-            collectiveId={collectiveId}
-            currentUserId={currentUserId}
-            currentUserName={currentUserName}
-          />
+          <GeneralDiscussion collectiveId={collectiveId} currentUserId={currentUserId} currentUserName={currentUserName} />
         )}
 
         {/* Films Tab */}
         {activeTab === "films" && (
           <div>
-            <SectionLabel className="mb-3.5 block">Films in this collective</SectionLabel>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "20px 24px 14px" }}>
+              <SectionLabel>Films in this Collective</SectionLabel>
+              <span style={{ fontSize: 12, color: "#a69e90" }}>{movieStats.length} films</span>
+            </div>
 
             {movieStats.length === 0 ? (
-              <div className="py-8 text-center bg-surface rounded-xl border border-foreground/[0.04]">
-                <p className="text-sm text-foreground/50">No films rated yet</p>
-                <p className="text-xs text-foreground/[0.25] mt-1">Rate your first film to see it here</p>
+              <div className="py-8 text-center mx-6" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
+                <p style={{ fontSize: 14, color: "#6b6358" }}>No films rated yet</p>
+                <p style={{ fontSize: 12, color: "rgba(107,99,88,0.4)", marginTop: 4 }}>Rate your first film to see it here</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-2.5">
-                {movieStats.slice(0, 12).map((movie) => (
-                  <Link
-                    key={movie.tmdb_id}
-                    href={`/collectives/${collectiveId}/movie/${movie.tmdb_id}/conversation`}
-                    className="block"
-                  >
-                    <div className="aspect-[2/3] rounded-lg overflow-hidden bg-surface-light mb-2">
-                      {movie.poster_path ? (
-                        <Image
-                          src={getImageUrl(movie.poster_path, "w185") || ""}
-                          alt={movie.title}
-                          width={185}
-                          height={278}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <FilmIcon color="rgba(248,246,241,0.2)" size={24} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "0 24px 24px" }}>
+                {movieStats.slice(0, 12).map((movie, i) => {
+                  const filmColor = FILM_COLORS[i % FILM_COLORS.length]
+                  const score = (movie.avg_score / 20).toFixed(1)
+                  return (
+                    <Link key={movie.tmdb_id} href={`/collectives/${collectiveId}/movie/${movie.tmdb_id}/conversation`} className="block">
+                      <div
+                        style={{
+                          width: "100%", aspectRatio: "2/3", borderRadius: 10, position: "relative", overflow: "hidden",
+                          border: "1px solid rgba(107,99,88,0.06)",
+                          display: "flex", flexDirection: "column", justifyContent: "flex-end",
+                        }}
+                      >
+                        {/* Accent bar */}
+                        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, borderRadius: "10px 10px 0 0", background: `linear-gradient(to right, ${filmColor}50, transparent)`, zIndex: 2 }} />
+                        {movie.poster_path ? (
+                          <>
+                            <Image src={getImageUrl(movie.poster_path, "w185") || ""} alt={movie.title} width={185} height={278} className="absolute inset-0 w-full h-full object-cover" />
+                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "70%", background: "linear-gradient(to top, rgba(10,9,8,0.85), transparent)", zIndex: 1 }} />
+                          </>
+                        ) : (
+                          <div style={{ position: "absolute", inset: 0, background: `linear-gradient(155deg, ${filmColor}15, #1a1714 40%, #252119)` }} />
+                        )}
+                        <div style={{ position: "relative", zIndex: 2, padding: 10 }}>
+                          <div style={{ fontWeight: 600, fontSize: 12, color: "#e8e2d6", lineHeight: 1.25, letterSpacing: "-0.01em" }}>{movie.title}</div>
+                          {movie.release_date && (
+                            <div style={{ fontSize: 10, color: "#6b6358", marginTop: 2 }}>{new Date(movie.release_date).getFullYear()}</div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-foreground/70 truncate">{movie.title}</p>
-                  </Link>
-                ))}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, paddingLeft: 2 }}>
+                        <StarIcon filled size={10} />
+                        <span style={{ fontSize: 11, color: "#a69e90", fontWeight: 600 }}>{score}</span>
+                      </div>
+                    </Link>
+                  )
+                })}
               </div>
             )}
 
             {movieStats.length > 12 && (
-              <Link
-                href={`/collectives/${collectiveId}/movies`}
-                className="block w-full py-3 mt-4 text-center text-sm font-medium text-cool bg-surface rounded-xl border border-foreground/[0.04]"
-              >
-                View all {movieStats.length} films
-              </Link>
+              <div style={{ padding: "0 24px 24px" }}>
+                <Link
+                  href={`/collectives/${collectiveId}/movies`}
+                  className="block w-full py-3 text-center"
+                  style={{ fontSize: 14, fontWeight: 500, color: "#3d5a96", background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}
+                >
+                  View all {movieStats.length} films
+                </Link>
+              </div>
             )}
           </div>
         )}
 
         {/* Insights Tab */}
         {activeTab === "insights" && (
-          <div className="space-y-6">
-            {/* Stats Grid */}
+          <div style={{ padding: "20px 24px" }} className="space-y-6">
             <div className="grid grid-cols-2 gap-2.5">
               {[
                 { label: "Films Rated", value: analytics.total_movies_rated },
@@ -914,51 +1015,37 @@ export function MobileCollectiveView({
                 { label: "Avg Rating", value: analytics.avg_collective_score > 0 ? (analytics.avg_collective_score / 20).toFixed(1) : "—" },
                 { label: "Active Raters", value: analytics.active_raters },
               ].map((stat, i) => (
-                <div
-                  key={i}
-                  className="p-4 bg-surface rounded-xl border border-foreground/[0.04]"
-                >
-                  <p className="text-[10px] text-foreground/40 uppercase tracking-wider mb-1.5">{stat.label}</p>
-                  <p className="text-2xl font-semibold text-cream">{stat.value}</p>
+                <div key={i} className="p-4" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
+                  <p style={{ fontSize: 10, color: "#6b6358", textTransform: "uppercase" as const, letterSpacing: "0.12em", marginBottom: 6 }}>{stat.label}</p>
+                  <p style={{ fontSize: 24, fontWeight: 600, color: "#e8e2d6" }}>{stat.value}</p>
                 </div>
               ))}
             </div>
 
-            {/* Taste Match Section */}
             {(() => {
-              // Filter to only show matches involving the current user
-              const myMatches = memberSimilarity.filter(
-                match => match.user1_id === currentUserId || match.user2_id === currentUserId
-              )
+              const myMatches = memberSimilarity.filter(match => match.user1_id === currentUserId || match.user2_id === currentUserId)
               if (myMatches.length === 0) return null
               return (
                 <div>
                   <SectionLabel className="mb-3.5 block">Taste Match</SectionLabel>
-                  <div className="bg-surface rounded-xl border border-foreground/[0.04] p-4 space-y-4">
+                  <div className="space-y-4 p-4" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
                     {myMatches.slice(0, 3).map((match, i) => {
-                      // Find the other user in the pair
-                      const otherUserId = match.user1_id === currentUserId ? match.user2_id : match.user1_id
                       const otherUserName = match.user1_id === currentUserId ? match.user2_name : match.user1_name
-                      const member = members.find(m => m.id === otherUserId)
                       const score = Math.round(match.similarity_score * 100)
-
+                      const colors = getMemberColor(otherUserName || "U")
                       return (
                         <div key={i}>
                           <div className="flex items-center justify-between mb-2.5">
                             <div className="flex items-center gap-2.5">
-                              <Avatar size="sm">
-                                <AvatarImage src={member?.avatar_url || undefined} />
-                                <AvatarFallback>{(otherUserName || "U")[0].toUpperCase()}</AvatarFallback>
-                              </Avatar>
-                              <span className="text-sm font-medium">{otherUserName}</span>
+                              <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#0f0d0b", flexShrink: 0 }}>
+                                {(otherUserName || "U")[0].toUpperCase()}
+                              </div>
+                              <span style={{ fontSize: 14, fontWeight: 500, color: "#e8e2d6" }}>{otherUserName}</span>
                             </div>
-                            <span className="text-base font-semibold text-cool">{score}%</span>
+                            <span style={{ fontSize: 16, fontWeight: 600, color: "#3d5a96" }}>{score}%</span>
                           </div>
-                          <div className="h-1.5 bg-surface-light rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-cool"
-                              style={{ width: `${score}%` }}
-                            />
+                          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(107,99,88,0.08)" }}>
+                            <div className="h-full rounded-full" style={{ width: `${score}%`, background: "#3d5a96" }} />
                           </div>
                         </div>
                       )
@@ -968,13 +1055,15 @@ export function MobileCollectiveView({
               )
             })()}
 
-            {/* Additional Insights */}
-            <div className="[&>*]:!px-0 [&>*]:!mx-0">
-              {insightsContent}
-            </div>
+            <div className="[&>*]:!px-0 [&>*]:!mx-0">{insightsContent}</div>
           </div>
         )}
       </div>
+
+      {/* ─── FAB (hidden on Chat tab) ────────────────────── */}
+      {activeTab !== "chat" && activeTab !== "tonights-pick" && (
+        <LogFilmFAB onClick={() => router.push("/movies")} />
+      )}
 
       {/* ─── Bottom Nav ───────────────────────────────────── */}
       <MobileBottomNav />

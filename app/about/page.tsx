@@ -65,7 +65,7 @@ export default function AboutPage() {
         <section className="px-4 sm:px-6 py-12">
           <div className="mx-auto max-w-3xl">
             <div className="relative p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-card/80 to-card/40 border border-border/50 backdrop-blur-sm">
-              <div className="absolute top-6 left-8 text-6xl text-accent/20 font-serif">"</div>
+              <div className="absolute top-6 left-8 text-6xl text-accent/20 font-bold">"</div>
               <p className="relative text-xl sm:text-2xl text-foreground leading-relaxed font-medium text-center px-4">
                 Most film platforms are designed around broadcasting opinions to strangers.
                 <span className="text-accent"> We designed Film Collective for something more meaningful.</span>

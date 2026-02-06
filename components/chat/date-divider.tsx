@@ -35,12 +35,29 @@ export function DateDivider({ dateString, className }: DateDividerProps) {
   if (!label) return null
 
   return (
-    <div className={cn("flex items-center justify-center my-4", className)}>
-      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-      <span className="px-3 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">
+    <div
+      className={cn(className)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "8px 0 18px",
+      }}
+    >
+      <div style={{ flex: 1, height: 1, background: "rgba(107, 99, 88, 0.07)" }} />
+      <div
+        style={{
+          fontSize: 10,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          color: "#6b6358",
+          fontWeight: 500,
+          whiteSpace: "nowrap",
+        }}
+      >
         {label}
-      </span>
-      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+      </div>
+      <div style={{ flex: 1, height: 1, background: "rgba(107, 99, 88, 0.07)" }} />
     </div>
   )
 }

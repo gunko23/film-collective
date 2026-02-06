@@ -3,7 +3,6 @@
 import type React from "react"
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { Loader2, Send, Smile } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useChat, type ChatConfig } from "@/hooks/use-chat"
 import { useAutoScroll } from "@/hooks/use-auto-scroll"
@@ -145,17 +144,22 @@ export function ChatThread({
   const groupedMessages = useMemo(() => {
     return messages.map((msg, index) => {
       const prevMsg = messages[index - 1]
+      const nextMsg = messages[index + 1]
       const showDate = shouldShowDateDivider(msg.created_at, prevMsg?.created_at)
       const isOwn = msg.user_id?.toLowerCase() === chatConfig.currentUserId?.toLowerCase()
-      const showAvatar = !isOwn && (index === 0 || prevMsg?.user_id !== msg.user_id)
-      return { msg, showDate, isOwn, showAvatar }
+      const showAvatar = !isOwn && (index === 0 || prevMsg?.user_id !== msg.user_id || showDate)
+      const isGroupStart = !prevMsg || prevMsg.user_id !== msg.user_id || showDate
+      const isGroupEnd = !nextMsg || nextMsg.user_id !== msg.user_id || shouldShowDateDivider(nextMsg.created_at, msg.created_at)
+      return { msg, showDate, isOwn, showAvatar, isGroupStart, isGroupEnd }
     })
   }, [messages, chatConfig.currentUserId])
+
+  const hasText = newMessage.trim().length > 0
 
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#6b6358" }} />
       </div>
     )
   }
@@ -166,21 +170,37 @@ export function ChatThread({
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4"
-        style={stickyInput ? { paddingBottom: 70 + keyboardOffset } : undefined}
+        className="flex-1 overflow-y-auto"
+        style={{
+          padding: "16px 24px",
+          ...(stickyInput ? { paddingBottom: 70 + keyboardOffset } : {}),
+        }}
       >
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full min-h-[200px]">
             <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-zinc-800/50 flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">{emptyStateIcon}</span>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  background: "rgba(107, 99, 88, 0.08)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 16px",
+                }}
+              >
+                <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#6b6358" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
               </div>
-              <p className="text-muted-foreground text-sm">{emptyStateMessage}</p>
-              <p className="text-muted-foreground/60 text-xs mt-1">Start the conversation!</p>
+              <p style={{ fontSize: 13, color: "#6b6358" }}>{emptyStateMessage}</p>
+              <p style={{ fontSize: 11, color: "rgba(107, 99, 88, 0.5)", marginTop: 4 }}>Start the conversation!</p>
             </div>
           </div>
         ) : (
-          groupedMessages.map(({ msg, showDate, isOwn, showAvatar }) => (
+          groupedMessages.map(({ msg, showDate, isOwn, showAvatar, isGroupStart, isGroupEnd }) => (
             <div key={msg.id}>
               {showDate && <DateDivider dateString={msg.created_at} />}
               <MessageBubble
@@ -194,7 +214,9 @@ export function ChatThread({
                 isOptimistic={msg.isOptimistic}
                 isOwn={isOwn}
                 showAvatar={showAvatar}
-                showUserName={showAvatar}
+                showUserName={isGroupStart && !isOwn}
+                isGroupStart={isGroupStart}
+                isGroupEnd={isGroupEnd}
                 reactions={msg.reactions || []}
                 currentUserId={chatConfig.currentUserId}
                 onReactionToggle={toggleReaction}
@@ -224,29 +246,56 @@ export function ChatThread({
         />
       )}
 
-      {/* Input area */}
+      {/* Input area — Soulframe capsule style */}
       <div
         className={cn(
-          "flex-shrink-0 p-3 border-t border-border/30 bg-background",
+          "flex-shrink-0",
           stickyInput && "fixed left-0 right-0 z-50"
         )}
-        style={stickyInput ? { bottom: stickyInputBottomOffset + keyboardOffset } : undefined}
+        style={{
+          padding: "12px 24px 16px",
+          borderTop: "1px solid rgba(107, 99, 88, 0.04)",
+          background: "rgba(15, 13, 11, 0.88)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          ...(stickyInput ? { bottom: stickyInputBottomOffset + keyboardOffset } : {}),
+        }}
       >
         <form onSubmit={handleSubmit} className="w-full">
-          <div className="flex items-end gap-2 bg-card/50 border border-border/50 rounded-2xl px-3 py-2 focus-within:border-accent/50 focus-within:ring-1 focus-within:ring-accent/20 transition-all">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "10px 16px",
+              borderRadius: 24,
+              background: "#1a1714",
+              border: "1px solid rgba(107, 99, 88, 0.06)",
+              transition: "border-color 0.2s ease",
+            }}
+          >
             {/* Emoji/GIF button */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setShowPicker(!showPicker)}
-                className={cn(
-                  "p-1.5 rounded-full transition-colors flex-shrink-0",
-                  showPicker
-                    ? "bg-accent/20 text-accent"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                )}
+                style={{
+                  padding: 4,
+                  borderRadius: "50%",
+                  background: showPicker ? "rgba(61, 90, 150, 0.12)" : "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  transition: "background 0.2s ease",
+                }}
               >
-                <Smile className="h-5 w-5" />
+                <Smile
+                  className="h-5 w-5"
+                  style={{ color: showPicker ? "#5a7cb8" : "#6b6358" }}
+                />
               </button>
 
               {/* Popover picker (rendered inside the relative wrapper) */}
@@ -269,18 +318,47 @@ export function ChatThread({
               onKeyDown={handleKeyDown}
               placeholder={inputPlaceholder}
               rows={1}
-              className="flex-1 bg-transparent text-sm text-foreground resize-none focus:outline-none min-h-[24px] max-h-24 py-1 placeholder:text-muted-foreground/50"
+              className="flex-1 resize-none focus:outline-none min-h-[24px] max-h-24 py-1"
+              style={{
+                background: "transparent",
+                fontSize: 14,
+                color: "#e8e2d6",
+                border: "none",
+              }}
             />
 
-            {/* Send button */}
-            <Button
+            {/* Send button — orange gradient when text present */}
+            <button
               type="submit"
-              size="icon"
-              disabled={!newMessage.trim() || isSending}
-              className="h-8 w-8 rounded-full bg-zinc-700 hover:bg-zinc-600 flex-shrink-0 disabled:opacity-50"
+              disabled={!hasText || isSending}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: "50%",
+                background: hasText
+                  ? "linear-gradient(135deg, #ff6b2d, #ff8f5e)"
+                  : "rgba(107, 99, 88, 0.07)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: hasText ? "pointer" : "default",
+                border: "none",
+                flexShrink: 0,
+                transition: "all 0.3s ease",
+              }}
             >
-              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
+              {isSending ? (
+                <Loader2 className="h-4 w-4 animate-spin" style={{ color: "#6b6358" }} />
+              ) : (
+                <Send
+                  className="h-[15px] w-[15px]"
+                  style={{
+                    color: hasText ? "#0f0d0b" : "rgba(107, 99, 88, 0.3)",
+                    marginLeft: 1,
+                  }}
+                />
+              )}
+            </button>
           </div>
         </form>
       </div>

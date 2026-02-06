@@ -2,37 +2,20 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import {
-  Sparkles,
-  Clock,
-  Star,
-  ChevronRight,
-  Film,
-  Popcorn,
-  Heart,
-  Zap,
-  Brain,
-  Trophy,
-  RefreshCw,
-  ExternalLink,
-  Info,
-  ChevronLeft,
-  Volume2,
-  Swords,
-  Wine,
-  Ghost,
-  ShieldAlert,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  User,
-  Check,
-} from "lucide-react"
 import { getImageUrl } from "@/lib/tmdb/image"
-import { Button } from "@/components/ui/button"
 import { US_SUBSCRIPTION_PROVIDERS } from "@/lib/streaming/providers"
 import { TonightsPickLoading } from "@/components/tonights-pick-loading"
 
+// ── Soulframe color tokens ──
+const C = {
+  bg: "#0f0d0b", bgCard: "#1a1714", bgCardHover: "#211e19", bgElevated: "#252119",
+  blue: "#3d5a96", blueMuted: "#2e4470", blueLight: "#5a7cb8",
+  orange: "#ff6b2d", orangeMuted: "#cc5624", orangeLight: "#ff8f5e",
+  cream: "#e8e2d6", creamMuted: "#a69e90", creamFaint: "#6b6358", warmBlack: "#0a0908",
+  teal: "#4a9e8e", rose: "#c4616a", green: "#4ade80", purple: "#a78bfa", red: "#ef4444", yellow: "#facc15",
+}
+
+// ── Types ──
 type GenrePreference = {
   genreId: number
   genreName: string
@@ -77,25 +60,133 @@ type SoloPickResponse = {
 
 type Mood = "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | null
 
-const MOOD_OPTIONS: { value: Mood; label: string; icon: React.ReactNode; description: string }[] = [
-  { value: null, label: "Any Mood", icon: <Sparkles className="h-5 w-5" />, description: "Show me everything" },
-  { value: "fun", label: "Fun", icon: <Popcorn className="h-5 w-5" />, description: "Light & entertaining" },
-  { value: "intense", label: "Intense", icon: <Zap className="h-5 w-5" />, description: "Edge of your seat" },
-  { value: "emotional", label: "Emotional", icon: <Heart className="h-5 w-5" />, description: "Feel all the feels" },
-  { value: "mindless", label: "Mindless", icon: <Brain className="h-5 w-5" />, description: "Turn brain off" },
-  { value: "acclaimed", label: "Acclaimed", icon: <Trophy className="h-5 w-5" />, description: "Critics' favorites" },
+// ── Inline SVG Icons ──
+const SparkleIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z" />
+  </svg>
+)
+
+const CoffeeIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 8h1a4 4 0 110 8h-1" />
+    <path d="M3 8h14v9a4 4 0 01-4 4H7a4 4 0 01-4-4V8z" />
+    <line x1="6" y1="2" x2="6" y2="4" />
+    <line x1="10" y1="2" x2="10" y2="4" />
+    <line x1="14" y1="2" x2="14" y2="4" />
+  </svg>
+)
+
+const ZapIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </svg>
+)
+
+const HeartIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+  </svg>
+)
+
+const AwardIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="8" r="7" />
+    <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+  </svg>
+)
+
+const BrainIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-4.96.44A2.5 2.5 0 015 17.5a2.5 2.5 0 01.49-4.78A2.5 2.5 0 014 10a2.5 2.5 0 013.92-2.06A2.5 2.5 0 019.5 2z" />
+    <path d="M14.5 2A2.5 2.5 0 0012 4.5v15a2.5 2.5 0 004.96.44A2.5 2.5 0 0019 17.5a2.5 2.5 0 00-.49-4.78A2.5 2.5 0 0020 10a2.5 2.5 0 00-3.92-2.06A2.5 2.5 0 0014.5 2z" />
+  </svg>
+)
+
+const ShieldIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.blueLight} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+)
+
+const FilmIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.creamMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+    <line x1="7" y1="2" x2="7" y2="22" />
+    <line x1="17" y1="2" x2="17" y2="22" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <line x1="2" y1="7" x2="7" y2="7" />
+    <line x1="2" y1="17" x2="7" y2="17" />
+    <line x1="17" y1="7" x2="22" y2="7" />
+    <line x1="17" y1="17" x2="22" y2="17" />
+  </svg>
+)
+
+const CheckIcon = ({ size = 14, color = C.cream }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+)
+
+const ChevronDownIcon = ({ size = 12, color = C.creamMuted, className = "" }: { size?: number; color?: string; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+)
+
+const ExternalLinkIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+    <polyline points="15 3 21 3 21 9" />
+    <line x1="10" y1="14" x2="21" y2="3" />
+  </svg>
+)
+
+const EyeIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+)
+
+const InfoIcon = ({ size = 14, color = "currentColor" }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="16" x2="12" y2="12" />
+    <line x1="12" y1="8" x2="12.01" y2="8" />
+  </svg>
+)
+
+const UserIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.creamMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+)
+
+// ── Mood config with unique colors ──
+const MOOD_OPTIONS: { value: Mood; label: string; icon: React.ReactNode; description: string; color: string }[] = [
+  { value: null, label: "Any Mood", icon: <SparkleIcon />, description: "Show me everything", color: C.orange },
+  { value: "fun", label: "Fun", icon: <CoffeeIcon />, description: "Light & entertaining", color: C.yellow },
+  { value: "intense", label: "Intense", icon: <ZapIcon />, description: "Edge of your seat", color: C.red },
+  { value: "emotional", label: "Emotional", icon: <HeartIcon />, description: "Feel all the feels", color: C.rose },
+  { value: "mindless", label: "Mindless", icon: <BrainIcon />, description: "Turn brain off", color: C.teal },
+  { value: "acclaimed", label: "Acclaimed", icon: <AwardIcon />, description: "Critics' favorites", color: C.purple },
 ]
 
-// Fit Score Ring Component
+// ── Accent bar cycling colors for result cards ──
+const ACCENT_COLORS = [C.orange, C.teal, C.blue, C.rose, C.purple, C.green]
+
+// ── FitScoreRing ──
 const FitScoreRing = ({ score }: { score: number }) => {
   const radius = 18
   const circumference = 2 * Math.PI * radius
   const progress = (score / 100) * circumference
-  const color = score >= 80 ? "#6abf6e" : score >= 60 ? "#D4753E" : "#a09890"
+  const color = score >= 80 ? C.teal : score >= 60 ? C.orange : C.creamFaint
 
   return (
-    <div className="relative w-12 h-12 flex-shrink-0">
-      <svg width="48" height="48" viewBox="0 0 48 48" className="transform -rotate-90">
+    <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
+      <svg width="48" height="48" viewBox="0 0 48 48" style={{ transform: "rotate(-90deg)" }}>
         <circle cx="24" cy="24" r={radius} fill="none" stroke="rgba(232,224,216,0.08)" strokeWidth="3" />
         <circle
           cx="24" cy="24" r={radius} fill="none"
@@ -107,8 +198,11 @@ const FitScoreRing = ({ score }: { score: number }) => {
         />
       </svg>
       <div
-        className="absolute inset-0 flex items-center justify-center font-mono text-[13px] font-semibold"
-        style={{ color }}
+        style={{
+          position: "absolute", inset: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "monospace", fontSize: 13, fontWeight: 600, color,
+        }}
       >
         {score}
       </div>
@@ -116,15 +210,15 @@ const FitScoreRing = ({ score }: { score: number }) => {
   )
 }
 
-// Parental Badge Component
+// ── ParentalBadge ──
 const ParentalBadge = ({ category, severity }: { category: string; severity: string }) => {
   if (!severity || severity === "None") return null
 
-  const severityColors = {
-    None: { bg: "rgba(76, 175, 80, 0.12)", text: "#6abf6e", border: "rgba(76, 175, 80, 0.25)" },
-    Mild: { bg: "rgba(212, 117, 62, 0.10)", text: "#D4753E", border: "rgba(212, 117, 62, 0.25)" },
-    Moderate: { bg: "rgba(255, 183, 77, 0.10)", text: "#ffb74d", border: "rgba(255, 183, 77, 0.25)" },
-    Severe: { bg: "rgba(244, 67, 54, 0.10)", text: "#f44336", border: "rgba(244, 67, 54, 0.25)" },
+  const severityColors: Record<string, { bg: string; text: string; border: string }> = {
+    None: { bg: `rgba(74,158,142,0.12)`, text: C.teal, border: `rgba(74,158,142,0.25)` },
+    Mild: { bg: `rgba(255,107,45,0.10)`, text: C.orangeLight, border: `rgba(255,107,45,0.25)` },
+    Moderate: { bg: `rgba(250,204,21,0.10)`, text: C.yellow, border: `rgba(250,204,21,0.25)` },
+    Severe: { bg: `rgba(239,68,68,0.10)`, text: C.red, border: `rgba(239,68,68,0.25)` },
   }
 
   const severityLabels: Record<string, string> = {
@@ -135,12 +229,14 @@ const ParentalBadge = ({ category, severity }: { category: string; severity: str
     frighteningIntense: "Intense",
   }
 
-  const colors = severityColors[severity as keyof typeof severityColors] || severityColors.Mild
+  const colors = severityColors[severity] || severityColors.Mild
 
   return (
     <div
-      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium"
       style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "4px 8px", borderRadius: 6,
+        fontSize: 11, fontWeight: 500,
         background: colors.bg,
         border: `1px solid ${colors.border}`,
         color: colors.text,
@@ -151,7 +247,7 @@ const ParentalBadge = ({ category, severity }: { category: string; severity: str
   )
 }
 
-// Recommendation Card Component
+// ── RecommendationCard (Soulframe) ──
 const RecommendationCard = ({ movie, index }: { movie: MovieRecommendation; index: number }) => {
   const [parentalGuideOpen, setParentalGuideOpen] = useState(false)
 
@@ -160,100 +256,122 @@ const RecommendationCard = ({ movie, index }: { movie: MovieRecommendation; inde
   const mins = movie.runtime ? movie.runtime % 60 : 0
   const runtimeStr = movie.runtime ? `${hours}h ${mins}m` : null
   const reasoningText = movie.reasoning?.[0] || ""
+  const accentColor = ACCENT_COLORS[index % ACCENT_COLORS.length]
 
-  // Check if parental guide has any content
   const guide = movie.parentalGuide
   const categories = ["violence", "sexNudity", "profanity", "alcoholDrugsSmoking", "frighteningIntense"] as const
   const hasParentalContent = guide && categories.some(c => guide[c] && guide[c] !== "None")
 
-  // Find highest severity for summary
   const severityRank = { None: 0, Mild: 1, Moderate: 2, Severe: 3 }
   const maxSeverity = guide ? categories.reduce((max, cat) => {
     const level = guide[cat] || "None"
     return severityRank[level as keyof typeof severityRank] > severityRank[max as keyof typeof severityRank] ? level : max
   }, "None") : "None"
 
-  const summaryColors = {
-    None: { bg: "rgba(76, 175, 80, 0.12)", text: "#6abf6e", border: "rgba(76, 175, 80, 0.25)" },
-    Mild: { bg: "rgba(212, 117, 62, 0.10)", text: "#D4753E", border: "rgba(212, 117, 62, 0.25)" },
-    Moderate: { bg: "rgba(255, 183, 77, 0.10)", text: "#ffb74d", border: "rgba(255, 183, 77, 0.25)" },
-    Severe: { bg: "rgba(244, 67, 54, 0.10)", text: "#f44336", border: "rgba(244, 67, 54, 0.25)" },
+  const summaryColors: Record<string, { bg: string; text: string; border: string }> = {
+    None: { bg: `rgba(74,158,142,0.12)`, text: C.teal, border: `rgba(74,158,142,0.25)` },
+    Mild: { bg: `rgba(255,107,45,0.10)`, text: C.orangeLight, border: `rgba(255,107,45,0.25)` },
+    Moderate: { bg: `rgba(250,204,21,0.10)`, text: C.yellow, border: `rgba(250,204,21,0.25)` },
+    Severe: { bg: `rgba(239,68,68,0.10)`, text: C.red, border: `rgba(239,68,68,0.25)` },
   }
-  const summaryColor = summaryColors[maxSeverity as keyof typeof summaryColors] || summaryColors.Mild
+  const summaryColor = summaryColors[maxSeverity] || summaryColors.Mild
+
+  // Score badge color
+  const scoreColor = movie.groupFitScore >= 80 ? C.teal : movie.groupFitScore >= 60 ? C.orange : C.creamFaint
 
   return (
     <div
-      className="rounded-2xl border overflow-hidden transition-all duration-300 hover:shadow-lg"
       style={{
-        background: "linear-gradient(135deg, rgba(30,26,22,0.95) 0%, rgba(20,17,14,0.98) 100%)",
-        borderColor: "rgba(232,224,216,0.07)",
-        animation: `fadeSlideIn 0.4s ease ${index * 0.08}s both`,
+        borderRadius: 16,
+        overflow: "hidden",
+        background: C.bgCard,
+        border: `1px solid rgba(232,226,214,0.07)`,
+        transition: "border-color 0.2s, box-shadow 0.3s",
+        animation: `sfFadeSlideIn 0.4s ease ${index * 0.08}s both`,
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "rgba(212,117,62,0.25)"
-        e.currentTarget.style.boxShadow = "0 8px 32px rgba(0,0,0,0.3)"
+        e.currentTarget.style.borderColor = `${accentColor}40`
+        e.currentTarget.style.boxShadow = `0 8px 32px rgba(0,0,0,0.3)`
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "rgba(232,224,216,0.07)"
+        e.currentTarget.style.borderColor = "rgba(232,226,214,0.07)"
         e.currentTarget.style.boxShadow = "none"
       }}
     >
+      {/* Accent bar */}
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${accentColor}, ${accentColor}80, transparent)` }} />
+
       {/* Header: Poster + Meta */}
-      <div className="flex gap-3.5 p-4 pb-0">
+      <div style={{ display: "flex", gap: 14, padding: "16px 16px 0" }}>
         {/* Poster */}
-        <div className="flex-shrink-0">
+        <div style={{ flexShrink: 0, position: "relative" }}>
           {movie.posterPath ? (
             <Image
               src={getImageUrl(movie.posterPath, "w185") || ""}
               alt={movie.title}
               width={80}
               height={120}
-              className="rounded-lg object-cover w-20 h-[120px] shadow-lg"
-              style={{ boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}
+              className="rounded-lg object-cover"
+              style={{ width: 80, height: 120, boxShadow: "0 4px 16px rgba(0,0,0,0.4)", borderRadius: 10 }}
             />
           ) : (
-            <div className="w-20 h-[120px] bg-[rgba(232,224,216,0.05)] rounded-lg flex items-center justify-center shadow-lg">
-              <Film className="h-6 w-6 text-[#a09890]" />
+            <div style={{
+              width: 80, height: 120, background: "rgba(232,226,214,0.05)", borderRadius: 10,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <FilmIcon />
             </div>
           )}
+          {/* Score badge circle overlay */}
+          <div style={{
+            position: "absolute", bottom: -8, right: -8,
+            width: 36, height: 36, borderRadius: "50%",
+            background: C.bgCard, border: `2px solid ${scoreColor}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: scoreColor,
+            boxShadow: `0 2px 8px rgba(0,0,0,0.4)`,
+          }}>
+            {movie.groupFitScore}
+          </div>
         </div>
 
         {/* Title + meta */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-          <div className="flex justify-between items-start gap-2">
-            <h3 className="text-[17px] font-bold leading-[1.25] text-[#e8e0d8] line-clamp-2" style={{ fontFamily: "'Playfair Display', serif" }}>
-              {movie.title}
-            </h3>
-            <FitScoreRing score={movie.groupFitScore} />
-          </div>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+          <h3 style={{
+            fontSize: 17, fontWeight: 700, lineHeight: 1.25, color: C.cream, margin: 0,
+            overflow: "hidden", textOverflow: "ellipsis",
+            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+          }}>
+            {movie.title}
+          </h3>
 
-          {/* Year · Rating · Runtime row */}
-          <div className="flex items-center gap-2 flex-wrap text-[13px] text-[#a09890]">
+          {/* Year / Rating / Runtime */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13, color: C.creamMuted }}>
             <span>{year}</span>
-            <span style={{ opacity: 0.3 }}>·</span>
-            <span className="inline-flex items-center gap-1">
-              <span className="text-[#D4753E] text-[13px]">★</span>
-              <span className="text-[#e8e0d8] font-mono font-medium text-[13px]">
+            <span style={{ opacity: 0.3 }}>*</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <span style={{ color: C.orange, fontSize: 13 }}>&#9733;</span>
+              <span style={{ color: C.cream, fontFamily: "monospace", fontWeight: 500, fontSize: 13 }}>
                 {movie.voteAverage?.toFixed(1)}
               </span>
             </span>
             {runtimeStr && (
               <>
-                <span style={{ opacity: 0.3 }}>·</span>
+                <span style={{ opacity: 0.3 }}>*</span>
                 <span>{runtimeStr}</span>
               </>
             )}
           </div>
 
           {/* Genre pills */}
-          <div className="flex gap-1.5 flex-wrap mt-0.5">
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
             {movie.genres?.slice(0, 3).map(g => (
               <span
                 key={g.id}
-                className="inline-block px-2 py-0.5 rounded text-[11px] font-medium text-[#a09890]"
                 style={{
-                  background: "rgba(232,224,216,0.06)",
-                  border: "1px solid rgba(232,224,216,0.08)",
+                  display: "inline-block", padding: "2px 8px", borderRadius: 4,
+                  fontSize: 11, fontWeight: 500, color: C.creamMuted,
+                  background: "rgba(232,226,214,0.06)", border: "1px solid rgba(232,226,214,0.08)",
                   letterSpacing: "0.02em",
                 }}
               >
@@ -264,24 +382,25 @@ const RecommendationCard = ({ movie, index }: { movie: MovieRecommendation; inde
         </div>
       </div>
 
-      {/* Reasoning Section */}
-      <div className="px-4 pt-3.5">
+      {/* WHY WE PICKED THIS */}
+      <div style={{ padding: "14px 16px 0" }}>
         <div
-          className="rounded-[10px] p-3.5"
           style={{
-            background: "rgba(212,117,62,0.04)",
-            borderLeft: "3px solid rgba(212,117,62,0.35)",
+            borderRadius: 10, padding: 14,
+            background: `${accentColor}08`,
+            borderLeft: `3px solid ${accentColor}60`,
           }}
         >
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Check className="h-3.5 w-3.5 text-[#D4753E] opacity-70" />
-            <span
-              className="text-[10px] font-semibold text-[#D4753E] opacity-70 uppercase tracking-wider"
-            >
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+            <CheckIcon size={14} color={accentColor} />
+            <span style={{
+              fontSize: 10, fontWeight: 700, color: accentColor, opacity: 0.8,
+              textTransform: "uppercase", letterSpacing: "0.08em",
+            }}>
               Why we picked this
             </span>
           </div>
-          <p className="text-[13.5px] leading-[1.55] text-[#c8c0b8] m-0">
+          <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "#c8c0b8", margin: 0 }}>
             {reasoningText}
           </p>
         </div>
@@ -289,45 +408,52 @@ const RecommendationCard = ({ movie, index }: { movie: MovieRecommendation; inde
 
       {/* Seen By */}
       {movie.seenBy?.length > 0 && (
-        <div className="px-4 pt-2 flex items-center gap-1.5 text-[11px] text-[#a09890] opacity-70">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
+        <div style={{
+          padding: "8px 16px 0", display: "flex", alignItems: "center", gap: 6,
+          fontSize: 11, color: C.creamMuted, opacity: 0.7,
+        }}>
+          <EyeIcon />
           <span>You may have seen this</span>
         </div>
       )}
 
       {/* Parental Guide (collapsed) */}
       {hasParentalContent && (
-        <div className="px-4 pt-2">
+        <div style={{ padding: "8px 16px 0" }}>
           <button
             onClick={() => setParentalGuideOpen(!parentalGuideOpen)}
-            className="inline-flex items-center gap-1.5 bg-transparent border-none cursor-pointer p-1 text-[12px] opacity-85 hover:opacity-100 transition-opacity"
-            style={{ color: summaryColor.text }}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              background: "transparent", border: "none", cursor: "pointer",
+              padding: 4, fontSize: 12, color: summaryColor.text,
+              opacity: 0.85, transition: "opacity 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = "1" }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.85" }}
           >
-            <Info className="h-3.5 w-3.5" />
-            <span className="font-medium">Parental Guide</span>
+            <InfoIcon size={14} />
+            <span style={{ fontWeight: 500 }}>Parental Guide</span>
             <span
-              className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
               style={{
-                background: summaryColor.bg,
-                border: `1px solid ${summaryColor.border}`,
+                fontSize: 10, padding: "2px 6px", borderRadius: 4, fontWeight: 600,
+                background: summaryColor.bg, border: `1px solid ${summaryColor.border}`,
               }}
             >
               Up to {maxSeverity}
             </span>
-            <ChevronDown
-              className={`h-3 w-3 transition-transform duration-200 ${parentalGuideOpen ? "rotate-180" : ""}`}
+            <ChevronDownIcon
+              size={12}
+              color={summaryColor.text}
+              className={parentalGuideOpen ? "sf-chevron-rotated" : "sf-chevron"}
             />
           </button>
 
           {parentalGuideOpen && guide && (
             <div
-              className="flex flex-wrap gap-1.5 mt-2 pt-2"
               style={{
-                borderTop: "1px solid rgba(232,224,216,0.06)",
-                animation: "fadeSlideIn 0.2s ease",
+                display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, paddingTop: 8,
+                borderTop: "1px solid rgba(232,226,214,0.06)",
+                animation: "sfFadeSlideIn 0.2s ease",
               }}
             >
               {categories.map(cat => (
@@ -339,45 +465,145 @@ const RecommendationCard = ({ movie, index }: { movie: MovieRecommendation; inde
       )}
 
       {/* Footer Actions */}
-      <div className="flex justify-end items-center gap-2 px-4 py-3.5 pt-3">
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, padding: "12px 16px 14px" }}>
         <button
           onClick={() => window.location.href = `/movies/${movie.tmdbId}`}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[13px] font-semibold cursor-pointer transition-all duration-150"
           style={{
-            background: "rgba(212,117,62,0.12)",
-            border: "1px solid rgba(212,117,62,0.2)",
-            color: "#D4753E",
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+            cursor: "pointer", transition: "all 0.15s",
+            background: `${accentColor}18`, border: `1px solid ${accentColor}30`, color: accentColor,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(212,117,62,0.2)"
-            e.currentTarget.style.borderColor = "rgba(212,117,62,0.35)"
+            e.currentTarget.style.background = `${accentColor}28`
+            e.currentTarget.style.borderColor = `${accentColor}50`
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(212,117,62,0.12)"
-            e.currentTarget.style.borderColor = "rgba(212,117,62,0.2)"
+            e.currentTarget.style.background = `${accentColor}18`
+            e.currentTarget.style.borderColor = `${accentColor}30`
           }}
         >
-          <ExternalLink className="h-3.5 w-3.5" />
+          <ExternalLinkIcon />
           View Details
         </button>
       </div>
-
-      <style jsx>{`
-        @keyframes fadeSlideIn {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </div>
   )
 }
 
+// ── Filter pill style helper ──
+function pillStyle(isSelected: boolean, accentColor: string = C.blue): React.CSSProperties {
+  return {
+    padding: "8px 16px", borderRadius: 20, fontSize: 13, fontWeight: 500,
+    cursor: "pointer", transition: "all 0.15s", border: "1px solid",
+    background: isSelected ? `${accentColor}18` : "rgba(232,226,214,0.04)",
+    borderColor: isSelected ? `${accentColor}50` : "rgba(232,226,214,0.08)",
+    color: isSelected ? C.cream : C.creamMuted,
+  }
+}
+
+// ── Filter card wrapper ──
+function FilterCard({ accentColor, accentEnd, children }: { accentColor: string; accentEnd?: string; children: React.ReactNode }) {
+  const gradient = accentEnd
+    ? `linear-gradient(90deg, ${accentColor}, ${accentEnd}, transparent)`
+    : `linear-gradient(90deg, ${accentColor}, ${accentColor}60, transparent)`
+  return (
+    <div style={{
+      borderRadius: 14, overflow: "hidden",
+      background: C.bgCard, border: "1px solid rgba(232,226,214,0.06)",
+    }}>
+      <div style={{ height: 3, background: gradient }} />
+      <div style={{ padding: 16 }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// ── Content filter level pill colors per category ──
+const CONTENT_CATEGORY_COLORS: Record<string, string> = {
+  Violence: C.red,
+  "Sex/Nudity": C.rose,
+  Language: C.orange,
+  Substances: C.purple,
+  "Frightening Scenes": C.teal,
+}
+
+function contentPillStyle(isSelected: boolean, categoryLabel: string): React.CSSProperties {
+  const catColor = CONTENT_CATEGORY_COLORS[categoryLabel] || C.blue
+  return {
+    padding: "8px 0", borderRadius: 8, fontSize: 12, fontWeight: 500,
+    cursor: "pointer", transition: "all 0.15s", border: "1px solid", textAlign: "center",
+    background: isSelected ? `${catColor}18` : "transparent",
+    borderColor: isSelected ? `${catColor}50` : "rgba(232,226,214,0.08)",
+    color: isSelected ? C.cream : C.creamFaint,
+  }
+}
+
+// ── Step Indicator ──
+function StepIndicator({ step }: { step: "mood" | "results" }) {
+  const steps = ["mood", "results"] as const
+  const stepIndex = steps.indexOf(step)
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "12px 0",
+    }}>
+      {steps.map((s, i) => {
+        const isActive = step === s
+        const isCompleted = stepIndex > i
+
+        let bg: string
+        let borderColor: string
+        let textColor: string
+
+        if (isCompleted) {
+          bg = `linear-gradient(135deg, ${C.orange}, ${C.orangeMuted})`
+          borderColor = C.orange
+          textColor = C.warmBlack
+        } else if (isActive) {
+          bg = `linear-gradient(135deg, ${C.blue}, ${C.blueMuted})`
+          borderColor = C.blue
+          textColor = C.cream
+        } else {
+          bg = "transparent"
+          borderColor = C.creamFaint
+          textColor = C.creamFaint
+        }
+
+        return (
+          <div key={s} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%",
+                background: bg, border: `2px solid ${borderColor}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, fontWeight: 600, color: textColor,
+                transition: "all 0.3s",
+              }}>
+                {isCompleted ? <CheckIcon size={14} color={C.warmBlack} /> : i + 1}
+              </div>
+              <span style={{
+                fontSize: 13, fontWeight: isActive ? 600 : 400,
+                color: isActive ? C.cream : C.creamFaint, whiteSpace: "nowrap",
+              }}>
+                {s === "mood" ? "Mood & Filters" : "Results"}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div style={{
+                width: 32, height: 2, borderRadius: 1,
+                background: isCompleted ? `${C.orange}60` : "rgba(232,226,214,0.1)",
+              }} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Main Component ──
 export function SoloTonightsPick() {
   const [step, setStep] = useState<"mood" | "results">("mood")
   const [selectedMood, setSelectedMood] = useState<Mood>(null)
@@ -473,104 +699,92 @@ export function SoloTonightsPick() {
     setResultsPage(1)
   }
 
-  // Show fullscreen loading when fetching recommendations
+  // Show loading when fetching recommendations
   if (loading) {
     return <TonightsPickLoading />
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 ring-1 ring-amber-500/30">
-            <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-amber-500" />
-          </div>
-          <div>
-            <h2 className="text-lg sm:text-xl font-bold text-foreground">Tonight&apos;s Pick</h2>
-            <p className="text-xs sm:text-sm text-muted-foreground">Find something to watch</p>
-          </div>
-        </div>
-        {step === "results" && (
-          <Button variant="outline" onClick={reset} size="sm" className="gap-2 self-start sm:self-auto">
-            <RefreshCw className="h-4 w-4" />
-            Start Over
-          </Button>
-        )}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Inline keyframes */}
+      <style>{`
+        @keyframes sfFadeSlideIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .sf-chevron {
+          transition: transform 0.2s;
+          transform: rotate(0deg);
+        }
+        .sf-chevron-rotated {
+          transition: transform 0.2s;
+          transform: rotate(180deg);
+        }
+      `}</style>
 
-      {/* Progress Steps */}
-      <div className="flex items-center justify-between rounded-xl bg-muted/30 p-2 sm:p-3 sm:justify-start sm:gap-4">
-        {["mood", "results"].map((s, i) => {
-          const stepIndex = ["mood", "results"].indexOf(step)
-          const isActive = step === s
-          const isCompleted = stepIndex > i
+      {/* Step indicator */}
+      <StepIndicator step={step} />
 
-          return (
-            <div key={s} className="flex items-center gap-2 sm:gap-3">
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <div
-                  className={`flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full text-xs sm:text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-accent text-accent-foreground"
-                      : isCompleted
-                        ? "bg-accent/20 text-accent"
-                        : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {isCompleted ? <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" /> : i + 1}
-                </div>
-                <span
-                  className={`text-xs sm:text-sm whitespace-nowrap ${
-                    isActive ? "text-foreground font-medium" : "text-muted-foreground"
-                  }`}
-                >
-                  {s === "mood" ? "Mood & Filters" : "Results"}
-                </span>
-              </div>
-              {i < 1 && (
-                <div className={`hidden sm:block w-8 h-0.5 rounded-full ${isCompleted ? "bg-accent/40" : "bg-muted"}`} />
-              )}
-            </div>
-          )
-        })}
-      </div>
-
+      {/* Error */}
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 sm:p-4 text-sm text-red-500">
+        <div style={{
+          borderRadius: 10, padding: 14, fontSize: 14,
+          background: `${C.red}14`, border: `1px solid ${C.red}40`, color: C.red,
+        }}>
           {error}
         </div>
       )}
 
-      {/* Step 1: Mood & Filters */}
+      {/* ═══════════════════════════════════════════ */}
+      {/* Step 1: Mood & Filters                     */}
+      {/* ═══════════════════════════════════════════ */}
       {step === "mood" && (
-        <div className="space-y-5 sm:space-y-6">
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+          {/* Mood Cards - 2x3 grid */}
           <div>
-            <p className="text-sm text-muted-foreground mb-3 sm:mb-4">
+            <p style={{ fontSize: 14, color: C.creamMuted, margin: "0 0 12px" }}>
               What are you in the mood for?
             </p>
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {MOOD_OPTIONS.map((option) => {
                 const isSelected = selectedMood === option.value
                 return (
                   <button
                     key={option.value || "any"}
                     onClick={() => setSelectedMood(option.value)}
-                    className={`flex flex-col items-center gap-2 p-4 sm:p-5 rounded-xl border transition-all ${
-                      isSelected
-                        ? "border-accent bg-accent/10 ring-1 ring-accent/30"
-                        : "border-border/50 bg-card/50 hover:border-accent/50 active:bg-accent/5"
-                    }`}
+                    style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                      padding: "16px 12px", borderRadius: 14, cursor: "pointer",
+                      transition: "all 0.2s", border: "1px solid", position: "relative", overflow: "hidden",
+                      background: isSelected
+                        ? `linear-gradient(135deg, ${option.color}12, ${option.color}06)`
+                        : C.bgCard,
+                      borderColor: isSelected ? `${option.color}60` : "rgba(232,226,214,0.06)",
+                    }}
                   >
-                    <div
-                      className={`p-2.5 sm:p-3 rounded-xl ${
-                        isSelected ? "bg-accent/20 text-accent" : "bg-muted text-muted-foreground"
-                      }`}
-                    >
+                    {/* Accent bar on selected */}
+                    {isSelected && (
+                      <div style={{
+                        position: "absolute", top: 0, left: 0, right: 0, height: 3,
+                        background: `linear-gradient(90deg, ${option.color}, transparent)`,
+                      }} />
+                    )}
+
+                    {/* Icon circle */}
+                    <div style={{
+                      width: 36, height: 36, borderRadius: "50%",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: isSelected ? `${option.color}20` : "rgba(232,226,214,0.06)",
+                      color: isSelected ? option.color : C.creamFaint,
+                      transition: "all 0.2s",
+                      transform: isSelected ? "scale(1.1)" : "scale(1)",
+                    }}>
                       {option.icon}
                     </div>
-                    <span className="text-sm sm:text-base font-medium text-foreground">{option.label}</span>
-                    <span className="text-xs text-muted-foreground text-center leading-tight">
+
+                    <span style={{ fontSize: 14, fontWeight: 600, color: C.cream }}>{option.label}</span>
+                    <span style={{ fontSize: 12, color: C.creamFaint, textAlign: "center", lineHeight: 1.3 }}>
                       {option.description}
                     </span>
                   </button>
@@ -580,33 +794,29 @@ export function SoloTonightsPick() {
           </div>
 
           {/* Runtime Filter */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-3">
-              Maximum runtime (optional)
+          <FilterCard accentColor={C.blue}>
+            <p style={{ fontSize: 13, color: C.creamMuted, margin: "0 0 10px", fontWeight: 500 }}>
+              Maximum Runtime
             </p>
-            <div className="grid grid-cols-4 gap-2">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
               {[null, 90, 120, 150].map((time) => (
                 <button
                   key={time || "any"}
                   onClick={() => setMaxRuntime(time)}
-                  className={`py-3 rounded-xl border text-sm font-medium transition-all ${
-                    maxRuntime === time
-                      ? "border-accent bg-accent/10 text-foreground"
-                      : "border-border/50 text-muted-foreground hover:border-accent/50 active:bg-accent/5"
-                  }`}
+                  style={pillStyle(maxRuntime === time, C.blue)}
                 >
                   {time ? `${time}m` : "Any"}
                 </button>
               ))}
             </div>
-          </div>
+          </FilterCard>
 
           {/* Content Rating Filter */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-3">
-              Content rating (optional)
+          <FilterCard accentColor={C.blue} accentEnd={C.teal}>
+            <p style={{ fontSize: 13, color: C.creamMuted, margin: "0 0 10px", fontWeight: 500 }}>
+              Content Rating
             </p>
-            <div className="grid grid-cols-5 gap-2">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8 }}>
               {[
                 { value: null, label: "Any" },
                 { value: "G", label: "G" },
@@ -617,27 +827,23 @@ export function SoloTonightsPick() {
                 <button
                   key={rating.value || "any"}
                   onClick={() => setContentRating(rating.value)}
-                  className={`py-3 rounded-xl border text-sm font-medium transition-all ${
-                    contentRating === rating.value
-                      ? "border-accent bg-accent/10 text-foreground"
-                      : "border-border/50 text-muted-foreground hover:border-accent/50 active:bg-accent/5"
-                  }`}
+                  style={pillStyle(contentRating === rating.value, C.blue)}
                 >
                   {rating.label}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Selecting a rating will include that rating and below (e.g., PG-13 includes G, PG, and PG-13)
+            <p style={{ fontSize: 11, color: C.creamFaint, margin: "8px 0 0" }}>
+              Includes that rating and below (e.g., PG-13 includes G, PG, and PG-13)
             </p>
-          </div>
+          </FilterCard>
 
-          {/* Era Filter */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-3">
-              Era (optional)
+          {/* Era + Released After - Combined Card */}
+          <FilterCard accentColor={C.teal}>
+            <p style={{ fontSize: 13, color: C.creamMuted, margin: "0 0 10px", fontWeight: 500 }}>
+              Era
             </p>
-            <div className="grid grid-cols-4 gap-2">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
               {[
                 { value: null, label: "Any" },
                 { value: "1960s", label: "60s" },
@@ -651,24 +857,20 @@ export function SoloTonightsPick() {
                 <button
                   key={option.value || "any"}
                   onClick={() => setEra(option.value)}
-                  className={`py-3 rounded-xl border text-sm font-medium transition-all ${
-                    era === option.value
-                      ? "border-accent bg-accent/10 text-foreground"
-                      : "border-border/50 text-muted-foreground hover:border-accent/50 active:bg-accent/5"
-                  }`}
+                  style={pillStyle(era === option.value, C.teal)}
                 >
                   {option.label}
                 </button>
               ))}
             </div>
-          </div>
 
-          {/* Released After Filter */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-3">
-              Released after (optional)
+            {/* Faint divider */}
+            <div style={{ height: 1, background: "rgba(232,226,214,0.06)", margin: "14px 0" }} />
+
+            <p style={{ fontSize: 13, color: C.creamMuted, margin: "0 0 10px", fontWeight: 500 }}>
+              Released After
             </p>
-            <div className="grid grid-cols-4 gap-2">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
               {[
                 { value: null, label: "Any" },
                 { value: 1970, label: "1970+" },
@@ -682,49 +884,47 @@ export function SoloTonightsPick() {
                 <button
                   key={option.value || "any"}
                   onClick={() => setStartYear(option.value)}
-                  className={`py-3 rounded-xl border text-sm font-medium transition-all ${
-                    startYear === option.value
-                      ? "border-accent bg-accent/10 text-foreground"
-                      : "border-border/50 text-muted-foreground hover:border-accent/50 active:bg-accent/5"
-                  }`}
+                  style={pillStyle(startYear === option.value, C.teal)}
                 >
                   {option.label}
                 </button>
               ))}
             </div>
             {era && startYear ? (
-              <p className="text-xs text-muted-foreground mt-2">
+              <p style={{ fontSize: 11, color: C.creamFaint, margin: "8px 0 0" }}>
                 Era filter takes priority over released after
               </p>
             ) : null}
-          </div>
+          </FilterCard>
 
-          {/* Streaming Services Filter */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-3">
-              Streaming services (optional)
+          {/* Streaming Services */}
+          <FilterCard accentColor={C.blueMuted}>
+            <p style={{ fontSize: 13, color: C.creamMuted, margin: "0 0 10px", fontWeight: 500 }}>
+              Streaming Services
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
               {US_SUBSCRIPTION_PROVIDERS.map((provider) => {
                 const isSelected = streamingProviders.includes(provider.id)
                 return (
                   <button
                     key={provider.id}
                     onClick={() => toggleStreamingProvider(provider.id)}
-                    className={`flex items-center gap-2 py-2.5 px-3 rounded-xl border text-sm font-medium transition-all ${
-                      isSelected
-                        ? "border-accent bg-accent/10 text-foreground"
-                        : "border-border/50 text-muted-foreground hover:border-accent/50 active:bg-accent/5"
-                    }`}
+                    style={{
+                      ...pillStyle(isSelected, C.blue),
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "8px 12px",
+                    }}
                   >
                     <Image
                       src={getImageUrl(provider.logoPath, "w92") || ""}
                       alt={provider.shortName}
                       width={22}
                       height={22}
-                      className="rounded-md flex-shrink-0"
+                      style={{ borderRadius: 5, flexShrink: 0 }}
                     />
-                    <span className="text-xs truncate">{provider.shortName}</span>
+                    <span style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {provider.shortName}
+                    </span>
                   </button>
                 )
               })}
@@ -732,46 +932,71 @@ export function SoloTonightsPick() {
             {streamingProviders.length > 0 && (
               <button
                 onClick={() => setStreamingProviders([])}
-                className="mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                style={{
+                  background: "transparent", border: "none", cursor: "pointer",
+                  marginTop: 8, fontSize: 12, color: C.creamFaint, padding: 0,
+                  transition: "color 0.15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = C.cream }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = C.creamFaint }}
               >
                 Clear streaming filter
               </button>
             )}
-            <p className="text-[10px] text-muted-foreground/60 mt-2">
+            <p style={{ fontSize: 10, color: `${C.creamFaint}80`, margin: "8px 0 0" }}>
               Streaming data by JustWatch
             </p>
-          </div>
+          </FilterCard>
 
-          {/* Parental Content Filters */}
-          <div className="border border-border/50 rounded-xl overflow-hidden">
+          {/* Content Filters Accordion */}
+          <div style={{
+            borderRadius: 14, overflow: "hidden",
+            background: C.bgCard, border: "1px solid rgba(232,226,214,0.06)",
+          }}>
+            {/* Accent bar: blue-to-rose */}
+            <div style={{ height: 3, background: `linear-gradient(90deg, ${C.blue}, ${C.rose}, transparent)` }} />
+
             <button
               onClick={() => setShowContentFilters(!showContentFilters)}
-              className="w-full flex items-center justify-between p-3 sm:p-4 bg-card/50 hover:bg-card/80 transition-colors"
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: 16, background: "transparent", border: "none", cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(232,226,214,0.02)" }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
             >
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4 text-purple-500" />
-                <span className="text-sm font-medium text-foreground">Content Filters</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <ShieldIcon />
+                <span style={{ fontSize: 14, fontWeight: 500, color: C.cream }}>Content Filters</span>
                 {(maxViolence || maxSexNudity || maxProfanity || maxSubstances || maxFrightening) && (
-                  <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 text-xs">
+                  <span style={{
+                    padding: "2px 8px", borderRadius: 12,
+                    background: `${C.blueLight}20`, color: C.blueLight, fontSize: 11, fontWeight: 500,
+                  }}>
                     Active
                   </span>
                 )}
               </div>
-              {showContentFilters ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              )}
+              <ChevronDownIcon
+                size={16}
+                color={C.creamFaint}
+                className={showContentFilters ? "sf-chevron-rotated" : "sf-chevron"}
+              />
             </button>
 
             {showContentFilters && (
-              <div className="p-3 sm:p-4 space-y-4 border-t border-border/50 bg-muted/30">
-                <p className="text-xs text-muted-foreground">
+              <div style={{
+                padding: 16, paddingTop: 0,
+                borderTop: "1px solid rgba(232,226,214,0.06)",
+                display: "flex", flexDirection: "column", gap: 16,
+              }}>
+                <p style={{ fontSize: 12, color: C.creamFaint, margin: 0 }}>
                   Set maximum levels for each category. Movies exceeding these levels will be filtered out.
                 </p>
 
                 {/* Quick Presets */}
-                <div className="flex flex-wrap gap-2">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   <button
                     onClick={() => {
                       setMaxViolence(null)
@@ -780,7 +1005,13 @@ export function SoloTonightsPick() {
                       setMaxSubstances(null)
                       setMaxFrightening(null)
                     }}
-                    className="px-3 py-1.5 rounded-lg border border-border/50 text-xs font-medium hover:bg-card/50 transition-colors"
+                    style={{
+                      padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+                      background: "transparent", border: "1px solid rgba(232,226,214,0.1)",
+                      color: C.creamMuted, cursor: "pointer", transition: "background 0.15s",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(232,226,214,0.04)" }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
                   >
                     Clear All
                   </button>
@@ -792,7 +1023,13 @@ export function SoloTonightsPick() {
                       setMaxSubstances("Mild")
                       setMaxFrightening("Mild")
                     }}
-                    className="px-3 py-1.5 rounded-lg border border-green-500/30 bg-green-500/10 text-green-400 text-xs font-medium hover:bg-green-500/20 transition-colors"
+                    style={{
+                      padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+                      background: `${C.green}14`, border: `1px solid ${C.green}30`,
+                      color: C.green, cursor: "pointer", transition: "background 0.15s",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = `${C.green}22` }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = `${C.green}14` }}
                   >
                     Kid-Friendly
                   </button>
@@ -804,27 +1041,34 @@ export function SoloTonightsPick() {
                       setMaxSubstances("Moderate")
                       setMaxFrightening("Moderate")
                     }}
-                    className="px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-400 text-xs font-medium hover:bg-amber-500/20 transition-colors"
+                    style={{
+                      padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+                      background: `${C.yellow}14`, border: `1px solid ${C.yellow}30`,
+                      color: C.yellow, cursor: "pointer", transition: "background 0.15s",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = `${C.yellow}22` }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = `${C.yellow}14` }}
                   >
                     Family Night
                   </button>
                 </div>
 
                 {/* Individual Category Filters */}
-                <div className="space-y-3">
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {([
-                    { label: "Violence", icon: <Swords className="h-3.5 w-3.5 text-muted-foreground" />, state: maxViolence, setter: setMaxViolence },
-                    { label: "Sex/Nudity", icon: <Heart className="h-3.5 w-3.5 text-muted-foreground" />, state: maxSexNudity, setter: setMaxSexNudity },
-                    { label: "Language", icon: <Volume2 className="h-3.5 w-3.5 text-muted-foreground" />, state: maxProfanity, setter: setMaxProfanity },
-                    { label: "Substances", icon: <Wine className="h-3.5 w-3.5 text-muted-foreground" />, state: maxSubstances, setter: setMaxSubstances },
-                    { label: "Frightening Scenes", icon: <Ghost className="h-3.5 w-3.5 text-muted-foreground" />, state: maxFrightening, setter: setMaxFrightening },
+                    { label: "Violence", state: maxViolence, setter: setMaxViolence },
+                    { label: "Sex/Nudity", state: maxSexNudity, setter: setMaxSexNudity },
+                    { label: "Language", state: maxProfanity, setter: setMaxProfanity },
+                    { label: "Substances", state: maxSubstances, setter: setMaxSubstances },
+                    { label: "Frightening Scenes", state: maxFrightening, setter: setMaxFrightening },
                   ] as const).map((category) => (
                     <div key={category.label}>
-                      <div className="flex items-center gap-2 mb-2">
-                        {category.icon}
-                        <span className="text-xs font-medium text-foreground">{category.label}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: C.cream }}>
+                          {category.label}
+                        </span>
                       </div>
-                      <div className="grid grid-cols-5 gap-1.5">
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 6 }}>
                         {[
                           { value: null, label: "Any" },
                           { value: "None", label: "None" },
@@ -835,11 +1079,7 @@ export function SoloTonightsPick() {
                           <button
                             key={level.value || "any"}
                             onClick={() => category.setter(level.value as ContentLevel)}
-                            className={`py-2 rounded-lg border text-xs font-medium transition-all ${
-                              category.state === level.value
-                                ? "border-accent bg-accent/10 text-foreground"
-                                : "border-border/50 text-muted-foreground hover:border-accent/50"
-                            }`}
+                            style={contentPillStyle(category.state === level.value, category.label)}
                           >
                             {level.label}
                           </button>
@@ -849,7 +1089,7 @@ export function SoloTonightsPick() {
                   ))}
                 </div>
 
-                <p className="text-xs text-muted-foreground pt-2">
+                <p style={{ fontSize: 12, color: C.creamFaint, margin: 0 }}>
                   Note: Movies without parental guide data in our database will still be shown.
                 </p>
               </div>
@@ -858,26 +1098,40 @@ export function SoloTonightsPick() {
 
         </div>
       )}
+
       {/* Sticky Get Recommendations Button */}
       {step === "mood" && !loading && (
-        <div className="sticky bottom-20 lg:bottom-0 z-10 pt-3 pb-2 -mx-4 px-4 bg-gradient-to-t from-background via-background to-transparent">
+        <div
+          className="sticky bottom-20 lg:bottom-0 z-10"
+          style={{
+            paddingTop: 12, paddingBottom: 8,
+            marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16,
+            background: `linear-gradient(to top, ${C.bg}, ${C.bg}ee, transparent)`,
+          }}
+        >
           <button
             onClick={() => getRecommendations(1)}
             disabled={loading}
-            className="w-full h-12 rounded-xl text-base font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
             style={{
-              backgroundColor: '#e07850',
-              color: '#08080a',
+              width: "100%", height: 48, borderRadius: 14,
+              fontSize: 16, fontWeight: 700, border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              background: `linear-gradient(135deg, ${C.orange}, ${C.orangeMuted})`,
+              color: C.warmBlack,
+              transition: "opacity 0.15s",
+              opacity: loading ? 0.7 : 1,
             }}
           >
             {loading ? (
               <>
-                <RefreshCw className="h-5 w-5 animate-spin" />
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                  <path d="M21 12a9 9 0 11-6.219-8.56" />
+                </svg>
                 Finding films...
               </>
             ) : (
               <>
-                <Sparkles className="h-5 w-5" />
+                <span style={{ fontSize: 18 }}>&#10022;</span>
                 Get Recommendations
               </>
             )}
@@ -885,23 +1139,31 @@ export function SoloTonightsPick() {
         </div>
       )}
 
-      {/* Step 2: Results */}
+      {/* ═══════════════════════════════════════════ */}
+      {/* Step 2: Results                            */}
+      {/* ═══════════════════════════════════════════ */}
       {step === "results" && results && (
-        <div className="space-y-4 sm:space-y-6">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
           {/* User Profile Summary */}
-          <div className="rounded-xl border border-border/50 bg-card/50 p-3 sm:p-4">
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground mb-2 sm:mb-3">
-              <User className="h-4 w-4" />
+          <div style={{
+            borderRadius: 14, padding: 14, overflow: "hidden",
+            background: C.bgCard, border: "1px solid rgba(232,226,214,0.06)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.creamMuted, marginBottom: 10 }}>
+              <UserIcon />
               <span>Based on your ratings</span>
             </div>
             {results.userProfile.sharedGenres.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                <span className="text-[10px] sm:text-xs text-muted-foreground">Your favorites:</span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                <span style={{ fontSize: 11, color: C.creamFaint }}>Your favorites:</span>
                 {results.userProfile.sharedGenres.map((genre) => (
                   <span
                     key={genre.genreId}
-                    className="px-2 py-0.5 sm:py-1 rounded-full bg-accent/10 text-accent text-[10px] sm:text-xs"
+                    style={{
+                      padding: "3px 10px", borderRadius: 12,
+                      background: `${C.blue}18`, color: C.blueLight, fontSize: 11, fontWeight: 500,
+                    }}
                   >
                     {genre.genreName}
                   </span>
@@ -912,15 +1174,17 @@ export function SoloTonightsPick() {
 
           {/* Recommendations List */}
           {results.recommendations.length === 0 ? (
-            <div className="text-center py-8 sm:py-12">
-              <Film className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
-              <p className="text-base sm:text-lg font-medium text-foreground mb-2">No recommendations found</p>
-              <p className="text-xs sm:text-sm text-muted-foreground">
+            <div style={{ textAlign: "center", padding: "40px 0" }}>
+              <div style={{ margin: "0 auto 16px", display: "flex", justifyContent: "center" }}>
+                <FilmIcon />
+              </div>
+              <p style={{ fontSize: 17, fontWeight: 600, color: C.cream, margin: "0 0 8px" }}>No recommendations found</p>
+              <p style={{ fontSize: 13, color: C.creamMuted, margin: 0 }}>
                 Try adjusting your mood or runtime preferences
               </p>
             </div>
           ) : (
-            <div className="grid gap-3 sm:gap-4">
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {results.recommendations.map((movie, index) => (
                 <RecommendationCard key={movie.tmdbId} movie={movie} index={index} />
               ))}
@@ -928,35 +1192,62 @@ export function SoloTonightsPick() {
           )}
         </div>
       )}
+
       {/* Sticky Results Buttons */}
       {step === "results" && results && (
-        <div className="sticky bottom-20 lg:bottom-0 z-10 pt-3 pb-2 -mx-4 px-4 bg-gradient-to-t from-background via-background to-transparent">
-          <div className="flex items-center gap-2">
+        <div
+          className="sticky bottom-20 lg:bottom-0 z-10"
+          style={{
+            paddingTop: 12, paddingBottom: 8,
+            marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16,
+            background: `linear-gradient(to top, ${C.bg}, ${C.bg}ee, transparent)`,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Back button */}
             <button
               onClick={() => setStep("mood")}
-              className="flex-1 h-11 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all"
               style={{
-                backgroundColor: '#0f0f12',
-                border: '1px solid rgba(248, 246, 241, 0.1)',
-                color: '#f8f6f1',
+                flex: 1, height: 44, borderRadius: 14,
+                fontSize: 14, fontWeight: 500, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                background: C.warmBlack,
+                border: `1px solid rgba(232,226,214,0.1)`,
+                color: C.cream,
+                transition: "background 0.15s",
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = C.bgCard }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = C.warmBlack }}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
               Back
             </button>
+            {/* Shuffle button */}
             <button
               onClick={shuffleResults}
               disabled={loading}
-              className="flex-1 h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               style={{
-                backgroundColor: '#e07850',
-                color: '#08080a',
+                flex: 1.4, height: 44, borderRadius: 14,
+                fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                background: `linear-gradient(135deg, ${C.orange}, ${C.orangeMuted})`,
+                color: C.warmBlack,
+                transition: "opacity 0.15s",
+                opacity: loading ? 0.7 : 1,
               }}
             >
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                  <path d="M21 12a9 9 0 11-6.219-8.56" />
+                </svg>
               ) : (
-                <RefreshCw className="h-4 w-4" />
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 4v6h-6" />
+                  <path d="M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                </svg>
               )}
               Shuffle
             </button>

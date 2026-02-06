@@ -63,8 +63,8 @@ const navItems: { route: NavRoute; label: string; href: string; Icon: typeof Hom
   { route: "profile", label: "Profile", href: "/profile", Icon: ProfileIcon },
 ]
 
-const ACTIVE_COLOR = "#e07850"
-const INACTIVE_COLOR = "rgba(248,246,241,0.25)"
+const ACTIVE_COLOR = "#e8e2d6"
+const INACTIVE_COLOR = "#a69e90"
 
 function getActiveRoute(pathname: string): NavRoute {
   if (pathname === "/") return "home"
@@ -113,10 +113,15 @@ export function MobileBottomNav({ className }: { className?: string }) {
   return (
     <nav
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 bg-surface border-t border-foreground/[0.08] lg:hidden",
+        "fixed bottom-0 left-0 right-0 z-50 lg:hidden",
         className,
       )}
-      style={{ padding: "12px 20px 28px" }}
+      style={{
+        background: "linear-gradient(to top, #0f0d0b, rgba(15,13,11,0.93), rgba(15,13,11,0.8))",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+        padding: "12px 20px 28px",
+      }}
     >
       <div className="flex justify-around">
         {navItems.map(({ route, label, href, Icon }) => {
@@ -127,17 +132,29 @@ export function MobileBottomNav({ className }: { className?: string }) {
               href={href}
               className="relative flex flex-col items-center gap-1"
             >
-              <div className="relative">
+              {/* Active indicator — gradient bar above icon */}
+              {isActive && (
+                <div
+                  className="absolute -top-3 left-1/2 -translate-x-1/2 h-[2px] w-4 rounded-full"
+                  style={{
+                    background: "linear-gradient(to right, #3d5a96, #ff6b2d)",
+                  }}
+                />
+              )}
+              <div className="relative" style={{ opacity: isActive ? 1 : 0.4 }}>
                 <Icon color={isActive ? ACTIVE_COLOR : INACTIVE_COLOR} size={22} />
                 {route === "notifications" && unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-accent-foreground">
+                  <span className="absolute -top-1.5 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-orange text-[9px] font-bold text-warm-black">
                     {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}
               </div>
               <span
                 className="text-[10px] font-medium"
-                style={{ color: isActive ? ACTIVE_COLOR : INACTIVE_COLOR }}
+                style={{
+                  color: isActive ? ACTIVE_COLOR : INACTIVE_COLOR,
+                  opacity: isActive ? 1 : 0.4,
+                }}
               >
                 {label}
               </span>

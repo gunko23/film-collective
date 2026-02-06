@@ -1,6 +1,5 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Inter, Playfair_Display } from "next/font/google"
 import { StackProvider, StackTheme } from "@stackframe/stack"
 import { stackServerApp } from "@/stack"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -8,19 +7,6 @@ import { Analytics } from "@vercel/analytics/next"
 import { PWARegister } from "@/components/pwa-register"
 import { AblyClientProvider } from "@/components/ably-provider"
 import "./globals.css"
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  weight: ["300", "400", "500", "600", "700", "800"],
-})
-
-const playfair = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-serif",
-  weight: ["400", "600", "700"],
-  style: ["normal", "italic"],
-})
 
 export const metadata: Metadata = {
   title: "Film Collective",
@@ -52,7 +38,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#e07850",
+  themeColor: "#0f0d0b",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -66,7 +52,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange={false}>
           <StackProvider app={stackServerApp}>
             <StackTheme>

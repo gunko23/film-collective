@@ -6,204 +6,169 @@ import Link from "next/link"
 import Image from "next/image"
 import useSWR from "swr"
 import { useSafeUser } from "@/hooks/use-safe-user"
-import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
 import { getImageUrl } from "@/lib/tmdb/image"
+import { US_SUBSCRIPTION_PROVIDERS } from "@/lib/streaming/providers"
+import { TonightsPickLoading } from "@/components/tonights-pick-loading"
 
-// ─── Design System Colors ───────────────────────────────────
-const colors = {
-  bg: '#08080a',
-  surface: '#0f0f12',
-  surfaceLight: '#161619',
-  cream: '#f8f6f1',
-  accent: '#e07850',
-  accentSoft: '#d4a574',
-  cool: '#7b8cde',
+// ─── Soulframe Design Tokens ─────────────────────────────────
+const C = {
+  bg: "#0f0d0b",
+  bgCard: "#1a1714",
+  bgCardHover: "#211e19",
+  bgElevated: "#252119",
+  blue: "#3d5a96",
+  blueMuted: "#2e4470",
+  blueLight: "#5a7cb8",
+  blueGlow: "rgba(61,90,150,0.18)",
+  orange: "#ff6b2d",
+  orangeMuted: "#cc5624",
+  orangeLight: "#ff8f5e",
+  orangeGlow: "rgba(255,107,45,0.14)",
+  cream: "#e8e2d6",
+  creamMuted: "#a69e90",
+  creamFaint: "#6b6358",
+  warmBlack: "#0a0908",
+  teal: "#4a9e8e",
+  rose: "#c4616a",
+  green: "#4ade80",
+  purple: "#a78bfa",
+  red: "#ef4444",
+  yellow: "#facc15",
 }
 
-// ─── Icons ──────────────────────────────────────────────────
-function BackIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+const FONT =
+  '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif'
+
+const grainSVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")`
+
+// ─── Icons ───────────────────────────────────────────────────
+function BackIcon({ color = C.creamMuted, size = 18 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M19 12H5M12 19L5 12L12 5" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 12H5M12 19l-7-7 7-7" />
     </svg>
   )
 }
 
-function SparkleIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+function CheckSmall({ color = C.warmBlack, size = 9 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  )
+}
+
+function ChevronIcon({ color = C.creamFaint, size = 16 }: { color?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  )
+}
+
+function ShieldIcon({ color = C.blueLight, size = 16 }: { color?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  )
+}
+
+function SparkleIcon({ color = C.warmBlack, size = 18 }: { color?: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" />
       <circle cx="19" cy="5" r="1.5" fill={color} opacity="0.6" />
     </svg>
   )
 }
 
-function CheckIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+function RefreshIcon({ color = C.warmBlack, size = 16 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M5 13L9 17L19 7" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
+      <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
     </svg>
   )
 }
 
-function ChevronDownIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+function FilmIcon({ color = C.creamFaint, size = 20 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M6 9L12 15L18 9" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M2 8h20M2 16h20M8 4v16M16 4v16" />
     </svg>
   )
 }
 
-function ChevronUpIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+function LinkIcon({ color = C.cream, size = 13 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M6 15L12 9L18 15" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+      <path d="M15 3h6v6" /><path d="M10 14L21 3" />
     </svg>
   )
 }
 
-function AnyMoodIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+function StarFilled({ color = C.orange, size = 12 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke="none">
+      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
     </svg>
   )
 }
 
-function FunIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+function CheckmarkIcon({ color = C.orange, size = 13 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="6" width="18" height="12" rx="2" stroke={color} strokeWidth="1.5" />
-      <path d="M7 6V4M17 6V4M7 18V20M17 18V20" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6L9 17l-5-5" />
     </svg>
   )
 }
 
-function IntenseIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+// Mood icons
+function MoodSparkle({ color = C.creamFaint, size = 16 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v2M12 19v2M5.64 5.64l1.41 1.41M16.95 16.95l1.41 1.41M3 12h2M19 12h2M5.64 18.36l1.41-1.41M16.95 7.05l1.41-1.41" />
     </svg>
   )
 }
 
-function EmotionalIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+function MoodCoffee({ color = C.creamFaint, size = 16 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M12 20L4.5 12.5C2.5 10.5 2.5 7 4.5 5C6.5 3 10 3 12 5.5C14 3 17.5 3 19.5 5C21.5 7 21.5 10.5 19.5 12.5L12 20Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z" />
+      <line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line x1="14" y1="1" x2="14" y2="4" />
     </svg>
   )
 }
 
-function MindlessIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+function MoodZap({ color = C.creamFaint, size = 16 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" />
-      <path d="M8 14C8 14 9.5 16 12 16C14.5 16 16 14 16 14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M9 9H9.01M15 9H15.01" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
     </svg>
   )
 }
 
-function AcclaimedIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+function MoodHeart({ color = C.creamFaint, size = 16 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M8 4H16V10C16 12.2 14.2 14 12 14C9.8 14 8 12.2 8 10V4Z" stroke={color} strokeWidth="1.5" />
-      <path d="M12 14V17M8 20H16" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
     </svg>
   )
 }
 
-function FilterIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
+function MoodAward({ color = C.creamFaint, size = 16 }: { color?: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" />
-      <path d="M12 8V8.01M12 11V16" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="7" /><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12" />
     </svg>
   )
 }
 
-function ViolenceIcon({ color = colors.cream, size = 18 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M14.5 4L18 7.5L11 14.5L7.5 11L14.5 4Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M3 21L7.5 16.5" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function HeartIcon({ color = colors.cream, size = 18 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M12 20L4.5 12.5C2.5 10.5 2.5 7 4.5 5C6.5 3 10 3 12 5.5C14 3 17.5 3 19.5 5C21.5 7 21.5 10.5 19.5 12.5L12 20Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function LanguageIcon({ color = colors.cream, size = 18 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M21 12C21 16.4183 16.9706 20 12 20C10.4607 20 9.01172 19.6565 7.74467 19.0511L3 20L4.39499 16.28C3.51156 15.0423 3 13.5743 3 12C3 7.58172 7.02944 4 12 4C16.9706 4 21 7.58172 21 12Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function SubstanceIcon({ color = colors.cream, size = 18 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M8 3H16L18 8H6L8 3Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M6 8V19C6 20.1 6.9 21 8 21H16C17.1 21 18 20.1 18 19V8" stroke={color} strokeWidth="1.5" />
-    </svg>
-  )
-}
-
-function FrighteningIcon({ color = colors.cream, size = 18 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" />
-      <path d="M8 15C8 15 9 13 12 13C15 13 16 15 16 15" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M9 10V9M15 10V9" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function RefreshIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M1 4V10H7" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M23 20V14H17" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14L18.36 18.36A9 9 0 0 1 3.51 15" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function ClockIcon({ color = colors.cream, size = 16 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="1.5" />
-      <path d="M12 6V12L16 14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function StarIcon({ color = colors.cream, size = 16 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-      <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-    </svg>
-  )
-}
-
-function FilmIcon({ color = colors.cream, size = 24 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <rect x="2" y="2" width="20" height="20" rx="2.18" stroke={color} strokeWidth="1.5" />
-      <path d="M7 2V22M17 2V22M2 12H22M2 7H7M2 17H7M17 17H22M17 7H22" stroke={color} strokeWidth="1.5" />
-    </svg>
-  )
-}
-
-// ─── Types ──────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────
 type FilmTab = 1 | 2 | 3
 type Mood = "any" | "fun" | "intense" | "emotional" | "mindless" | "acclaimed"
 type ContentLevel = "any" | "none" | "mild" | "mod" | "severe"
@@ -227,12 +192,20 @@ type MovieRecommendation = {
   voteAverage: number
   groupFitScore: number
   reasoning: string[]
+  parentalGuide?: {
+    sexNudity: string | null
+    violence: string | null
+    profanity: string | null
+    alcoholDrugsSmoking: string | null
+    frighteningIntense: string | null
+  } | null
+  seenBy?: string[]
 }
 
-// ─── Fetcher ────────────────────────────────────────────────
+// ─── Fetcher ─────────────────────────────────────────────────
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
-// ─── Helpers ────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────
 function capitalize(str: string): string {
   if (str === "mod") return "Moderate"
   return str.charAt(0).toUpperCase() + str.slice(1)
@@ -248,12 +221,37 @@ function formatContentRating(rating: string): string {
   return map[rating] || rating.toUpperCase()
 }
 
-// ─── Main Component ─────────────────────────────────────────
+// Mood color map
+const MOOD_COLORS: Record<string, string> = {
+  any: C.orange,
+  fun: C.teal,
+  intense: C.rose,
+  emotional: C.blue,
+  mindless: C.purple,
+  acclaimed: C.orange,
+}
+
+// Member avatar color pairs
+const MEMBER_COLORS = [
+  { from: "#ff6b2d", to: "#ff8f5e" },
+  { from: "#3d5a96", to: "#5a7cb8" },
+  { from: "#4a9e8e", to: "#6bc4b4" },
+  { from: "#c4616a", to: "#d88088" },
+  { from: "#2e4470", to: "#5a7cb8" },
+]
+
+// Score color helper
+function scoreColor(score: number): string {
+  if (score >= 70) return C.teal
+  if (score >= 50) return C.orange
+  return C.creamFaint
+}
+
+// ─── Main Component ──────────────────────────────────────────
 export default function CollectiveTonightsPickPage() {
   const params = useParams()
   const router = useRouter()
   const collectiveId = params.id as string
-
   const { user } = useSafeUser()
 
   // Step state
@@ -266,7 +264,10 @@ export default function CollectiveTonightsPickPage() {
   const [selectedMood, setSelectedMood] = useState<Mood>("any")
   const [maxRuntime, setMaxRuntime] = useState<string>("any")
   const [contentRating, setContentRating] = useState<string>("any")
-  const [showContentFilters, setShowContentFilters] = useState(true) // EXPANDED by default
+  const [era, setEra] = useState<string>("any")
+  const [releasedAfter, setReleasedAfter] = useState<string>("any")
+  const [streamingProviders, setStreamingProviders] = useState<number[]>([])
+  const [showContentFilters, setShowContentFilters] = useState(false)
   const [contentFilters, setContentFilters] = useState<Record<string, ContentLevel>>({
     violence: "any",
     sexNudity: "any",
@@ -279,6 +280,7 @@ export default function CollectiveTonightsPickPage() {
   const [results, setResults] = useState<MovieRecommendation[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resultsPage, setResultsPage] = useState(1)
 
   // Fetch collective data
   const { data: collectiveData } = useSWR(
@@ -286,22 +288,19 @@ export default function CollectiveTonightsPickPage() {
     fetcher
   )
 
-  // Use the dedicated tonight's pick endpoint for members
+  // Fetch members
   const { data: tonightData, isLoading: membersLoading } = useSWR(
     collectiveId ? `/api/collectives/${collectiveId}/tonight` : null,
     fetcher
   )
 
-  // Transform members data - the tonight endpoint returns { members: [...] }
   const members: Member[] = (tonightData?.members || []).map((m: any, i: number) => ({
     id: m.user_id || m.id,
     name: m.user_name || m.name || "Unknown",
     initials: (m.user_name || m.name || "U").split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2),
-    color: [colors.accent, colors.cool, "#22c55e", colors.accentSoft, "#f472b6"][i % 5],
+    color: MEMBER_COLORS[i % MEMBER_COLORS.length].from,
     avatar_url: m.user_avatar || m.avatar_url
   }))
-
-  const collectiveName = collectiveData?.name || "Collective"
 
   // Auto-select current user
   useEffect(() => {
@@ -313,6 +312,18 @@ export default function CollectiveTonightsPickPage() {
     }
   }, [user, members, selectedMembers.length])
 
+  // Load saved streaming providers
+  useEffect(() => {
+    fetch("/api/streaming-providers")
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.providers?.length > 0) {
+          setStreamingProviders(data.providers.map((p: any) => p.providerId))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   const toggleMember = (id: string) => {
     setSelectedMembers(prev =>
       prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
@@ -320,10 +331,22 @@ export default function CollectiveTonightsPickPage() {
   }
 
   const selectAllMembers = () => {
-    setSelectedMembers(members.map(m => m.id))
+    if (selectedMembers.length === members.length) {
+      setSelectedMembers([])
+    } else {
+      setSelectedMembers(members.map(m => m.id))
+    }
   }
 
-  const getRecommendations = async () => {
+  const toggleStreamingProvider = (providerId: number) => {
+    setStreamingProviders(prev =>
+      prev.includes(providerId)
+        ? prev.filter(id => id !== providerId)
+        : [...prev, providerId]
+    )
+  }
+
+  const getRecommendations = async (page: number = 1) => {
     setLoading(true)
     setError(null)
 
@@ -336,6 +359,10 @@ export default function CollectiveTonightsPickPage() {
           mood: selectedMood === "any" ? null : selectedMood,
           maxRuntime: maxRuntime === "any" ? null : parseInt(maxRuntime),
           contentRating: contentRating === "any" ? null : formatContentRating(contentRating),
+          era: era === "any" ? null : era,
+          startYear: releasedAfter === "any" ? null : parseInt(releasedAfter),
+          streamingProviders: streamingProviders.length > 0 ? streamingProviders : null,
+          page,
           parentalFilters: {
             maxViolence: contentFilters.violence === "any" ? null : capitalize(contentFilters.violence),
             maxSexNudity: contentFilters.sexNudity === "any" ? null : capitalize(contentFilters.sexNudity),
@@ -353,6 +380,7 @@ export default function CollectiveTonightsPickPage() {
 
       const data = await res.json()
       setResults(data.recommendations || [])
+      setResultsPage(page)
       setStep(3)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong")
@@ -363,76 +391,52 @@ export default function CollectiveTonightsPickPage() {
 
   const applyPreset = (preset: "clear" | "kid" | "family") => {
     if (preset === "clear") {
-      setContentFilters({
-        violence: "any",
-        sexNudity: "any",
-        language: "any",
-        substances: "any",
-        frightening: "any"
-      })
+      setContentFilters({ violence: "any", sexNudity: "any", language: "any", substances: "any", frightening: "any" })
     } else if (preset === "kid") {
-      setContentFilters({
-        violence: "mild",
-        sexNudity: "none",
-        language: "mild",
-        substances: "none",
-        frightening: "mild"
-      })
+      setContentFilters({ violence: "mild", sexNudity: "none", language: "mild", substances: "none", frightening: "mild" })
     } else if (preset === "family") {
-      setContentFilters({
-        violence: "mod",
-        sexNudity: "mild",
-        language: "mod",
-        substances: "mild",
-        frightening: "mod"
-      })
+      setContentFilters({ violence: "mod", sexNudity: "mild", language: "mod", substances: "mild", frightening: "mod" })
     }
   }
 
+  const goBack = () => {
+    if (step === 1) {
+      router.back()
+    } else {
+      setStep((step - 1) as FilmTab)
+    }
+  }
+
+  const backLabel = step === 1 ? "Back to Feed" : step === 2 ? "Back to Who" : "Back to Mood"
+
+  // Mood options config
   const moods = [
-    { id: "any" as Mood, label: "Any Mood", subtitle: "Show me everything", Icon: AnyMoodIcon },
-    { id: "fun" as Mood, label: "Fun", subtitle: "Light & entertaining", Icon: FunIcon },
-    { id: "intense" as Mood, label: "Intense", subtitle: "Edge of your seat", Icon: IntenseIcon },
-    { id: "emotional" as Mood, label: "Emotional", subtitle: "Feel all the feels", Icon: EmotionalIcon },
-    { id: "mindless" as Mood, label: "Mindless", subtitle: "Turn brain off", Icon: MindlessIcon },
-    { id: "acclaimed" as Mood, label: "Acclaimed", subtitle: "Critics' favorites", Icon: AcclaimedIcon },
-  ]
-
-  const runtimes = [
-    { id: "any", label: "Any" },
-    { id: "90", label: "90m" },
-    { id: "120", label: "120m" },
-    { id: "150", label: "150m" },
-  ]
-
-  const ratings = [
-    { id: "any", label: "Any" },
-    { id: "g", label: "G" },
-    { id: "pg", label: "PG" },
-    { id: "pg13", label: "PG-13" },
-    { id: "r", label: "R" },
+    { id: "any" as Mood, name: "Any Mood", sub: "Show me everything", icon: MoodSparkle, color: C.orange },
+    { id: "fun" as Mood, name: "Fun", sub: "Light & entertaining", icon: MoodCoffee, color: C.teal },
+    { id: "intense" as Mood, name: "Intense", sub: "Edge of your seat", icon: MoodZap, color: C.rose },
+    { id: "emotional" as Mood, name: "Emotional", sub: "Feel all the feels", icon: MoodHeart, color: C.blue },
+    { id: "mindless" as Mood, name: "Mindless", sub: "Turn brain off", icon: MoodCoffee, color: C.purple },
+    { id: "acclaimed" as Mood, name: "Acclaimed", sub: "Critics' favorites", icon: MoodAward, color: C.orange },
   ]
 
   const filterLevels: ContentLevel[] = ["any", "none", "mild", "mod", "severe"]
   const filterLabels = ["Any", "None", "Mild", "Mod", "Severe"]
 
   const contentFilterCategories = [
-    { id: "violence", label: "Violence", Icon: ViolenceIcon },
-    { id: "sexNudity", label: "Sex/Nudity", Icon: HeartIcon },
-    { id: "language", label: "Language", Icon: LanguageIcon },
-    { id: "substances", label: "Substances", Icon: SubstanceIcon },
-    { id: "frightening", label: "Frightening Scenes", Icon: FrighteningIcon },
+    { id: "violence", label: "Violence", color: C.red },
+    { id: "sexNudity", label: "Sex/Nudity", color: C.rose },
+    { id: "language", label: "Language", color: C.yellow },
+    { id: "substances", label: "Substances", color: C.purple },
+    { id: "frightening", label: "Frightening Scenes", color: C.orange },
   ]
 
-  const steps = [
-    { num: 1 as FilmTab, label: "Who" },
-    { num: 2 as FilmTab, label: "Mood" },
-    { num: 3 as FilmTab, label: "Results" },
-  ]
-
+  // ─── Auth / Loading guards ─────────────────────────────────
   if (!user) {
     return (
-      <div className="h-screen flex items-center justify-center" style={{ backgroundColor: colors.bg, color: colors.cream }}>
+      <div style={{
+        height: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+        backgroundColor: C.bg, color: C.cream, fontFamily: FONT,
+      }}>
         <p>Please sign in to continue</p>
       </div>
     )
@@ -440,770 +444,979 @@ export default function CollectiveTonightsPickPage() {
 
   if (membersLoading) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center" style={{ backgroundColor: colors.bg, color: colors.cream }}>
+      <div style={{
+        height: "100vh", display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        backgroundColor: C.bg, color: C.cream, fontFamily: FONT,
+      }}>
         <div style={{
-          width: "32px",
-          height: "32px",
-          border: `2px solid ${colors.accent}`,
+          width: 32, height: 32,
+          border: `2px solid ${C.orange}`,
           borderTopColor: "transparent",
           borderRadius: "50%",
-          animation: "spin 1s linear infinite"
+          animation: "spin 1s linear infinite",
         }} />
-        <p style={{ marginTop: "16px", fontSize: "14px", color: `${colors.cream}50` }}>Loading...</p>
-        <style jsx>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
+        <p style={{ marginTop: 16, fontSize: 14, color: C.creamMuted }}>Loading...</p>
+        <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     )
   }
 
-  return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        position: "relative",
-        backgroundColor: "#08080a",
-        color: "#f8f6f1",
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      }}
-    >
-      {/* Step Indicator */}
-      <div style={{
-        padding: "20px 20px 12px",
-        display: "flex",
-        alignItems: "center",
-        borderBottom: "1px solid rgba(248, 246, 241, 0.06)",
-        flexShrink: 0
-      }}>
-        {steps.map((s, i) => (
-          <div key={s.num} style={{ display: "flex", alignItems: "center", flex: i < steps.length - 1 ? 1 : "none" }}>
-            <button
-              type="button"
-              onClick={() => s.num < step && setStep(s.num)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                background: "none",
-                border: "none",
-                cursor: s.num <= step ? "pointer" : "default",
-                padding: 0,
-                color: "inherit"
-              }}
-            >
-              <div style={{
-                width: "24px",
-                height: "24px",
-                borderRadius: "50%",
-                backgroundColor: step >= s.num ? "#e07850" : "#0f0f12",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "12px",
-                fontWeight: 600,
-                color: step >= s.num ? "#08080a" : "rgba(248, 246, 241, 0.4)"
-              }}>
-                {s.num}
-              </div>
-              <span style={{
-                fontSize: "13px",
-                fontWeight: step === s.num ? 600 : 400,
-                color: step >= s.num ? "#f8f6f1" : "rgba(248, 246, 241, 0.4)"
-              }}>
-                {s.label}
-              </span>
-            </button>
-            {i < steps.length - 1 && (
-              <div style={{
-                flex: 1,
-                height: "1px",
-                backgroundColor: step > s.num ? "#e07850" : "rgba(248, 246, 241, 0.1)",
-                margin: "0 10px"
-              }} />
-            )}
-          </div>
-        ))}
-      </div>
+  if (loading) {
+    return <TonightsPickLoading />
+  }
 
-      {/* Content - Scrollable area */}
-      <div
-        className="elegant-scroll"
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "16px 20px",
-          minHeight: 0
-        }}
-      >
-        {/* Step 1: Who's Watching */}
+  // ─── Render ────────────────────────────────────────────────
+  return (
+    <>
+      <style jsx global>{`
+        @keyframes popIn {
+          0% { transform: scale(0.92); opacity: 0.6; }
+          50% { transform: scale(1.06); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes moodPop {
+          0% { transform: scale(0.93); }
+          40% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .tp-scrollbar::-webkit-scrollbar { width: 4px; }
+        .tp-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .tp-scrollbar::-webkit-scrollbar-thumb { background: rgba(107,99,88,0.12); border-radius: 3px; }
+      `}</style>
+
+      <div style={{
+        background: C.bg, color: C.cream, fontFamily: FONT,
+        position: "relative", height: "100vh",
+        display: "flex", flexDirection: "column",
+        overflowX: "hidden",
+      }}>
+        {/* Grain overlay */}
+        <div style={{
+          position: "fixed", inset: 0, backgroundImage: grainSVG,
+          backgroundRepeat: "repeat", pointerEvents: "none",
+          zIndex: 9998, opacity: 0.4, mixBlendMode: "overlay" as const,
+        }} />
+
+        {/* Light leaks */}
+        <div style={{
+          position: "fixed", top: -80, left: -90, width: 240, height: 240,
+          borderRadius: "50%", background: `radial-gradient(circle, ${C.blueGlow}, transparent 70%)`,
+          filter: "blur(65px)", pointerEvents: "none",
+        }} />
+        <div style={{
+          position: "fixed", bottom: -60, right: -80, width: 240, height: 240,
+          borderRadius: "50%", background: `radial-gradient(circle, ${C.orangeGlow}, transparent 70%)`,
+          filter: "blur(65px)", pointerEvents: "none", opacity: 0.4,
+        }} />
+
+        {/* ═══ Top Nav ═══ */}
+        <div style={{
+          flexShrink: 0, display: "flex", alignItems: "center",
+          padding: "14px 24px 10px", gap: 12, zIndex: 10,
+        }}>
+          <div onClick={goBack} style={{ cursor: "pointer", padding: 4 }}>
+            <BackIcon size={18} color={C.creamMuted} />
+          </div>
+          <span style={{ fontSize: 13, color: C.creamMuted }}>{backLabel}</span>
+        </div>
+
+        {/* ═══ Stepper ═══ */}
+        <div style={{ flexShrink: 0, padding: "8px 24px 24px", zIndex: 10 }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 0,
+          }}>
+            {[
+              { num: 1 as FilmTab, label: "Who" },
+              { num: 2 as FilmTab, label: "Mood" },
+              { num: 3 as FilmTab, label: "Results" },
+            ].map((s, i, arr) => {
+              const isActive = s.num === step
+              const isComplete = s.num < step
+              const isLast = i === arr.length - 1
+              return (
+                <div key={s.num} style={{ display: "flex", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <div style={{
+                      width: 24, height: 24, borderRadius: "50%",
+                      background: isComplete
+                        ? `linear-gradient(135deg, ${C.orange}, ${C.orangeLight})`
+                        : isActive
+                          ? `linear-gradient(135deg, ${C.blue}, ${C.blueLight})`
+                          : `rgba(107,99,88,0.08)`,
+                      border: isActive
+                        ? `1px solid rgba(61,90,150,0.25)`
+                        : isComplete ? "none" : `1px solid rgba(107,99,88,0.12)`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 700, fontFamily: FONT,
+                      color: isComplete || isActive ? C.warmBlack : C.creamFaint,
+                      transition: "all 0.35s ease",
+                    }}>
+                      {isComplete ? (
+                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.warmBlack} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                      ) : s.num}
+                    </div>
+                    <span style={{
+                      fontSize: 13,
+                      fontWeight: isActive ? 600 : 400,
+                      color: isActive ? C.cream : isComplete ? C.creamMuted : C.creamFaint,
+                      letterSpacing: "-0.01em",
+                    }}>{s.label}</span>
+                  </div>
+                  {!isLast && (
+                    <div style={{
+                      width: 32, height: 1, margin: "0 10px",
+                      background: isComplete
+                        ? `linear-gradient(to right, ${C.orange}50, ${C.orange}20)`
+                        : "rgba(107,99,88,0.08)",
+                      transition: "all 0.35s ease",
+                    }} />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ═══ Step Content ═══ */}
+
+        {/* ──── STEP 1: WHO ──── */}
         {step === 1 && (
           <>
-            <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "14px"
+            <div className="tp-scrollbar" style={{
+              flex: 1, overflowY: "auto", padding: "0 24px", zIndex: 10,
             }}>
-              <p style={{ fontSize: "14px" }}>Who's watching tonight?</p>
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "baseline",
+                marginBottom: 16,
+              }}>
+                <div style={{
+                  fontFamily: FONT, fontSize: 18, fontWeight: 600,
+                  color: C.cream, letterSpacing: "-0.02em",
+                }}>Who's watching tonight?</div>
+                <div onClick={selectAllMembers} style={{
+                  fontSize: 13, color: C.blueLight, cursor: "pointer", fontWeight: 500,
+                }}>{selectedMembers.length === members.length ? "Deselect All" : "Select All"}</div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {members.map((m, i) => {
+                  const isSelected = selectedMembers.includes(m.id)
+                  const colorPair = MEMBER_COLORS[i % MEMBER_COLORS.length]
+                  return (
+                    <div key={m.id} onClick={() => toggleMember(m.id)} style={{
+                      display: "flex", alignItems: "center", gap: 14,
+                      padding: "16px 18px", borderRadius: 14,
+                      background: isSelected
+                        ? `linear-gradient(135deg, ${colorPair.from}12, ${C.bgCard})`
+                        : C.bgCard,
+                      border: `1px solid ${isSelected ? colorPair.from + "30" : "rgba(107,99,88,0.04)"}`,
+                      cursor: "pointer",
+                      transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+                      position: "relative",
+                    }}>
+                      {isSelected && (
+                        <div style={{
+                          position: "absolute", top: 0, left: 0, right: 0, height: 2,
+                          borderRadius: "14px 14px 0 0",
+                          background: `linear-gradient(to right, ${colorPair.from}40, transparent)`,
+                        }} />
+                      )}
+                      <div style={{
+                        width: 44, height: 44, borderRadius: "50%",
+                        background: `linear-gradient(135deg, ${colorPair.from}, ${colorPair.to})`,
+                        boxShadow: isSelected ? `0 3px 14px ${colorPair.from}25` : "none",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 16, fontFamily: FONT, fontWeight: 700, color: C.bg,
+                        flexShrink: 0, position: "relative", overflow: "hidden",
+                        transition: "box-shadow 0.35s ease",
+                      }}>
+                        {m.avatar_url ? (
+                          <Image src={m.avatar_url} alt={m.name} width={44} height={44} style={{ objectFit: "cover", width: 44, height: 44 }} />
+                        ) : (
+                          m.initials
+                        )}
+                        {isSelected && (
+                          <div style={{
+                            position: "absolute", bottom: -2, right: -2,
+                            width: 18, height: 18, borderRadius: "50%",
+                            background: `linear-gradient(135deg, ${C.orange}, ${C.orangeLight})`,
+                            border: `2px solid ${C.bg}`,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}>
+                            <CheckSmall />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 500, color: C.cream }}>{m.name}</div>
+                        {isSelected && (
+                          <div style={{ fontSize: 12, color: C.orange, marginTop: 2, fontWeight: 500 }}>Selected</div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div style={{
+                textAlign: "center", marginTop: 16,
+                fontSize: 13, color: C.creamFaint,
+              }}>
+                {selectedMembers.length} of {members.length} selected
+              </div>
+              <div style={{ height: 16 }} />
+            </div>
+
+            {/* Sticky bottom */}
+            <div style={{
+              position: "sticky", bottom: 0, zIndex: 100, flexShrink: 0,
+              padding: "16px 24px 24px",
+              background: `linear-gradient(to top, ${C.bg} 60%, ${C.bg}ee 80%, transparent)`,
+            }}>
               <button
                 type="button"
-                onClick={selectAllMembers}
+                onClick={() => selectedMembers.length > 0 && setStep(2)}
+                disabled={selectedMembers.length === 0}
                 style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: 500,
-                  color: colors.accent
-                }}
-              >
-                Select All
+                  width: "100%", padding: "16px 32px", borderRadius: 14, border: "none",
+                  background: selectedMembers.length === 0
+                    ? "rgba(107,99,88,0.08)"
+                    : `linear-gradient(135deg, ${C.orange}, ${C.orangeLight})`,
+                  boxShadow: selectedMembers.length === 0 ? "none" : `0 4px 20px ${C.orange}30`,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                  cursor: selectedMembers.length === 0 ? "default" : "pointer",
+                  opacity: selectedMembers.length === 0 ? 0.5 : 1,
+                  transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+                  fontFamily: FONT,
+                }}>
+                <span style={{
+                  fontSize: 15, fontWeight: 600,
+                  color: selectedMembers.length === 0 ? C.creamFaint : C.warmBlack,
+                }}>Continue</span>
+                <ChevronIcon size={18} color={selectedMembers.length === 0 ? C.creamFaint : C.warmBlack} />
               </button>
             </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {members.map((member) => {
-                const isSelected = selectedMembers.includes(member.id)
-                return (
-                  <button
-                    key={member.id}
-                    type="button"
-                    onClick={() => toggleMember(member.id)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "12px 14px",
-                      backgroundColor: isSelected ? `${colors.accent}10` : colors.surface,
-                      border: `1px solid ${isSelected ? colors.accent + "30" : colors.cream + "06"}`,
-                      borderRadius: "12px",
-                      cursor: "pointer",
-                      color: colors.cream,
-                      width: "100%",
-                      textAlign: "left"
-                    }}
-                  >
-                    {/* Avatar */}
-                    <div style={{
-                      width: "40px",
-                      height: "40px",
-                      borderRadius: "50%",
-                      backgroundColor: member.color,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      color: colors.bg,
-                      overflow: "hidden"
-                    }}>
-                      {member.avatar_url ? (
-                        <Image src={member.avatar_url} alt={member.name} width={40} height={40} style={{ objectFit: "cover" }} />
-                      ) : (
-                        member.initials
-                      )}
-                    </div>
-
-                    {/* Name + Selected label */}
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: "14px", fontWeight: 500 }}>{member.name}</p>
-                      {isSelected && (
-                        <p style={{ fontSize: "12px", color: colors.accent, marginTop: "1px" }}>Selected</p>
-                      )}
-                    </div>
-
-                    {/* Checkbox */}
-                    <div style={{
-                      width: "22px",
-                      height: "22px",
-                      borderRadius: "6px",
-                      backgroundColor: isSelected ? colors.accent : "transparent",
-                      border: `2px solid ${isSelected ? colors.accent : colors.cream + "20"}`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center"
-                    }}>
-                      {isSelected && <CheckIcon color={colors.bg} size={12} />}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-
-            <p style={{
-              textAlign: "center",
-              fontSize: "13px",
-              color: `${colors.cream}50`,
-              marginTop: "16px"
-            }}>
-              {selectedMembers.length} of {members.length} selected
-            </p>
           </>
         )}
 
-        {/* Step 2: Mood & Filters */}
+        {/* ──── STEP 2: MOOD & FILTERS ──── */}
         {step === 2 && (
           <>
-            <p style={{ fontSize: "14px", marginBottom: "12px" }}>
-              What are you in the mood for?
-            </p>
-
-            {/* Mood Grid */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "8px",
-              marginBottom: "24px"
+            <div className="tp-scrollbar" style={{
+              flex: 1, overflowY: "auto", padding: "0 24px", zIndex: 10,
             }}>
-              {moods.map((m) => {
-                const isSelected = selectedMood === m.id
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setSelectedMood(m.id)}
-                    style={{
-                      padding: "14px 12px",
-                      backgroundColor: isSelected ? `${colors.accent}10` : colors.surface,
-                      border: `1px solid ${isSelected ? colors.accent + "35" : colors.cream + "06"}`,
-                      borderRadius: "12px",
-                      cursor: "pointer",
-                      color: colors.cream,
-                      textAlign: "left"
-                    }}
-                  >
-                    <m.Icon color={isSelected ? colors.accent : `${colors.cream}45`} size={22} />
-                    <p style={{ fontSize: "14px", fontWeight: 500, marginTop: "8px", marginBottom: "2px" }}>{m.label}</p>
-                    <p style={{ fontSize: "11px", color: `${colors.cream}40` }}>{m.subtitle}</p>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Runtime */}
-            <p style={{
-              fontSize: "10px",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: `${colors.cream}40`,
-              marginBottom: "8px"
-            }}>
-              Maximum runtime <span style={{ opacity: 0.5 }}>(optional)</span>
-            </p>
-
-            <div style={{ display: "flex", gap: "6px", marginBottom: "18px" }}>
-              {runtimes.map((r) => {
-                const isSelected = maxRuntime === r.id
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => setMaxRuntime(r.id)}
-                    style={{
-                      padding: "8px 14px",
-                      backgroundColor: isSelected ? `${colors.accent}12` : colors.surface,
-                      border: `1px solid ${isSelected ? colors.accent + "35" : colors.cream + "08"}`,
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                      color: isSelected ? colors.cream : `${colors.cream}55`,
-                      fontSize: "13px",
-                      fontWeight: isSelected ? 500 : 400
-                    }}
-                  >
-                    {r.label}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Content Rating */}
-            <p style={{
-              fontSize: "10px",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: `${colors.cream}40`,
-              marginBottom: "8px"
-            }}>
-              Content rating <span style={{ opacity: 0.5 }}>(optional)</span>
-            </p>
-
-            <div style={{ display: "flex", gap: "6px", marginBottom: "6px", flexWrap: "wrap" }}>
-              {ratings.map((r) => {
-                const isSelected = contentRating === r.id
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => setContentRating(r.id)}
-                    style={{
-                      padding: "8px 12px",
-                      backgroundColor: isSelected ? `${colors.accent}12` : colors.surface,
-                      border: `1px solid ${isSelected ? colors.accent + "35" : colors.cream + "08"}`,
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                      color: isSelected ? colors.cream : `${colors.cream}55`,
-                      fontSize: "13px",
-                      fontWeight: isSelected ? 500 : 400
-                    }}
-                  >
-                    {r.label}
-                  </button>
-                )
-              })}
-            </div>
-            <p style={{ fontSize: "11px", color: `${colors.cream}30`, marginBottom: "18px", lineHeight: 1.4 }}>
-              Selecting a rating will include that rating and below (e.g., PG-13 includes G, PG, and PG-13)
-            </p>
-
-            {/* Content Filters */}
-            <button
-              type="button"
-              onClick={() => setShowContentFilters(!showContentFilters)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                width: "100%",
-                padding: "14px",
-                backgroundColor: colors.surface,
-                border: `1px solid ${colors.cream}08`,
-                borderRadius: showContentFilters ? "12px 12px 0 0" : "12px",
-                cursor: "pointer",
-                color: colors.cream
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <FilterIcon color={`${colors.cream}45`} size={18} />
-                <span style={{ fontSize: "14px", fontWeight: 500 }}>Content Filters</span>
-              </div>
-              {showContentFilters
-                ? <ChevronUpIcon color={`${colors.cream}40`} size={18} />
-                : <ChevronDownIcon color={`${colors.cream}40`} size={18} />
-              }
-            </button>
-
-            {showContentFilters && (
               <div style={{
-                padding: "14px",
-                backgroundColor: colors.surface,
-                border: `1px solid ${colors.cream}08`,
-                borderTop: "none",
-                borderRadius: "0 0 12px 12px"
-              }}>
-                <p style={{ fontSize: "12px", color: `${colors.cream}45`, marginBottom: "14px", lineHeight: 1.4 }}>
-                  Set maximum levels for each category. Movies exceeding these levels will be filtered out.
-                </p>
+                fontFamily: FONT, fontSize: 18, fontWeight: 600,
+                color: C.cream, letterSpacing: "-0.02em", marginBottom: 16,
+              }}>What are you in the mood for?</div>
 
-                {/* Presets */}
-                <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset("clear")}
-                    style={{
-                      padding: "6px 12px",
-                      backgroundColor: "transparent",
-                      border: `1px solid ${colors.cream}15`,
-                      borderRadius: "100px",
-                      cursor: "pointer",
-                      color: `${colors.cream}55`,
-                      fontSize: "12px"
-                    }}
-                  >
-                    Clear All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset("kid")}
-                    style={{
-                      padding: "6px 12px",
-                      backgroundColor: "#22c55e20",
-                      border: "1px solid #22c55e40",
-                      borderRadius: "100px",
-                      cursor: "pointer",
-                      color: "#22c55e",
-                      fontSize: "12px",
-                      fontWeight: 500
-                    }}
-                  >
-                    Kid-Friendly
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset("family")}
-                    style={{
-                      padding: "6px 12px",
-                      backgroundColor: `${colors.cool}20`,
-                      border: `1px solid ${colors.cool}40`,
-                      borderRadius: "100px",
-                      cursor: "pointer",
-                      color: colors.cool,
-                      fontSize: "12px",
-                      fontWeight: 500
-                    }}
-                  >
-                    Family Night
-                  </button>
+              {/* Mood grid */}
+              <div style={{
+                display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
+                marginBottom: 28,
+              }}>
+                {moods.map((mood) => {
+                  const isActive = selectedMood === mood.id
+                  const IconComponent = mood.icon
+                  return (
+                    <div key={mood.id}
+                      onClick={() => setSelectedMood(mood.id)}
+                      style={{
+                        padding: "20px 16px", borderRadius: 14,
+                        background: isActive
+                          ? `linear-gradient(155deg, ${mood.color}14, ${C.bgCard})`
+                          : C.bgCard,
+                        border: `1.5px solid ${isActive ? mood.color + "40" : "rgba(107,99,88,0.04)"}`,
+                        cursor: "pointer",
+                        transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+                        position: "relative", textAlign: "center",
+                        boxShadow: isActive ? `0 4px 24px ${mood.color}12` : "none",
+                      }}>
+                      {isActive && (
+                        <div style={{
+                          position: "absolute", top: 0, left: 0, right: 0, height: 2,
+                          borderRadius: "14px 14px 0 0",
+                          background: `linear-gradient(to right, ${mood.color}60, ${mood.color}10, transparent)`,
+                        }} />
+                      )}
+                      <div style={{
+                        width: 36, height: 36, borderRadius: "50%",
+                        background: isActive ? `${mood.color}22` : "rgba(107,99,88,0.07)",
+                        border: `1px solid ${isActive ? mood.color + "30" : "rgba(107,99,88,0.07)"}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        margin: "0 auto 10px",
+                        transition: "all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                        transform: isActive ? "scale(1.08)" : "scale(1)",
+                      }}>
+                        <IconComponent size={16} color={isActive ? mood.color : C.creamFaint} />
+                      </div>
+                      <div style={{
+                        fontSize: 14, fontWeight: isActive ? 600 : 500, color: C.cream,
+                        marginBottom: 3,
+                      }}>{mood.name}</div>
+                      <div style={{
+                        fontSize: 11.5, color: C.creamMuted, lineHeight: 1.5,
+                      }}>{mood.sub}</div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* ── Filter Cards ── */}
+
+              {/* Runtime */}
+              <div style={{
+                padding: "18px 20px", borderRadius: 14,
+                background: C.bgCard, border: "1px solid rgba(107,99,88,0.04)",
+                marginBottom: 14, position: "relative",
+              }}>
+                <div style={{
+                  position: "absolute", top: 0, left: 0, right: 0, height: 2,
+                  borderRadius: "14px 14px 0 0",
+                  background: `linear-gradient(to right, ${C.blue}30, transparent)`,
+                }} />
+                <div style={{
+                  fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" as const,
+                  color: C.blueLight, fontWeight: 600, marginBottom: 12,
+                }}>Maximum Runtime</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                  {[
+                    { id: "any", label: "Any" },
+                    { id: "90", label: "90m" },
+                    { id: "120", label: "120m" },
+                    { id: "150", label: "150m" },
+                  ].map(opt => {
+                    const isActive = maxRuntime === opt.id
+                    return (
+                      <div key={opt.id} onClick={() => setMaxRuntime(opt.id)} style={{
+                        padding: "8px 16px", borderRadius: 20,
+                        background: isActive ? `${C.blue}18` : "transparent",
+                        border: `1.5px solid ${isActive ? C.blue + "50" : "rgba(107,99,88,0.09)"}`,
+                        color: isActive ? C.blueLight : C.creamFaint,
+                        fontSize: 13, fontWeight: isActive ? 500 : 400,
+                        cursor: "pointer",
+                        transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                      }}>{opt.label}</div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Content Rating */}
+              <div style={{
+                padding: "18px 20px", borderRadius: 14,
+                background: C.bgCard, border: "1px solid rgba(107,99,88,0.04)",
+                marginBottom: 14, position: "relative",
+              }}>
+                <div style={{
+                  position: "absolute", top: 0, left: 0, right: 0, height: 2,
+                  borderRadius: "14px 14px 0 0",
+                  background: `linear-gradient(to right, ${C.blue}25, ${C.teal}10, transparent)`,
+                }} />
+                <div style={{
+                  fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" as const,
+                  color: C.blueLight, fontWeight: 600, marginBottom: 12,
+                }}>Content Rating</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                  {[
+                    { id: "any", label: "Any" },
+                    { id: "g", label: "G" },
+                    { id: "pg", label: "PG" },
+                    { id: "pg13", label: "PG-13" },
+                    { id: "r", label: "R" },
+                  ].map(opt => {
+                    const isActive = contentRating === opt.id
+                    return (
+                      <div key={opt.id} onClick={() => setContentRating(opt.id)} style={{
+                        padding: "8px 16px", borderRadius: 20,
+                        background: isActive ? `${C.blue}18` : "transparent",
+                        border: `1.5px solid ${isActive ? C.blue + "50" : "rgba(107,99,88,0.09)"}`,
+                        color: isActive ? C.blueLight : C.creamFaint,
+                        fontSize: 13, fontWeight: isActive ? 500 : 400,
+                        cursor: "pointer",
+                        transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                      }}>{opt.label}</div>
+                    )
+                  })}
+                </div>
+                <div style={{
+                  fontSize: 11, color: C.creamFaint, marginTop: 10, lineHeight: 1.5,
+                }}>Selecting a rating will include that rating and below (e.g., PG-13 includes G, PG, and PG-13)</div>
+              </div>
+
+              {/* Era + Released After (combined card) */}
+              <div style={{
+                padding: "18px 20px", borderRadius: 14,
+                background: C.bgCard, border: "1px solid rgba(107,99,88,0.04)",
+                marginBottom: 14, position: "relative",
+              }}>
+                <div style={{
+                  position: "absolute", top: 0, left: 0, right: 0, height: 2,
+                  borderRadius: "14px 14px 0 0",
+                  background: `linear-gradient(to right, ${C.teal}25, transparent)`,
+                }} />
+                <div style={{
+                  fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" as const,
+                  color: C.teal, fontWeight: 600, marginBottom: 12,
+                }}>Era</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                  {["Any", "60s", "70s", "80s", "90s", "00s", "10s", "20s"].map(opt => {
+                    const id = opt === "Any" ? "any" : opt === "60s" ? "1960s" : opt === "70s" ? "1970s" : opt === "80s" ? "1980s" : opt === "90s" ? "1990s" : opt === "00s" ? "2000s" : opt === "10s" ? "2010s" : "2020s"
+                    const isActive = era === id
+                    return (
+                      <div key={opt} onClick={() => setEra(id)} style={{
+                        padding: "8px 16px", borderRadius: 20,
+                        background: isActive ? `${C.teal}18` : "transparent",
+                        border: `1.5px solid ${isActive ? C.teal + "50" : "rgba(107,99,88,0.09)"}`,
+                        color: isActive ? C.teal : C.creamFaint,
+                        fontSize: 13, fontWeight: isActive ? 500 : 400,
+                        cursor: "pointer",
+                        transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                      }}>{opt}</div>
+                    )
+                  })}
                 </div>
 
-                {/* Filter Categories */}
-                {contentFilterCategories.map((cat) => (
-                  <div key={cat.id} style={{ marginBottom: "14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
-                      <cat.Icon color={`${colors.cream}45`} size={16} />
-                      <span style={{ fontSize: "13px", color: `${colors.cream}65` }}>{cat.label}</span>
-                    </div>
-                    <div style={{ display: "flex", gap: "4px" }}>
-                      {filterLevels.map((level, i) => {
-                        const isSelected = contentFilters[cat.id] === level
-                        return (
-                          <button
-                            key={level}
-                            type="button"
-                            onClick={() => setContentFilters(prev => ({ ...prev, [cat.id]: level }))}
-                            style={{
-                              flex: 1,
-                              padding: "6px 2px",
-                              backgroundColor: isSelected ? `${colors.accent}12` : colors.surfaceLight,
-                              border: `1px solid ${isSelected ? colors.accent + "35" : "transparent"}`,
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              color: isSelected ? colors.cream : `${colors.cream}45`,
-                              fontSize: "11px",
-                              fontWeight: isSelected ? 500 : 400
-                            }}
-                          >
-                            {filterLabels[i]}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
+                {/* Divider */}
+                <div style={{
+                  height: 1, margin: "18px 0",
+                  background: `linear-gradient(to right, rgba(107,99,88,0.08), transparent)`,
+                }} />
 
-                <p style={{ fontSize: "11px", color: `${colors.cream}30`, marginTop: "12px", lineHeight: 1.4 }}>
-                  Note: Movies without parental guide data in our database will still be shown.
-                </p>
+                <div style={{
+                  fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" as const,
+                  color: C.teal, fontWeight: 600, marginBottom: 12,
+                }}>Released After</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                  {[
+                    { id: "any", label: "Any" },
+                    { id: "1970", label: "1970+" },
+                    { id: "1980", label: "1980+" },
+                    { id: "1990", label: "1990+" },
+                    { id: "2000", label: "2000+" },
+                    { id: "2010", label: "2010+" },
+                    { id: "2020", label: "2020+" },
+                    { id: "2024", label: "2024+" },
+                  ].map(opt => {
+                    const isActive = releasedAfter === opt.id
+                    return (
+                      <div key={opt.id} onClick={() => setReleasedAfter(opt.id)} style={{
+                        padding: "8px 16px", borderRadius: 20,
+                        background: isActive ? `${C.teal}18` : "transparent",
+                        border: `1.5px solid ${isActive ? C.teal + "50" : "rgba(107,99,88,0.09)"}`,
+                        color: isActive ? C.teal : C.creamFaint,
+                        fontSize: 13, fontWeight: isActive ? 500 : 400,
+                        cursor: "pointer",
+                        transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                      }}>{opt.label}</div>
+                    )
+                  })}
+                </div>
               </div>
-            )}
+
+              {/* Streaming Services */}
+              <div style={{
+                padding: "18px 20px", borderRadius: 14,
+                background: C.bgCard, border: "1px solid rgba(107,99,88,0.04)",
+                marginBottom: 14, position: "relative",
+              }}>
+                <div style={{
+                  position: "absolute", top: 0, left: 0, right: 0, height: 2,
+                  borderRadius: "14px 14px 0 0",
+                  background: `linear-gradient(to right, ${C.blueMuted}30, transparent)`,
+                }} />
+                <div style={{
+                  fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" as const,
+                  color: C.blueLight, fontWeight: 600, marginBottom: 12,
+                }}>Streaming Services</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                  {US_SUBSCRIPTION_PROVIDERS.map(svc => {
+                    const isActive = streamingProviders.includes(svc.id)
+                    return (
+                      <div key={svc.id} onClick={() => toggleStreamingProvider(svc.id)} style={{
+                        padding: "8px 14px", borderRadius: 20,
+                        background: isActive ? `${C.blue}18` : "transparent",
+                        border: `1px solid ${isActive ? C.blue + "50" : "rgba(107,99,88,0.09)"}`,
+                        color: isActive ? C.blueLight : C.creamFaint,
+                        fontSize: 12, fontWeight: isActive ? 500 : 400,
+                        cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                        transition: "all 0.25s ease",
+                      }}>
+                        <div style={{
+                          width: 18, height: 18, borderRadius: 5, overflow: "hidden",
+                          background: `${C.blue}15`, flexShrink: 0,
+                        }}>
+                          <Image
+                            src={getImageUrl(svc.logoPath, "w92") || ""}
+                            alt={svc.shortName}
+                            width={18}
+                            height={18}
+                            style={{ objectFit: "cover" }}
+                          />
+                        </div>
+                        {svc.shortName}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: C.creamFaint, marginTop: 10 }}>
+                  Streaming data by <span style={{ color: C.orange, fontWeight: 500 }}>JustWatch</span>
+                </div>
+              </div>
+
+              {/* Content Filters (Accordion) */}
+              <div style={{
+                borderRadius: 14, background: C.bgCard,
+                border: "1px solid rgba(107,99,88,0.04)",
+                marginBottom: 16, position: "relative",
+              }}>
+                <div style={{
+                  position: "absolute", top: 0, left: 0, right: 0, height: 2,
+                  borderRadius: "14px 14px 0 0",
+                  background: `linear-gradient(to right, ${C.blue}25, ${C.rose}10, transparent)`,
+                }} />
+                <div onClick={() => setShowContentFilters(!showContentFilters)} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "16px 18px", cursor: "pointer",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <ShieldIcon size={16} color={C.blueLight} />
+                    <span style={{ fontSize: 15, fontWeight: 600, color: C.cream }}>Content Filters</span>
+                  </div>
+                  <div style={{
+                    transform: showContentFilters ? "rotate(90deg)" : "rotate(0)",
+                    transition: "transform 0.25s ease",
+                  }}>
+                    <ChevronIcon size={16} color={C.creamFaint} />
+                  </div>
+                </div>
+
+                {showContentFilters && (
+                  <div style={{ padding: "0 18px 18px" }}>
+                    <div style={{
+                      fontSize: 12, color: C.creamMuted, lineHeight: 1.5, marginBottom: 14,
+                    }}>Set maximum levels for each category. Movies exceeding these levels will be filtered out.</div>
+
+                    {/* Presets */}
+                    <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+                      <div onClick={() => applyPreset("clear")} style={{
+                        padding: "6px 14px", borderRadius: 16,
+                        border: `1px solid rgba(107,99,88,0.12)`,
+                        fontSize: 12, color: C.creamFaint, cursor: "pointer",
+                      }}>Clear All</div>
+                      <div onClick={() => applyPreset("kid")} style={{
+                        padding: "6px 14px", borderRadius: 16,
+                        background: `${C.green}15`, border: `1px solid ${C.green}30`,
+                        fontSize: 12, color: C.green, cursor: "pointer",
+                      }}>Kid-Friendly</div>
+                      <div onClick={() => applyPreset("family")} style={{
+                        padding: "6px 14px", borderRadius: 16,
+                        background: `${C.blue}15`, border: `1px solid ${C.blue}30`,
+                        fontSize: 12, color: C.blueLight, cursor: "pointer",
+                      }}>Family Night</div>
+                    </div>
+
+                    {/* Categories — no icons, text labels only */}
+                    {contentFilterCategories.map((cat) => (
+                      <div key={cat.id} style={{ marginBottom: 18 }}>
+                        <div style={{
+                          fontSize: 12.5, fontWeight: 500, color: C.cream,
+                          marginBottom: 8, letterSpacing: "0.01em",
+                        }}>{cat.label}</div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          {filterLevels.map((level, li) => {
+                            const isActive = contentFilters[cat.id] === level
+                            return (
+                              <div key={level}
+                                onClick={() => setContentFilters(prev => ({ ...prev, [cat.id]: level }))}
+                                style={{
+                                  padding: "7px 0", borderRadius: 16, flex: 1,
+                                  textAlign: "center" as const,
+                                  background: isActive ? `${cat.color}18` : "transparent",
+                                  border: `1.5px solid ${isActive ? cat.color + "45" : "rgba(107,99,88,0.12)"}`,
+                                  fontSize: 11.5, fontWeight: isActive ? 500 : 400,
+                                  color: isActive ? cat.color : C.creamFaint,
+                                  cursor: "pointer",
+                                  transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                                  boxShadow: isActive ? `0 0 10px ${cat.color}12` : "none",
+                                }}>{filterLabels[li]}</div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div style={{
+                      fontSize: 11, color: C.creamFaint, lineHeight: 1.5, marginTop: 4,
+                    }}>Note: Movies without parental guide data in our database will still be shown.</div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ height: 16 }} />
+            </div>
+
+            {/* Sticky bottom */}
+            <div style={{
+              position: "sticky", bottom: 0, zIndex: 100, flexShrink: 0,
+              padding: "16px 24px 24px",
+              background: `linear-gradient(to top, ${C.bg} 60%, ${C.bg}ee 80%, transparent)`,
+            }}>
+              <button
+                type="button"
+                onClick={() => getRecommendations(1)}
+                disabled={loading}
+                style={{
+                  width: "100%", padding: "16px 32px", borderRadius: 14, border: "none",
+                  background: `linear-gradient(135deg, ${C.orange}, ${C.orangeLight})`,
+                  boxShadow: `0 4px 20px ${C.orange}30`,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.7 : 1,
+                  fontFamily: FONT,
+                }}>
+                <SparkleIcon size={18} color={C.warmBlack} />
+                <span style={{
+                  fontSize: 15, fontWeight: 600,
+                  color: C.warmBlack, letterSpacing: "-0.01em",
+                }}>{loading ? "Finding films..." : "Get Recommendations"}</span>
+              </button>
+              <div onClick={goBack} style={{
+                textAlign: "center", marginTop: 10,
+                fontSize: 13, color: C.creamFaint, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}>
+                <BackIcon size={14} color={C.creamFaint} />
+                Back
+              </div>
+            </div>
           </>
         )}
 
-        {/* Step 3: Results */}
+        {/* ──── STEP 3: RESULTS ──── */}
         {step === 3 && (
           <>
-            {error && (
+            <div className="tp-scrollbar" style={{
+              flex: 1, overflowY: "auto", padding: "0 24px", zIndex: 10,
+            }}>
+              {error && (
+                <div style={{
+                  padding: "12px 16px", marginBottom: 16, borderRadius: 14,
+                  background: `${C.red}12`, border: `1px solid ${C.red}30`,
+                  fontSize: 14, color: C.red,
+                }}>
+                  {error}
+                </div>
+              )}
+
               <div style={{
-                padding: "12px 16px",
-                backgroundColor: "rgba(239, 68, 68, 0.1)",
-                border: "1px solid rgba(239, 68, 68, 0.3)",
-                borderRadius: "12px",
-                marginBottom: "16px",
-                fontSize: "14px",
-                color: "#ef4444"
-              }}>
-                {error}
-              </div>
-            )}
+                fontFamily: FONT, fontSize: 18, fontWeight: 600,
+                color: C.cream, letterSpacing: "-0.02em", marginBottom: 6,
+              }}>Your Picks for Tonight</div>
+              <div style={{
+                fontSize: 13, color: C.creamMuted, marginBottom: 20, lineHeight: 1.5,
+              }}>Based on your collective's taste and mood</div>
 
-            {results.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "48px 20px" }}>
-                <FilmIcon color={`${colors.cream}30`} size={48} />
-                <p style={{ fontSize: "16px", fontWeight: 500, marginTop: "16px" }}>No recommendations found</p>
-                <p style={{ fontSize: "13px", color: `${colors.cream}50`, marginTop: "4px" }}>
-                  Try adjusting your mood or runtime preferences
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                {results.map((movie) => (
-                  <Link
-                    key={movie.tmdbId}
-                    href={`/movies/${movie.tmdbId}`}
-                    style={{
-                      display: "flex",
-                      gap: "12px",
-                      padding: "12px",
-                      backgroundColor: colors.surface,
-                      border: `1px solid ${colors.cream}06`,
-                      borderRadius: "12px",
-                      textDecoration: "none",
-                      color: colors.cream
-                    }}
-                  >
-                    {/* Poster */}
-                    <div style={{
-                      width: "70px",
-                      height: "105px",
-                      borderRadius: "8px",
-                      overflow: "hidden",
-                      flexShrink: 0,
-                      backgroundColor: colors.surfaceLight
+              {results.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "48px 20px" }}>
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                    <FilmIcon color={C.creamFaint} size={48} />
+                  </div>
+                  <p style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>No recommendations found</p>
+                  <p style={{ fontSize: 13, color: C.creamMuted }}>
+                    Try adjusting your mood or runtime preferences
+                  </p>
+                </div>
+              ) : (
+                results.map((movie, i) => {
+                  const accentColors = [C.teal, C.orange, C.blue, C.rose, C.purple]
+                  const filmColor = accentColors[i % accentColors.length]
+                  const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : ""
+                  const sc = scoreColor(movie.groupFitScore)
+
+                  // Parental guide helpers
+                  const guide = movie.parentalGuide
+                  const parentalCats = ["violence", "sexNudity", "profanity", "alcoholDrugsSmoking", "frighteningIntense"] as const
+                  const hasParental = guide && parentalCats.some(c => guide[c] && guide[c] !== "None")
+                  const severityRank = { None: 0, Mild: 1, Moderate: 2, Severe: 3 }
+                  const maxSev = guide ? parentalCats.reduce((max, cat) => {
+                    const level = guide[cat] || "None"
+                    return (severityRank[level as keyof typeof severityRank] || 0) > (severityRank[max as keyof typeof severityRank] || 0) ? level : max
+                  }, "None" as string) : "None"
+
+                  const parentalLabels: Record<string, string> = {
+                    violence: "Violence",
+                    sexNudity: "Sex/Nudity",
+                    profanity: "Language",
+                    alcoholDrugsSmoking: "Substances",
+                    frighteningIntense: "Intense",
+                  }
+
+                  return (
+                    <div key={movie.tmdbId} style={{
+                      borderRadius: 16, background: C.bgCard,
+                      border: "1px solid rgba(107,99,88,0.04)",
+                      marginBottom: 16, position: "relative",
+                      animation: `fadeInUp 0.4s ease ${i * 0.08}s both`,
                     }}>
-                      {movie.posterPath ? (
-                        <Image
-                          src={getImageUrl(movie.posterPath, "w185") || ""}
-                          alt={movie.title}
-                          width={70}
-                          height={105}
-                          style={{ objectFit: "cover" }}
-                        />
-                      ) : (
+                      {/* Accent bar */}
+                      <div style={{
+                        position: "absolute", top: 0, left: 0, right: 0, height: 2,
+                        borderRadius: "16px 16px 0 0",
+                        background: `linear-gradient(to right, ${filmColor}50, ${filmColor}10, transparent)`,
+                      }} />
+
+                      {/* Film header */}
+                      <div style={{
+                        display: "flex", gap: 14, padding: "18px 18px 14px", alignItems: "flex-start",
+                      }}>
                         <div style={{
-                          width: "100%",
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center"
-                        }}>
-                          <FilmIcon color={`${colors.cream}30`} size={24} />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
-                        <h3 style={{
-                          fontSize: "14px",
-                          fontWeight: 600,
-                          marginBottom: "4px",
+                          width: 70, height: 100, borderRadius: 8, flexShrink: 0,
                           overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap"
+                          background: `linear-gradient(155deg, ${filmColor}12, ${C.bgElevated})`,
+                          border: "1px solid rgba(107,99,88,0.04)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
                         }}>
-                          {movie.title}
-                        </h3>
-                        <span style={{
-                          padding: "2px 8px",
-                          borderRadius: "100px",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          flexShrink: 0,
-                          backgroundColor: movie.groupFitScore >= 70
-                            ? "rgba(34, 197, 94, 0.2)"
-                            : movie.groupFitScore >= 50
-                              ? "rgba(245, 158, 11, 0.2)"
-                              : `${colors.cream}10`,
-                          color: movie.groupFitScore >= 70
-                            ? "#22c55e"
-                            : movie.groupFitScore >= 50
-                              ? "#f59e0b"
-                              : `${colors.cream}50`
-                        }}>
-                          {movie.groupFitScore}%
-                        </span>
-                      </div>
+                          {movie.posterPath ? (
+                            <Image
+                              src={getImageUrl(movie.posterPath, "w185") || ""}
+                              alt={movie.title}
+                              width={70}
+                              height={100}
+                              style={{ objectFit: "cover", width: 70, height: 100 }}
+                            />
+                          ) : (
+                            <FilmIcon size={20} color={C.creamFaint + "60"} />
+                          )}
+                        </div>
 
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                        {movie.releaseDate && (
-                          <span style={{ fontSize: "12px", color: `${colors.cream}50` }}>
-                            {new Date(movie.releaseDate).getFullYear()}
-                          </span>
-                        )}
-                        {movie.runtime && (
-                          <span style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "12px", color: `${colors.cream}50` }}>
-                            <ClockIcon color={`${colors.cream}50`} size={12} />
-                            {movie.runtime}m
-                          </span>
-                        )}
-                        <span style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "12px", color: `${colors.cream}50` }}>
-                          <StarIcon color="#f59e0b" size={12} />
-                          {movie.voteAverage.toFixed(1)}
-                        </span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontFamily: FONT, fontSize: 18, fontWeight: 700,
+                            color: C.cream, letterSpacing: "-0.02em", lineHeight: 1.2,
+                          }}>{movie.title}</div>
+                          <div style={{
+                            display: "flex", alignItems: "center", gap: 8, marginTop: 6,
+                          }}>
+                            <span style={{ fontSize: 13, color: C.creamMuted }}>{year}</span>
+                            <span style={{ color: C.creamFaint + "40" }}>·</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <StarFilled />
+                              <span style={{ fontSize: 13, fontWeight: 600, color: C.cream }}>
+                                {movie.voteAverage?.toFixed(1)}
+                              </span>
+                            </div>
+                          </div>
+                          {/* Score badge */}
+                          <div style={{
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            width: 34, height: 34, borderRadius: "50%",
+                            border: `2px solid ${sc}50`,
+                            background: `${sc}10`,
+                            fontSize: 11, fontWeight: 700, color: sc,
+                            marginTop: 8,
+                          }}>{movie.groupFitScore}</div>
+                        </div>
                       </div>
 
                       {/* Genres */}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "6px" }}>
-                        {movie.genres.slice(0, 3).map((genre) => (
-                          <span
-                            key={genre.id}
-                            style={{
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              backgroundColor: colors.surfaceLight,
-                              fontSize: "10px",
-                              color: `${colors.cream}60`
-                            }}
-                          >
-                            {genre.name}
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Reasoning */}
-                      {movie.reasoning.length > 0 && (
-                        <p style={{
-                          fontSize: "11px",
-                          color: `${colors.cream}40`,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap"
-                        }}>
-                          {movie.reasoning[0]}
-                        </p>
+                      {movie.genres?.length > 0 && (
+                        <div style={{ padding: "0 18px 8px", display: "flex", gap: 6, flexWrap: "wrap" as const }}>
+                          {movie.genres.slice(0, 3).map(g => (
+                            <span key={g.id} style={{
+                              padding: "2px 8px", borderRadius: 6,
+                              background: "rgba(107,99,88,0.06)",
+                              border: "1px solid rgba(107,99,88,0.08)",
+                              fontSize: 11, color: C.creamMuted, letterSpacing: "0.02em",
+                            }}>{g.name}</span>
+                          ))}
+                        </div>
                       )}
+
+                      {/* Why we picked this */}
+                      {movie.reasoning?.length > 0 && (
+                        <div style={{ padding: "0 18px 16px" }}>
+                          <div style={{
+                            display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
+                          }}>
+                            <CheckmarkIcon size={13} color={C.orange} />
+                            <span style={{
+                              fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase" as const,
+                              color: C.orange, fontWeight: 600,
+                            }}>Why We Picked This</span>
+                          </div>
+                          <div style={{
+                            fontSize: 13.5, color: C.creamMuted, lineHeight: 1.65,
+                          }}>{movie.reasoning[0]}</div>
+                        </div>
+                      )}
+
+                      {/* Seen by */}
+                      {movie.seenBy && movie.seenBy.length > 0 && (
+                        <div style={{
+                          padding: "0 18px 8px", fontSize: 11, color: C.creamFaint, opacity: 0.7,
+                          display: "flex", alignItems: "center", gap: 6,
+                        }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                          <span>Seen by {movie.seenBy.join(", ")}</span>
+                        </div>
+                      )}
+
+                      {/* Parental guide (conditional) */}
+                      {hasParental && (
+                        <ParentalGuideSection
+                          guide={guide!}
+                          parentalCats={parentalCats}
+                          parentalLabels={parentalLabels}
+                          maxSev={maxSev}
+                        />
+                      )}
+
+                      {/* View Details */}
+                      <div style={{
+                        padding: "0 18px 16px", display: "flex", justifyContent: "flex-end",
+                      }}>
+                        <Link href={`/movies/${movie.tmdbId}`} style={{
+                          display: "flex", alignItems: "center", gap: 6,
+                          padding: "8px 16px", borderRadius: 10,
+                          border: "1px solid rgba(107,99,88,0.09)",
+                          fontSize: 12, color: C.cream, fontWeight: 500,
+                          textDecoration: "none",
+                          cursor: "pointer",
+                        }}>
+                          <LinkIcon size={13} color={C.cream} />
+                          View Details
+                        </Link>
+                      </div>
                     </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Footer - Fixed above bottom nav */}
-      <div style={{
-        padding: "14px 20px",
-        paddingBottom: "90px",
-        borderTop: "1px solid rgba(248, 246, 241, 0.08)",
-        flexShrink: 0,
-        backgroundColor: "#08080a"
-      }}>
-        {step === 1 && (
-          <button
-            type="button"
-            onClick={() => setStep(2)}
-            disabled={selectedMembers.length === 0}
-            style={{
-              width: "100%",
-              padding: "14px",
-              backgroundColor: selectedMembers.length > 0 ? "#e07850" : "#161619",
-              border: "none",
-              borderRadius: "12px",
-              color: selectedMembers.length > 0 ? "#08080a" : "rgba(248, 246, 241, 0.4)",
-              fontSize: "15px",
-              fontWeight: 600,
-              cursor: selectedMembers.length > 0 ? "pointer" : "not-allowed"
-            }}
-          >
-            Continue
-          </button>
-        )}
-
-        {step === 2 && (
-          <>
-            <button
-              type="button"
-              onClick={getRecommendations}
-              disabled={loading}
-              style={{
-                width: "100%",
-                padding: "14px",
-                backgroundColor: "#e07850",
-                border: "none",
-                borderRadius: "12px",
-                color: "#08080a",
-                fontSize: "15px",
-                fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                marginBottom: "10px",
-                opacity: loading ? 0.7 : 1
-              }}
-            >
-              {loading ? (
-                <>
-                  <RefreshIcon color="#08080a" size={18} />
-                  Finding films...
-                </>
-              ) : (
-                <>
-                  <SparkleIcon color="#08080a" size={18} />
-                  Get Recommendations
-                </>
+                  )
+                })
               )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                backgroundColor: "transparent",
-                border: "none",
-                cursor: "pointer",
-                color: "rgba(248, 246, 241, 0.55)",
-                fontSize: "13px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px"
-              }}
-            >
-              <BackIcon color="rgba(248, 246, 241, 0.45)" size={14} />
-              Back
-            </button>
+
+              <div style={{ height: 16 }} />
+            </div>
+
+            {/* Sticky bottom */}
+            <div style={{
+              position: "sticky", bottom: 0, zIndex: 100, flexShrink: 0,
+              padding: "16px 24px 24px",
+              background: `linear-gradient(to top, ${C.bg} 60%, ${C.bg}ee 80%, transparent)`,
+            }}>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button type="button" onClick={goBack} style={{
+                  flex: 1, padding: 16, borderRadius: 14,
+                  background: C.bgCard, border: `1px solid rgba(107,99,88,0.08)`,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  fontSize: 14, fontWeight: 500, color: C.cream, cursor: "pointer",
+                  fontFamily: FONT,
+                }}>
+                  <BackIcon size={16} color={C.cream} />
+                  Back
+                </button>
+                <button type="button"
+                  onClick={() => getRecommendations(resultsPage + 1)}
+                  disabled={loading}
+                  style={{
+                    flex: 1.4, padding: 16, borderRadius: 14, border: "none",
+                    background: `linear-gradient(135deg, ${C.orange}, ${C.orangeLight})`,
+                    boxShadow: `0 4px 20px rgba(255,107,45,0.19)`,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    fontSize: 14, fontWeight: 600, fontFamily: FONT,
+                    color: C.warmBlack, cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading ? 0.7 : 1,
+                  }}>
+                  <RefreshIcon size={16} color={C.warmBlack} />
+                  Shuffle
+                </button>
+              </div>
+            </div>
           </>
         )}
+      </div>
+    </>
+  )
+}
 
-        {step === 3 && (
-          <div style={{ display: "flex", gap: "10px" }}>
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              style={{
-                flex: 1,
-                padding: "14px",
-                backgroundColor: "#0f0f12",
-                border: "1px solid rgba(248, 246, 241, 0.1)",
-                borderRadius: "12px",
-                color: "#f8f6f1",
-                fontSize: "14px",
-                fontWeight: 500,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px"
-              }}
-            >
-              <BackIcon color="#f8f6f1" size={16} />
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={getRecommendations}
-              disabled={loading}
-              style={{
-                flex: 1,
-                padding: "14px",
-                backgroundColor: "#e07850",
-                border: "none",
-                borderRadius: "12px",
-                color: "#08080a",
-                fontSize: "14px",
-                fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px",
-                opacity: loading ? 0.7 : 1
-              }}
-            >
-              <RefreshIcon color="#08080a" size={16} />
-              Shuffle
-            </button>
-          </div>
+// ─── Parental Guide Collapsible Section ─────────────────────
+function ParentalGuideSection({
+  guide,
+  parentalCats,
+  parentalLabels,
+  maxSev,
+}: {
+  guide: NonNullable<MovieRecommendation["parentalGuide"]>
+  parentalCats: readonly string[]
+  parentalLabels: Record<string, string>
+  maxSev: string
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div style={{ padding: "0 18px 14px" }}>
+      <div
+        onClick={() => setOpen(!open)}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "6px 12px", borderRadius: 10,
+          background: open ? `${C.red}0a` : "transparent",
+          border: `1px solid ${open ? C.red + "20" : "rgba(107,99,88,0.1)"}`,
+          cursor: "pointer",
+          transition: "all 0.25s ease",
+        }}>
+        <ShieldIcon size={12} color={open ? C.red : C.creamFaint} />
+        <span style={{
+          fontSize: 11.5, fontWeight: 500,
+          color: open ? C.red : C.creamFaint,
+          transition: "color 0.25s ease",
+        }}>Parental Guide</span>
+        {maxSev !== "None" && (
+          <span style={{
+            fontSize: 10, padding: "2px 8px", borderRadius: 10,
+            background: `${C.red}12`, border: `1px solid ${C.red}25`,
+            color: C.red, fontWeight: 500,
+          }}>Up to {maxSev}</span>
         )}
+        <div style={{
+          transform: open ? "rotate(90deg)" : "rotate(0)",
+          transition: "transform 0.25s ease",
+          display: "flex",
+        }}>
+          <ChevronIcon size={12} color={open ? C.red : C.creamFaint} />
+        </div>
       </div>
 
-      {/* Bottom Nav */}
-      <MobileBottomNav className="z-[100]" />
-
-      {/* Scrollbar styles */}
-      <style jsx global>{`
-        .elegant-scroll::-webkit-scrollbar { width: 4px; }
-        .elegant-scroll::-webkit-scrollbar-track { background: transparent; }
-        .elegant-scroll::-webkit-scrollbar-thumb { background: rgba(248, 246, 241, 0.1); border-radius: 2px; }
-      `}</style>
+      <div style={{
+        maxHeight: open ? 200 : 0,
+        opacity: open ? 1 : 0,
+        overflow: "hidden",
+        transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+      }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, paddingTop: 12 }}>
+          {parentalCats.map(cat => {
+            const severity = guide[cat as keyof typeof guide]
+            if (!severity || severity === "None") return null
+            return (
+              <span key={cat} style={{
+                fontSize: 11, padding: "4px 10px", borderRadius: 10,
+                border: `1px solid ${C.red}25`, color: C.red,
+              }}>{parentalLabels[cat]}: {severity}</span>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }

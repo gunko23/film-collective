@@ -5,9 +5,9 @@ import { cn } from "@/lib/utils"
 type SectionLabelColor = "muted" | "accent" | "cool"
 
 const colorClasses: Record<SectionLabelColor, string> = {
-  muted: "text-muted-foreground",
-  accent: "text-accent",
-  cool: "text-cool",
+  muted: "text-cream-faint",
+  accent: "text-orange",
+  cool: "text-blue",
 }
 
 function SectionLabel({
@@ -21,7 +21,7 @@ function SectionLabel({
     <span
       data-slot="section-label"
       className={cn(
-        "text-[11px] font-medium uppercase tracking-wider",
+        "text-[11px] font-semibold uppercase tracking-[0.16em]",
         colorClasses[color],
         className,
       )}
