@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useId } from "react"
 import { getImageUrl } from "@/lib/tmdb/image"
 import { colors } from "@/lib/design-tokens"
 import { SearchResultRow } from "@/components/modals/search-result-row"
 import { QuickAddCard } from "@/components/modals/quick-add-card"
+import { RatingStar, getStarFill } from "@/components/ui/rating-star"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -107,6 +108,7 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ratingContainerRef = useRef<HTMLDivElement>(null)
   const isTouchRef = useRef(false)
+  const ratingBaseId = useId()
 
   const displayRating = hoverRating || userRating
 
@@ -679,10 +681,7 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
                       setTimeout(() => { isTouchRef.current = false }, 300)
                     }}
                   >
-                    {[1, 2, 3, 4, 5].map((star) => {
-                      const isFull = displayRating >= star
-                      const isHalf = !isFull && displayRating >= star - 0.5
-                      return (
+                    {[1, 2, 3, 4, 5].map((star) => (
                         <button
                           key={star}
                           type="button"
@@ -710,21 +709,18 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
                             border: "none",
                             cursor: "pointer",
                             padding: "4px",
-                            fontSize: "36px",
-                            lineHeight: 1,
-                            color: isFull ? colors.accent : `${colors.cream}20`,
-                            transform: isFull ? "scale(1.1)" : "scale(1)",
                             transition: "all 0.15s ease",
-                            position: "relative" as const,
                           }}
                         >
-                          ★
-                          {isHalf && (
-                            <span style={{ position: "absolute", inset: 0, overflow: "hidden", width: "50%", color: colors.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>★</span>
-                          )}
+                          <RatingStar
+                            fill={getStarFill(star, displayRating)}
+                            size={36}
+                            filledColor={colors.accent}
+                            emptyColor={`${colors.cream}20`}
+                            uid={`log-rate-${ratingBaseId}-${star}`}
+                          />
                         </button>
-                      )
-                    })}
+                      ))}
                   </div>
                   <p
                     style={{
@@ -910,25 +906,16 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
                   {selectedFilm.title} — {userRating} out of 5
                 </p>
                 <div style={{ display: "flex", justifyContent: "center", gap: "4px", marginTop: "12px" }}>
-                  {[1, 2, 3, 4, 5].map((star) => {
-                    const isFull = userRating >= star
-                    const isHalf = !isFull && userRating >= star - 0.5
-                    return (
-                      <span
-                        key={star}
-                        style={{
-                          fontSize: "24px",
-                          color: isFull ? colors.accent : `${colors.cream}20`,
-                          position: "relative" as const,
-                        }}
-                      >
-                        ★
-                        {isHalf && (
-                          <span style={{ position: "absolute", inset: 0, overflow: "hidden", width: "50%", color: colors.accent }}>★</span>
-                        )}
-                      </span>
-                    )
-                  })}
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <RatingStar
+                      key={star}
+                      fill={getStarFill(star, userRating)}
+                      size={24}
+                      filledColor={colors.accent}
+                      emptyColor={`${colors.cream}20`}
+                      uid={`log-success-${ratingBaseId}-${star}`}
+                    />
+                  ))}
                 </div>
               </div>
             )}

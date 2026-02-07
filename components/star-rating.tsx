@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useCallback } from "react"
-import { Star } from "lucide-react"
+import { useState, useRef, useCallback, useId } from "react"
 import { cn } from "@/lib/utils"
+import { RatingStar, getStarFill } from "@/components/ui/rating-star"
 
 type StarRatingProps = {
   rating: number
@@ -16,15 +16,12 @@ export function StarRating({ rating, onRatingChange, readonly = false, size = "m
   const [hoverRating, setHoverRating] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isTouchRef = useRef(false)
+  const baseId = useId()
   const isInteractive = !readonly && !!onRatingChange
 
   const displayRating = hoverRating ?? rating
 
-  const sizeClasses = {
-    sm: "h-5 w-5",
-    md: "h-7 w-7",
-    lg: "h-9 w-9",
-  }
+  const starPx = { sm: 20, md: 28, lg: 36 } as const
 
   const gapClasses = {
     sm: "gap-0.5",
@@ -103,27 +100,23 @@ export function StarRating({ rating, onRatingChange, readonly = false, size = "m
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {[0, 1, 2, 3, 4].map((starIndex) => {
-        const fillPercentage = Math.min(Math.max((displayRating - starIndex) * 100, 0), 100)
-
-        return (
-          <div
-            key={starIndex}
-            className={cn("relative p-0.5", isInteractive && "cursor-pointer")}
-            onClick={(e) => handleClick(starIndex, e)}
-            onMouseMove={(e) => handleMouseMove(starIndex, e)}
-            onMouseLeave={handleMouseLeave}
-          >
-            {/* Background star (empty) */}
-            <Star className={cn(sizeClasses[size], "text-muted-foreground/30")} />
-
-            {/* Filled star overlay */}
-            <div className="absolute inset-0 overflow-hidden flex items-center justify-center" style={{ width: `${fillPercentage}%` }}>
-              <Star className={cn(sizeClasses[size], "fill-primary text-primary")} />
-            </div>
-          </div>
-        )
-      })}
+      {[0, 1, 2, 3, 4].map((starIndex) => (
+        <div
+          key={starIndex}
+          className={cn("p-0.5", isInteractive && "cursor-pointer")}
+          onClick={(e) => handleClick(starIndex, e)}
+          onMouseMove={(e) => handleMouseMove(starIndex, e)}
+          onMouseLeave={handleMouseLeave}
+        >
+          <RatingStar
+            fill={getStarFill(starIndex + 1, displayRating)}
+            size={starPx[size]}
+            filledColor="hsl(var(--primary))"
+            emptyColor="hsl(var(--muted-foreground) / 0.3)"
+            uid={`${baseId}-${starIndex}`}
+          />
+        </div>
+      ))}
     </div>
   )
 }

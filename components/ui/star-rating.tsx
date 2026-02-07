@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useId } from "react"
 import { cn } from "@/lib/utils"
+import { RatingStar, getStarFill } from "@/components/ui/rating-star"
 
 type StarRatingSize = "sm" | "md" | "lg"
 
@@ -21,10 +22,10 @@ const containerGap: Record<StarRatingSize, string> = {
   lg: "gap-3",
 }
 
-const starSize: Record<StarRatingSize, string> = {
-  sm: "text-xl p-0.5",
-  md: "text-2xl p-1",
-  lg: "text-[32px] p-2",
+const starPx: Record<StarRatingSize, number> = {
+  sm: 20,
+  md: 24,
+  lg: 32,
 }
 
 const valueSize: Record<StarRatingSize, string> = {
@@ -44,6 +45,7 @@ export function StarRating({
   const [hoverValue, setHoverValue] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isTouchRef = useRef(false)
+  const baseId = useId()
   const isInteractive = !readonly && !!onChange
 
   const displayValue = hoverValue ?? value
@@ -120,11 +122,7 @@ export function StarRating({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {[1, 2, 3, 4, 5].map((star) => {
-          const isFilled = displayValue >= star
-          const isHalf = !isFilled && displayValue >= star - 0.5
-
-          return (
+        {[1, 2, 3, 4, 5].map((star) => (
             <button
               key={star}
               type="button"
@@ -133,27 +131,20 @@ export function StarRating({
               onMouseMove={(e) => handleMouseMove(star, e)}
               onMouseLeave={handleMouseLeave}
               className={cn(
-                "relative select-none leading-none transition-all duration-150",
-                starSize[size],
+                "select-none transition-all duration-150 p-0.5",
                 isInteractive ? "cursor-pointer hover:scale-110" : "cursor-default",
-                isFilled && "scale-105",
               )}
               aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
             >
-              <span className={cn(isFilled ? "text-accent" : "text-foreground/20")}>
-                ★
-              </span>
-              {isHalf && (
-                <span
-                  className="absolute inset-0 flex items-center justify-center overflow-hidden text-accent"
-                  style={{ width: "50%" }}
-                >
-                  ★
-                </span>
-              )}
+              <RatingStar
+                fill={getStarFill(star, displayValue)}
+                size={starPx[size]}
+                filledColor="hsl(var(--accent))"
+                emptyColor="hsl(var(--foreground) / 0.2)"
+                uid={`${baseId}-${star}`}
+              />
             </button>
-          )
-        })}
+          ))}
       </div>
       {showValue && (
         <span className={cn("ml-2 font-medium text-foreground", valueSize[size])}>

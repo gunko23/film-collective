@@ -1,10 +1,12 @@
 "use client"
 
+import { useId } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { formatDistanceToNow } from "date-fns"
+import { RatingStar, getStarFill } from "@/components/ui/rating-star"
 
 // Deterministic gradient for user avatars based on name
 const USER_GRADIENTS: [string, string][] = [
@@ -58,6 +60,7 @@ const REACTION_EMOJI_MAP: Record<string, string> = {
 
 export function DashboardActivityItem({ activity }: { activity: Activity }) {
   const router = useRouter()
+  const baseId = useId()
   const gradient = getUserGradient(activity.actor_name || "U")
 
   const getDescription = () => {
@@ -119,19 +122,16 @@ export function DashboardActivityItem({ activity }: { activity: Activity }) {
 
         {activity.activity_type === "rating" && activity.score != null && activity.score > 0 && (
           <div className="flex gap-0.5 mb-1.5 lg:mb-2 items-center">
-            {[1, 2, 3, 4, 5].map((s) => {
-              const starValue = activity.score! / 20
-              const isFull = starValue >= s
-              const isHalf = !isFull && starValue >= s - 0.5
-              return (
-                <span key={s} className="relative text-xs lg:text-sm" style={{ color: isFull ? "#ff6b2d" : "rgba(107,99,88,0.2)" }}>
-                  ★
-                  {isHalf && (
-                    <span className="absolute inset-0 overflow-hidden" style={{ width: "50%", color: "#ff6b2d" }}>★</span>
-                  )}
-                </span>
-              )
-            })}
+            {[1, 2, 3, 4, 5].map((s) => (
+              <RatingStar
+                key={s}
+                fill={getStarFill(s, activity.score! / 20)}
+                size={14}
+                filledColor="#ff6b2d"
+                emptyColor="rgba(107,99,88,0.2)"
+                uid={`dai-${baseId}-${s}`}
+              />
+            ))}
             <span className="text-xs lg:text-sm font-semibold ml-1" style={{ color: "#ff6b2d" }}>
               {(activity.score / 20).toFixed(1)}
             </span>

@@ -1,5 +1,6 @@
-import { Star } from "lucide-react"
+import { useId } from "react"
 import { cn } from "@/lib/utils"
+import { RatingStar, getStarFill } from "@/components/ui/rating-star"
 
 interface StarRatingDisplayProps {
   rating: number // 0-5 scale
@@ -8,40 +9,24 @@ interface StarRatingDisplayProps {
   className?: string
 }
 
+const sizePx = { sm: 12, md: 16, lg: 20 } as const
+
 export function StarRatingDisplay({ rating, size = "md", showValue = false, className }: StarRatingDisplayProps) {
   const safeRating = rating ?? 0
-
-  const sizeClasses = {
-    sm: "h-3 w-3",
-    md: "h-4 w-4",
-    lg: "h-5 w-5",
-  }
-
-  const starSize = sizeClasses[size]
-
-  const renderStar = (star: number) => {
-    const isFull = safeRating >= star
-    const isHalf = !isFull && safeRating >= star - 0.5
-
-    return (
-      <div key={star} className={cn("relative", starSize)}>
-        {/* Background star (empty) */}
-        <Star className={cn("absolute", starSize, "fill-transparent text-muted-foreground/30")} />
-        {/* Half star */}
-        {isHalf && (
-          <div className="absolute overflow-hidden" style={{ width: "50%" }}>
-            <Star className={cn(starSize, "fill-accent text-accent")} />
-          </div>
-        )}
-        {/* Full star */}
-        {isFull && <Star className={cn("absolute", starSize, "fill-accent text-accent")} />}
-      </div>
-    )
-  }
+  const baseId = useId()
 
   return (
     <div className={cn("flex items-center gap-0.5", className)}>
-      {[1, 2, 3, 4, 5].map(renderStar)}
+      {[1, 2, 3, 4, 5].map((star) => (
+        <RatingStar
+          key={star}
+          fill={getStarFill(star, safeRating)}
+          size={sizePx[size]}
+          filledColor="hsl(var(--accent))"
+          emptyColor="hsl(var(--muted-foreground) / 0.3)"
+          uid={`${baseId}-${star}`}
+        />
+      ))}
       {showValue && <span className="ml-1.5 text-sm font-medium text-foreground">{safeRating.toFixed(1)}</span>}
     </div>
   )
