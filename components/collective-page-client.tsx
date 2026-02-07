@@ -163,7 +163,7 @@ export function CollectivePageClient({
   const [feedLoading, setFeedLoading] = useState(false)
   const FEED_LIMIT = 10
 
-  const [recentActivity, setRecentActivity] = useState<any[]>([])
+  const [recentActivity, setRecentActivity] = useState<FeedActivity[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
 
   useEffect(() => {

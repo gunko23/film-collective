@@ -2,10 +2,10 @@
 
 import type React from "react"
 import Link from "next/link"
-import Image from "next/image"
-import { Film, Tv, Clapperboard, Star, Activity, MessageCircle } from "lucide-react"
+import { Film, Tv, Clapperboard, Star, Activity } from "lucide-react"
 import { CollectiveMoviesGrid } from "@/components/collective-movies-grid"
 import { getImageUrl } from "@/lib/tmdb/image"
+import { DashboardActivityItem, type Activity as ActivityType } from "@/components/dashboard/dashboard-activity-item"
 
 type MovieStat = {
   tmdb_id: string
@@ -46,22 +46,9 @@ type DashboardSectionProps = {
   collectiveId: string
   onMovieClick: (movie: MovieStat) => void
   onTVShowClick: (show: TVShowStat) => void
-  recentActivity: any[]
+  recentActivity: ActivityType[]
   activityLoading: boolean
   onViewAllFeed: () => void
-}
-
-const REACTION_EMOJI_MAP: Record<string, string> = {
-  thumbsup: "\u{1F44D}",
-  heart: "\u2764\uFE0F",
-  laugh: "\u{1F602}",
-  fire: "\u{1F525}",
-  sad: "\u{1F622}",
-  celebrate: "\u{1F389}",
-}
-
-const getReactionEmoji = (type: string): string => {
-  return REACTION_EMOJI_MAP[type] || type
 }
 
 export function DashboardSection({
@@ -75,15 +62,6 @@ export function DashboardSection({
   activityLoading,
   onViewAllFeed,
 }: DashboardSectionProps) {
-  const getActivityConversationLink = (item: any) => {
-    if (!item.tmdb_id) {
-      // Fallback to old rating-based link if tmdb_id not available
-      return `/collectives/${collectiveId}/conversation/${item.rating_id}`
-    }
-    const mediaType = item.media_type === "movie" ? "movie" : "tv"
-    return `/collectives/${collectiveId}/movie/${item.tmdb_id}/conversation?type=${mediaType}`
-  }
-
   return (
     <div className="space-y-8">
       {/* Top Rated Movies */}
@@ -252,77 +230,16 @@ export function DashboardSection({
           </div>
         ) : recentActivity.length === 0 ? (
           <div className="text-center py-8 rounded-xl bg-card/30 border border-border/50">
-            <MessageCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <Film className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">No activity yet</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {recentActivity.map((item) => (
-              <Link
-                key={item.id}
-                href={getActivityConversationLink(item)}
-                className="flex items-start gap-3 p-3 rounded-xl bg-card/50 border border-border/50 hover:border-accent/30 transition-all group"
-              >
-                {/* User Avatar */}
-                <div className="h-9 w-9 rounded-full bg-accent/20 flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {item.user_avatar ? (
-                    <Image
-                      src={item.user_avatar || "/placeholder.svg"}
-                      alt={item.user_name || "User"}
-                      width={36}
-                      height={36}
-                      className="object-cover"
-                    />
-                  ) : (
-                    <span className="text-sm font-medium text-accent">
-                      {(item.user_name || "U")[0].toUpperCase()}
-                    </span>
-                  )}
-                </div>
-
-                {/* Activity Content */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground">
-                    <span className="font-medium">{item.user_name || "Someone"}</span>
-                    {item.activity_type === "comment" ? (
-                      <>
-                        {" "}
-                        commented on <span className="font-medium">{item.rating_owner_name || "a"}</span>'s review
-                      </>
-                    ) : (
-                      <>
-                        {" "}
-                        reacted <span className="text-base">{getReactionEmoji(item.reaction_type)}</span> to{" "}
-                        <span className="font-medium">{item.rating_owner_name || "a"}</span>'s review
-                      </>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {item.media_title && (
-                      <>
-                        <span className="capitalize">{item.media_type}</span>: {item.media_title}
-                      </>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">
-                    {new Date(item.created_at).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-
-                {/* Activity Icon */}
-                <div className="flex-shrink-0">
-                  {item.activity_type === "comment" ? (
-                    <MessageCircle className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
-                  ) : (
-                    <span className="text-base">{getReactionEmoji(item.reaction_type)}</span>
-                  )}
-                </div>
-              </Link>
+          <div>
+            {recentActivity.map((activity, i) => (
+              <DashboardActivityItem
+                key={`${activity.activity_type}-${activity.activity_id}-${i}`}
+                activity={activity}
+              />
             ))}
           </div>
         )}
