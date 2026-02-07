@@ -1,5 +1,6 @@
 "use client"
 
+import type React from "react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 
@@ -45,6 +46,22 @@ export function StarRating({
   const displayValue = hoverValue ?? value
   const isInteractive = !readonly && !!onChange
 
+  const handleMouseMove = (star: number, e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!isInteractive) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const isLeftHalf = x < rect.width / 2
+    setHoverValue(isLeftHalf ? star - 0.5 : star)
+  }
+
+  const handleClick = (star: number, e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!isInteractive) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const isLeftHalf = x < rect.width / 2
+    onChange(isLeftHalf ? star - 0.5 : star)
+  }
+
   return (
     <div className={cn("flex items-center", className)}>
       <div className={cn("flex items-center", containerGap[size])}>
@@ -57,8 +74,8 @@ export function StarRating({
               key={star}
               type="button"
               disabled={!isInteractive}
-              onClick={() => isInteractive && onChange(star)}
-              onMouseEnter={() => isInteractive && setHoverValue(star)}
+              onClick={(e) => handleClick(star, e)}
+              onMouseMove={(e) => handleMouseMove(star, e)}
               onMouseLeave={() => isInteractive && setHoverValue(null)}
               className={cn(
                 "relative select-none leading-none transition-all duration-150",
