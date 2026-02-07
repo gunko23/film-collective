@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+import { useState, useRef, useCallback } from "react"
 import { Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -13,13 +14,15 @@ type StarRatingProps = {
 
 export function StarRating({ rating, onRatingChange, readonly = false, size = "md" }: StarRatingProps) {
   const [hoverRating, setHoverRating] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isInteractive = !readonly && !!onRatingChange
 
   const displayRating = hoverRating ?? rating
 
   const sizeClasses = {
-    sm: "h-4 w-4",
-    md: "h-6 w-6",
-    lg: "h-8 w-8",
+    sm: "h-5 w-5",
+    md: "h-7 w-7",
+    lg: "h-9 w-9",
   }
 
   const gapClasses = {
@@ -28,72 +31,86 @@ export function StarRating({ rating, onRatingChange, readonly = false, size = "m
     lg: "gap-1.5",
   }
 
-  // 10 half-stars for 0.5 - 5.0 rating
-  const handleClick = (index: number) => {
-    if (readonly || !onRatingChange) return
-    const newRating = (index + 1) * 0.5
-    onRatingChange(newRating)
+  // Calculate star value (0.5–5) from X position across the star row
+  const getStarValueFromX = useCallback((clientX: number) => {
+    const container = containerRef.current
+    if (!container) return null
+    const rect = container.getBoundingClientRect()
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width))
+    const raw = (x / rect.width) * 5
+    const snapped = Math.round(raw * 2) / 2
+    return Math.max(0.5, Math.min(5, snapped))
+  }, [])
+
+  const handleMouseMove = (starIndex: number, e: React.MouseEvent) => {
+    if (!isInteractive) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const isLeftHalf = x < rect.width / 2
+    setHoverRating(isLeftHalf ? starIndex + 0.5 : starIndex + 1)
   }
 
-  const handleMouseEnter = (index: number) => {
-    if (readonly) return
-    setHoverRating((index + 1) * 0.5)
+  const handleClick = (starIndex: number, e: React.MouseEvent) => {
+    if (!isInteractive) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const isLeftHalf = x < rect.width / 2
+    onRatingChange(isLeftHalf ? starIndex + 0.5 : starIndex + 1)
   }
 
-  const handleMouseLeave = () => {
-    if (readonly) return
+  // Touch handlers for mobile: treat the star row as a slider
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isInteractive) return
+    const touch = e.touches[0]
+    const val = getStarValueFromX(touch.clientX)
+    if (val !== null) setHoverRating(val)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isInteractive) return
+    const touch = e.touches[0]
+    const val = getStarValueFromX(touch.clientX)
+    if (val !== null) setHoverRating(val)
+  }
+
+  const handleTouchEnd = () => {
+    if (!isInteractive) return
+    if (hoverRating !== null) {
+      onRatingChange(hoverRating)
+    }
     setHoverRating(null)
   }
 
   return (
-    <div className={cn("flex items-center", gapClasses[size])}>
+    <div
+      ref={containerRef}
+      className={cn(
+        "flex items-center",
+        gapClasses[size],
+        isInteractive && "touch-none",
+      )}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {[0, 1, 2, 3, 4].map((starIndex) => {
-        const starValue = starIndex + 1
         const fillPercentage = Math.min(Math.max((displayRating - starIndex) * 100, 0), 100)
 
         return (
           <div
             key={starIndex}
-            className={cn("relative", !readonly && "cursor-pointer")}
-            onClick={() => handleClick(starIndex * 2 + 1)}
-            onMouseEnter={() => handleMouseEnter(starIndex * 2 + 1)}
-            onMouseLeave={handleMouseLeave}
+            className={cn("relative p-0.5", isInteractive && "cursor-pointer")}
+            onClick={(e) => handleClick(starIndex, e)}
+            onMouseMove={(e) => handleMouseMove(starIndex, e)}
+            onMouseLeave={() => isInteractive && setHoverRating(null)}
           >
             {/* Background star (empty) */}
             <Star className={cn(sizeClasses[size], "text-muted-foreground/30")} />
 
             {/* Filled star overlay */}
-            <div className="absolute inset-0 overflow-hidden" style={{ width: `${fillPercentage}%` }}>
+            <div className="absolute inset-0 overflow-hidden flex items-center justify-center" style={{ width: `${fillPercentage}%` }}>
               <Star className={cn(sizeClasses[size], "fill-primary text-primary")} />
             </div>
-
-            {/* Click areas for half stars */}
-            {!readonly && (
-              <>
-                <div
-                  className="absolute inset-y-0 left-0 w-1/2"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleClick(starIndex * 2)
-                  }}
-                  onMouseEnter={(e) => {
-                    e.stopPropagation()
-                    handleMouseEnter(starIndex * 2)
-                  }}
-                />
-                <div
-                  className="absolute inset-y-0 right-0 w-1/2"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleClick(starIndex * 2 + 1)
-                  }}
-                  onMouseEnter={(e) => {
-                    e.stopPropagation()
-                    handleMouseEnter(starIndex * 2 + 1)
-                  }}
-                />
-              </>
-            )}
           </div>
         )
       })}

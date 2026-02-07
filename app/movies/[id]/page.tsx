@@ -1,5 +1,6 @@
 "use client"
 
+import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import useSWR, { mutate } from "swr"
@@ -323,7 +324,7 @@ function CollectiveDropdown({
   )
 }
 
-// ─── Star Rating Component ──────────────────────────────────
+// ─── Star Rating Component (supports half-star input via touch + mouse) ──────
 
 function StarRating({
   value,
@@ -337,6 +338,8 @@ function StarRating({
   size?: "sm" | "md" | "lg"
 }) {
   const [hoverValue, setHoverValue] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isInteractive = !readonly && !!onChange
   const displayValue = hoverValue || value
 
   const sizeClasses = {
@@ -351,33 +354,90 @@ function StarRating({
     lg: "p-1",
   }
 
+  const getStarValueFromX = (clientX: number) => {
+    const container = containerRef.current
+    if (!container) return null
+    const rect = container.getBoundingClientRect()
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width))
+    const raw = (x / rect.width) * 5
+    const snapped = Math.round(raw * 2) / 2
+    return Math.max(0.5, Math.min(5, snapped))
+  }
+
+  const handleMouseMove = (star: number, e: React.MouseEvent) => {
+    if (!isInteractive) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const isLeftHalf = x < rect.width / 2
+    setHoverValue(isLeftHalf ? star - 0.5 : star)
+  }
+
+  const handleClick = (star: number, e: React.MouseEvent) => {
+    if (!isInteractive) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const isLeftHalf = x < rect.width / 2
+    onChange(isLeftHalf ? star - 0.5 : star)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isInteractive) return
+    const val = getStarValueFromX(e.touches[0].clientX)
+    if (val !== null) setHoverValue(val)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isInteractive) return
+    const val = getStarValueFromX(e.touches[0].clientX)
+    if (val !== null) setHoverValue(val)
+  }
+
+  const handleTouchEnd = () => {
+    if (!isInteractive) return
+    if (hoverValue > 0) onChange!(hoverValue)
+    setHoverValue(0)
+  }
+
   return (
-    <div className="flex justify-center gap-1 lg:gap-2.5">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <button
-          key={star}
-          type="button"
-          onClick={() => !readonly && onChange?.(star)}
-          onMouseEnter={() => !readonly && setHoverValue(star)}
-          onMouseLeave={() => !readonly && setHoverValue(0)}
-          disabled={readonly}
-          className={`${sizeClasses[size]} transition-transform ${paddingClasses[size]}`}
-          style={{
-            color: star <= displayValue ? "#ff6b2d" : "rgba(232,226,214,0.2)",
-            transform: star <= displayValue ? "scale(1.1)" : "scale(1)",
-            cursor: readonly ? "default" : "pointer",
-            background: "none",
-            border: "none",
-          }}
-        >
-          ★
-        </button>
-      ))}
+    <div
+      ref={containerRef}
+      className={`flex justify-center gap-1 lg:gap-2.5 ${isInteractive ? "touch-none" : ""}`}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {[1, 2, 3, 4, 5].map((star) => {
+        const isFull = displayValue >= star
+        const isHalf = !isFull && displayValue >= star - 0.5
+        return (
+          <button
+            key={star}
+            type="button"
+            onClick={(e) => handleClick(star, e)}
+            onMouseMove={(e) => handleMouseMove(star, e)}
+            onMouseLeave={() => isInteractive && setHoverValue(0)}
+            disabled={!isInteractive}
+            className={`relative ${sizeClasses[size]} transition-transform ${paddingClasses[size]}`}
+            style={{
+              color: isFull ? "#ff6b2d" : "rgba(232,226,214,0.2)",
+              transform: isFull ? "scale(1.1)" : "scale(1)",
+              cursor: readonly ? "default" : "pointer",
+              background: "none",
+              border: "none",
+            }}
+          >
+            ★
+            {isHalf && (
+              <span className="absolute inset-0 overflow-hidden flex items-center justify-center" style={{ width: "50%", color: "#ff6b2d" }}>★</span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }
 
-// ─── Desktop Star Rating (SVG-based, matching design) ──────────
+// ─── Desktop Star Rating (SVG-based, supports half-stars) ──────────
 
 function DesktopStarRating({
   value,
@@ -391,27 +451,60 @@ function DesktopStarRating({
   starSize?: number
 }) {
   const [hover, setHover] = useState(0)
+  const isInteractive = !readonly && !!onChange
   const displayValue = hover || value
+
+  const handleMouseMove = (star: number, e: React.MouseEvent) => {
+    if (!isInteractive) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const isLeftHalf = x < rect.width / 2
+    setHover(isLeftHalf ? star - 0.5 : star)
+  }
+
+  const handleClick = (star: number, e: React.MouseEvent) => {
+    if (!isInteractive) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const isLeftHalf = x < rect.width / 2
+    onChange(isLeftHalf ? star - 0.5 : star)
+  }
 
   return (
     <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <svg
-          key={i}
-          width={starSize}
-          height={starSize}
-          viewBox="0 0 24 24"
-          fill={displayValue >= i ? "#D4753E" : "none"}
-          stroke={displayValue >= i ? "#D4753E" : "#555"}
-          strokeWidth={2}
-          style={{ cursor: readonly ? "default" : "pointer", transition: "all 0.15s" }}
-          onMouseEnter={() => !readonly && setHover(i)}
-          onMouseLeave={() => !readonly && setHover(0)}
-          onClick={() => !readonly && onChange?.(i)}
-        >
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
-      ))}
+      {[1, 2, 3, 4, 5].map((i) => {
+        const isFull = displayValue >= i
+        const isHalf = !isFull && displayValue >= i - 0.5
+        return (
+          <svg
+            key={i}
+            width={starSize}
+            height={starSize}
+            viewBox="0 0 24 24"
+            fill={isFull ? "#D4753E" : "none"}
+            stroke={isFull || isHalf ? "#D4753E" : "#555"}
+            strokeWidth={2}
+            style={{ cursor: readonly ? "default" : "pointer", transition: "all 0.15s", overflow: "visible" }}
+            onMouseMove={(e) => handleMouseMove(i, e)}
+            onMouseLeave={() => isInteractive && setHover(0)}
+            onClick={(e) => handleClick(i, e)}
+          >
+            <defs>
+              <clipPath id={`half-star-${i}`}>
+                <rect x="0" y="0" width="12" height="24" />
+              </clipPath>
+            </defs>
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            {isHalf && (
+              <polygon
+                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                fill="#D4753E"
+                clipPath={`url(#half-star-${i})`}
+              />
+            )}
+          </svg>
+        )
+      })}
     </div>
   )
 }
@@ -1083,19 +1176,25 @@ export default function FilmDetailPage() {
                 {communityStats && communityStats.ratingCount > 0 && (
                   <div className="flex items-center gap-2 lg:mt-3.5">
                     <div className="flex gap-0.5">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <span
-                          key={star}
-                          className="text-sm lg:hidden"
-                          style={{
-                            color: star <= Math.round(communityStats.averageScore || 0) ? "#ff6b2d" : "rgba(232,226,214,0.2)"
-                          }}
-                        >
-                          ★
-                        </span>
-                      ))}
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const avg = communityStats.averageScore || 0
+                        const isFull = avg >= star
+                        const isHalf = !isFull && avg >= star - 0.5
+                        return (
+                          <span
+                            key={star}
+                            className="relative text-sm lg:hidden"
+                            style={{ color: isFull ? "#ff6b2d" : "rgba(232,226,214,0.2)" }}
+                          >
+                            ★
+                            {isHalf && (
+                              <span className="absolute inset-0 overflow-hidden" style={{ width: "50%", color: "#ff6b2d" }}>★</span>
+                            )}
+                          </span>
+                        )
+                      })}
                       <span className="hidden lg:flex">
-                        <DesktopStarRating value={Math.round(communityStats.averageScore || 0)} readonly starSize={16} />
+                        <DesktopStarRating value={communityStats.averageScore || 0} readonly starSize={16} />
                       </span>
                     </div>
                     <span className="text-[12px] lg:text-[15px] text-foreground/40 lg:text-[#D4753E] lg:font-semibold">
@@ -1709,15 +1808,22 @@ export default function FilmDetailPage() {
                           <div className="flex-1">
                             <p className="text-sm lg:text-[15px] font-semibold mb-1">You</p>
                             <div className="flex gap-0.5 lg:hidden">
-                              {[1, 2, 3, 4, 5].map((s) => (
-                                <span
-                                  key={s}
-                                  className="text-sm"
-                                  style={{ color: s <= userRating ? "#ff6b2d" : "rgba(232,226,214,0.2)" }}
-                                >
-                                  ★
-                                </span>
-                              ))}
+                              {[1, 2, 3, 4, 5].map((s) => {
+                                const isFull = userRating >= s
+                                const isHalf = !isFull && userRating >= s - 0.5
+                                return (
+                                  <span
+                                    key={s}
+                                    className="relative text-sm"
+                                    style={{ color: isFull ? "#ff6b2d" : "rgba(232,226,214,0.2)" }}
+                                  >
+                                    ★
+                                    {isHalf && (
+                                      <span className="absolute inset-0 overflow-hidden" style={{ width: "50%", color: "#ff6b2d" }}>★</span>
+                                    )}
+                                  </span>
+                                )
+                              })}
                             </div>
                             <div className="hidden lg:block">
                               <DesktopStarRating value={userRating} readonly starSize={14} />
@@ -1746,15 +1852,22 @@ export default function FilmDetailPage() {
                           <div className="flex-1">
                             <p className="text-sm lg:text-[15px] font-semibold mb-1">{member.user_name || "User"}</p>
                             <div className="flex gap-0.5 lg:hidden">
-                              {[1, 2, 3, 4, 5].map((s) => (
-                                <span
-                                  key={s}
-                                  className="text-sm"
-                                  style={{ color: s <= member.score ? "#ff6b2d" : "rgba(232,226,214,0.2)" }}
-                                >
-                                  ★
-                                </span>
-                              ))}
+                              {[1, 2, 3, 4, 5].map((s) => {
+                                const isFull = member.score >= s
+                                const isHalf = !isFull && member.score >= s - 0.5
+                                return (
+                                  <span
+                                    key={s}
+                                    className="relative text-sm"
+                                    style={{ color: isFull ? "#ff6b2d" : "rgba(232,226,214,0.2)" }}
+                                  >
+                                    ★
+                                    {isHalf && (
+                                      <span className="absolute inset-0 overflow-hidden" style={{ width: "50%", color: "#ff6b2d" }}>★</span>
+                                    )}
+                                  </span>
+                                )
+                              })}
                             </div>
                             <div className="hidden lg:block">
                               <DesktopStarRating value={member.score} readonly starSize={14} />

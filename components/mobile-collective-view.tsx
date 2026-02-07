@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -12,10 +12,12 @@ import { TonightsPick } from "@/components/tonights-pick"
 import { MembersModal } from "@/components/members-modal"
 import { SectionLabel } from "@/components/ui/section-label"
 import { getImageUrl } from "@/lib/tmdb/image"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { formatDistanceToNow } from "date-fns"
 import { CollectiveBadge, getCollectiveGradient, getCollectiveInitials } from "@/components/soulframe/collective-badge"
 import { LogFilmFAB } from "@/components/soulframe/fab"
+import { BackIcon, SearchIcon, PlusIcon, DiscussionIcon, StarIcon } from "@/components/collective/collective-icons"
+import { PillTabBar, EASING, type CollectiveTab } from "@/components/collective/pill-tab-bar"
+import { InviteModal } from "@/components/collective/invite-modal"
 
 // ─── Color helpers ──────────────────────────────────────────
 
@@ -36,100 +38,6 @@ function getMemberColor(name: string): [string, string] {
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
   return MEMBER_COLORS[Math.abs(hash) % MEMBER_COLORS.length]
-}
-
-// ─── Icons ──────────────────────────────────────────────────
-
-function BackIcon({ color = "#e8e2d6", size = 22 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M19 12H5M12 19L5 12L12 5" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function FeedIcon({ color = "#e8e2d6", size = 18 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M3 9.5L12 3L21 9.5" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 9.5V19C5 19.55 5.45 20 6 20H18C18.55 20 19 19.55 19 19V9.5" stroke={color} strokeWidth="1.5" />
-    </svg>
-  )
-}
-
-function ChatIcon({ color = "#e8e2d6", size = 18 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M21 12C21 16.4183 16.9706 20 12 20C10.4607 20 9.01172 19.6565 7.74467 19.0511L3 20L4.39499 16.28C3.51156 15.0423 3 13.5743 3 12C3 7.58172 7.02944 4 12 4C16.9706 4 21 7.58172 21 12Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M8 11H8.01M12 11H12.01M16 11H16.01" stroke={color} strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function FilmIcon({ color = "#e8e2d6", size = 18 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <rect x="2" y="4" width="20" height="16" rx="2" stroke={color} strokeWidth="1.5" />
-      <path d="M2 8H22M2 16H22M6 4V20M18 4V20" stroke={color} strokeWidth="1.5" />
-    </svg>
-  )
-}
-
-function InsightsIcon({ color = "#e8e2d6", size = 18 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M4 20V14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M9 20V10" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M14 20V12" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M19 20V6" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="4" cy="12" r="2" stroke={color} strokeWidth="1.5" />
-      <circle cx="9" cy="8" r="2" stroke={color} strokeWidth="1.5" />
-      <circle cx="14" cy="10" r="2" stroke={color} strokeWidth="1.5" />
-      <circle cx="19" cy="4" r="2" stroke={color} strokeWidth="1.5" />
-    </svg>
-  )
-}
-
-function SearchIcon({ color = "#e8e2d6", size = 14 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="7" />
-      <path d="M21 21l-4.35-4.35" />
-    </svg>
-  )
-}
-
-function PlusIcon({ color = "#6b6358", size = 16 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  )
-}
-
-function TonightsPickIcon({ color = "#ff6b2d", size = 20 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-      <circle cx="19" cy="5" r="1.5" fill={color} opacity="0.6" />
-    </svg>
-  )
-}
-
-function DiscussionIcon({ color = "#e8e2d6", size = 20 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function StarIcon({ filled = false, size = 12 }: { filled?: boolean; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? "#ff6b2d" : "none"} stroke={filled ? "#ff6b2d" : "rgba(107,99,88,0.35)"} strokeWidth="2">
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-    </svg>
-  )
 }
 
 // ─── Types ──────────────────────────────────────────────────
@@ -191,8 +99,6 @@ type Activity = {
   rating_id: string
 }
 
-type CollectiveTab = "feed" | "chat" | "films" | "insights" | "tonights-pick"
-
 type Props = {
   collectiveId: string
   collectiveName: string
@@ -216,72 +122,6 @@ const REACTION_EMOJI_MAP: Record<string, string> = {
   fire: "\uD83D\uDD25",
   sad: "\uD83D\uDE22",
   celebrate: "\uD83C\uDF89",
-}
-
-const EASING = "cubic-bezier(0.16, 1, 0.3, 1)"
-
-// ─── Pill Tab Bar ───────────────────────────────────────────
-
-function PillTabBar({
-  activeTab,
-  onTabChange,
-  iconSize = 13,
-  fontSize = "13px",
-  padding = "9px 16px",
-}: {
-  activeTab: CollectiveTab
-  onTabChange: (tab: CollectiveTab) => void
-  iconSize?: number
-  fontSize?: string
-  padding?: string
-}) {
-  const tabs: { id: CollectiveTab; label: string; Icon: typeof FeedIcon }[] = [
-    { id: "feed", label: "Feed", Icon: FeedIcon },
-    { id: "chat", label: "Chat", Icon: ChatIcon },
-    { id: "films", label: "Films", Icon: FilmIcon },
-    { id: "insights", label: "Insights", Icon: InsightsIcon },
-  ]
-
-  return (
-    <>
-      <div style={{ display: "flex", gap: 6, padding: "20px 24px 0" }}>
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onTabChange(tab.id)}
-              style={{
-                padding,
-                borderRadius: 22,
-                fontSize,
-                fontWeight: isActive ? 500 : 400,
-                background: isActive
-                  ? "linear-gradient(135deg, rgba(61,90,150,0.13), rgba(255,107,45,0.06))"
-                  : "transparent",
-                color: isActive ? "#e8e2d6" : "#6b6358",
-                border: `1px solid ${isActive ? "rgba(61,90,150,0.16)" : "transparent"}`,
-                transition: `all 0.35s ${EASING}`,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                cursor: "pointer",
-                whiteSpace: "nowrap" as const,
-              }}
-            >
-              <tab.Icon color={isActive ? "#e8e2d6" : "rgba(107,99,88,0.7)"} size={iconSize} />
-              {tab.label}
-            </button>
-          )
-        })}
-      </div>
-      {/* Gradient divider */}
-      <div style={{ padding: "14px 24px 0" }}>
-        <div style={{ height: 1, background: "linear-gradient(to right, rgba(61,90,150,0.07), rgba(255,107,45,0.05), transparent)" }} />
-      </div>
-    </>
-  )
 }
 
 // ─── Main Component ─────────────────────────────────────────
@@ -311,42 +151,6 @@ export function MobileCollectiveView({
 
   // Invite state
   const [showInviteModal, setShowInviteModal] = useState(false)
-  const [inviteCode, setInviteCode] = useState<string | null>(null)
-  const [inviteCopied, setInviteCopied] = useState(false)
-  const [creatingInvite, setCreatingInvite] = useState(false)
-
-  const handleCreateInvite = async () => {
-    setCreatingInvite(true)
-    try {
-      const res = await fetch(`/api/collectives/${collectiveId}/invites`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expiresInDays: 7 }),
-      })
-      if (res.ok) {
-        const invite = await res.json()
-        setInviteCode(invite.invite_code)
-      }
-    } catch (err) {
-      console.error("Error creating invite:", err)
-    } finally {
-      setCreatingInvite(false)
-    }
-  }
-
-  const handleCopyInviteLink = () => {
-    if (!inviteCode) return
-    const link = `${window.location.origin}/invite/${inviteCode}`
-    navigator.clipboard.writeText(link)
-    setInviteCopied(true)
-    setTimeout(() => setInviteCopied(false), 2000)
-  }
-
-  const openInviteModal = () => {
-    setShowInviteModal(true)
-    setInviteCode(null)
-    setInviteCopied(false)
-  }
 
   // Fetch recent activity for feed tab
   useEffect(() => {
@@ -463,7 +267,7 @@ export function MobileCollectiveView({
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <button
             type="button"
-            onClick={openInviteModal}
+            onClick={() => setShowInviteModal(true)}
             className="flex items-center gap-2.5 p-3 transition-colors"
             style={{ color: "#a69e90", background: "none", border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
           >
@@ -812,7 +616,7 @@ export function MobileCollectiveView({
             </div>
             <button
               type="button"
-              onClick={openInviteModal}
+              onClick={() => setShowInviteModal(true)}
               style={{
                 padding: "8px 14px",
                 borderRadius: 10,
@@ -990,7 +794,7 @@ export function MobileCollectiveView({
                   )
                 })}
                 {/* Invite button */}
-                <div onClick={openInviteModal} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 52, cursor: "pointer" }}>
+                <div onClick={() => setShowInviteModal(true)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 52, cursor: "pointer" }}>
                   <div style={{ width: 46, height: 46, borderRadius: "50%", border: "1.5px dashed rgba(107,99,88,0.19)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <PlusIcon />
                   </div>
@@ -1151,157 +955,12 @@ export function MobileCollectiveView({
       />
 
       {/* ─── Invite Modal ──────────────────────────────────── */}
-      {showInviteModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 24,
-          }}
-        >
-          {/* Backdrop */}
-          <div
-            onClick={() => setShowInviteModal(false)}
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(10,9,8,0.82)",
-              backdropFilter: "blur(6px)",
-            }}
-          />
-
-          {/* Dialog */}
-          <div
-            style={{
-              position: "relative",
-              width: "100%",
-              maxWidth: 360,
-              borderRadius: 18,
-              background: "#1a1714",
-              border: "1px solid rgba(107,99,88,0.12)",
-              overflow: "hidden",
-            }}
-          >
-            {/* Accent bar */}
-            <div style={{ height: 2, background: "linear-gradient(to right, #3d5a96, #ff6b2d44, transparent)" }} />
-
-            <div style={{ padding: "24px 22px" }}>
-              {/* Header */}
-              <div style={{ marginBottom: 6 }}>
-                <h3 style={{ fontSize: 17, fontWeight: 700, color: "#e8e2d6", margin: 0 }}>
-                  Invite to {collectiveName}
-                </h3>
-                <p style={{ fontSize: 13, color: "#a69e90", margin: "6px 0 0" }}>
-                  Create an invite link to share with friends
-                </p>
-              </div>
-
-              {/* Content */}
-              <div style={{ marginTop: 20 }}>
-                {!inviteCode ? (
-                  <button
-                    onClick={handleCreateInvite}
-                    disabled={creatingInvite}
-                    style={{
-                      width: "100%",
-                      height: 46,
-                      borderRadius: 12,
-                      border: "none",
-                      cursor: creatingInvite ? "not-allowed" : "pointer",
-                      fontSize: 15,
-                      fontWeight: 600,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 8,
-                      background: "linear-gradient(135deg, #ff6b2d, #ff8f5e)",
-                      color: "#0a0908",
-                      opacity: creatingInvite ? 0.7 : 1,
-                      transition: "opacity 0.15s",
-                    }}
-                  >
-                    {creatingInvite ? "Creating..." : "Generate Invite Link"}
-                  </button>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <input
-                        type="text"
-                        readOnly
-                        value={`${typeof window !== "undefined" ? window.location.origin : ""}/invite/${inviteCode}`}
-                        style={{
-                          flex: 1,
-                          padding: "10px 12px",
-                          fontSize: 13,
-                          borderRadius: 10,
-                          border: "1px solid rgba(107,99,88,0.15)",
-                          background: "#0f0d0b",
-                          color: "#e8e2d6",
-                          outline: "none",
-                          minWidth: 0,
-                        }}
-                      />
-                      <button
-                        onClick={handleCopyInviteLink}
-                        style={{
-                          width: 42,
-                          height: 42,
-                          borderRadius: 10,
-                          border: `1px solid ${inviteCopied ? "rgba(74,158,142,0.4)" : "rgba(107,99,88,0.15)"}`,
-                          background: inviteCopied ? "rgba(74,158,142,0.12)" : "transparent",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        {inviteCopied ? (
-                          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#4a9e8e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : (
-                          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#a69e90" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                    <p style={{ fontSize: 12, color: "#6b6358", margin: 0 }}>
-                      This link expires in 7 days
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Close button */}
-              <button
-                onClick={() => setShowInviteModal(false)}
-                style={{
-                  width: "100%",
-                  marginTop: 16,
-                  padding: "10px 0",
-                  borderRadius: 10,
-                  border: "1px solid rgba(107,99,88,0.12)",
-                  background: "transparent",
-                  color: "#a69e90",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                }}
-              >
-                {inviteCode ? "Done" : "Cancel"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <InviteModal
+        open={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        collectiveName={collectiveName}
+        collectiveId={collectiveId}
+      />
     </div>
   )
 }
