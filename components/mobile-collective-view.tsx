@@ -18,6 +18,7 @@ import { BackIcon, SearchIcon, PlusIcon, DiscussionIcon, StarIcon } from "@/comp
 import { PillTabBar, EASING, type CollectiveTab } from "@/components/collective/pill-tab-bar"
 import { InviteModal } from "@/components/collective/invite-modal"
 import { DashboardActivityItem, type Activity as FeedActivity } from "@/components/dashboard/dashboard-activity-item"
+import { LogFilmModal } from "@/components/modals/log-film-modal"
 
 // ─── Color helpers ──────────────────────────────────────────
 
@@ -127,6 +128,9 @@ export function MobileCollectiveView({
 
   // Invite state
   const [showInviteModal, setShowInviteModal] = useState(false)
+
+  // Log film modal state
+  const [showLogModal, setShowLogModal] = useState(false)
 
   // Fetch recent activity for feed tab
   useEffect(() => {
@@ -816,7 +820,7 @@ export function MobileCollectiveView({
 
       {/* ─── FAB (hidden on Chat tab) ────────────────────── */}
       {activeTab !== "chat" && activeTab !== "tonights-pick" && (
-        <LogFilmFAB onClick={() => router.push("/movies")} />
+        <LogFilmFAB onClick={() => setShowLogModal(true)} />
       )}
 
       {/* ─── Bottom Nav ───────────────────────────────────── */}
@@ -836,6 +840,12 @@ export function MobileCollectiveView({
         onClose={() => setShowInviteModal(false)}
         collectiveName={collectiveName}
         collectiveId={collectiveId}
+      />
+
+      {/* ─── Log Film Modal ─────────────────────────────────── */}
+      <LogFilmModal
+        isOpen={showLogModal}
+        onClose={() => setShowLogModal(false)}
       />
     </div>
   )
