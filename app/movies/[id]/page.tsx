@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useId } from "react"
 import { useParams, useRouter } from "next/navigation"
 import useSWR, { mutate } from "swr"
 import Link from "next/link"
@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { SectionLabel } from "@/components/ui/section-label"
 import { useSafeUser } from "@/hooks/use-safe-user"
 import { MovieDiscussion } from "@/components/movie-discussion"
+import { RatingStar, getStarFill } from "@/components/ui/rating-star"
 
 // ─── Constants ──────────────────────────────────────────────
 
@@ -340,20 +341,11 @@ function StarRating({
   const [hoverValue, setHoverValue] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const isTouchRef = useRef(false)
+  const baseId = useId()
   const isInteractive = !readonly && !!onChange
   const displayValue = hoverValue || value
 
-  const sizeClasses = {
-    sm: "text-sm",
-    md: "text-[28px]",
-    lg: "text-[32px]",
-  }
-
-  const paddingClasses = {
-    sm: "p-1",
-    md: "p-1.5",
-    lg: "p-1",
-  }
+  const starPx = { sm: 14, md: 28, lg: 32 }
 
   const getStarValueFromX = (clientX: number) => {
     const container = containerRef.current
@@ -417,33 +409,30 @@ function StarRating({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {[1, 2, 3, 4, 5].map((star) => {
-        const isFull = displayValue >= star
-        const isHalf = !isFull && displayValue >= star - 0.5
-        return (
-          <button
-            key={star}
-            type="button"
-            onClick={(e) => handleClick(star, e)}
-            onMouseMove={(e) => handleMouseMove(star, e)}
-            onMouseLeave={handleMouseLeave}
-            disabled={!isInteractive}
-            className={`relative ${sizeClasses[size]} transition-transform ${paddingClasses[size]}`}
-            style={{
-              color: isFull ? "#ff6b2d" : "rgba(232,226,214,0.2)",
-              transform: isFull ? "scale(1.1)" : "scale(1)",
-              cursor: readonly ? "default" : "pointer",
-              background: "none",
-              border: "none",
-            }}
-          >
-            ★
-            {isHalf && (
-              <span className="absolute inset-0 overflow-hidden flex items-center justify-center" style={{ width: "50%", color: "#ff6b2d" }}>★</span>
-            )}
-          </button>
-        )
-      })}
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={(e) => handleClick(star, e)}
+          onMouseMove={(e) => handleMouseMove(star, e)}
+          onMouseLeave={handleMouseLeave}
+          disabled={!isInteractive}
+          className="p-1 transition-transform"
+          style={{
+            cursor: readonly ? "default" : "pointer",
+            background: "none",
+            border: "none",
+          }}
+        >
+          <RatingStar
+            fill={getStarFill(star, displayValue)}
+            size={starPx[size]}
+            filledColor="#ff6b2d"
+            emptyColor="rgba(232,226,214,0.2)"
+            uid={`mobile-sr-${baseId}-${star}`}
+          />
+        </button>
+      ))}
     </div>
   )
 }
@@ -462,6 +451,7 @@ function DesktopStarRating({
   starSize?: number
 }) {
   const [hover, setHover] = useState(0)
+  const baseId = useId()
   const isInteractive = !readonly && !!onChange
   const displayValue = hover || value
 
@@ -483,39 +473,43 @@ function DesktopStarRating({
 
   return (
     <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((i) => {
-        const isFull = displayValue >= i
-        const isHalf = !isFull && displayValue >= i - 0.5
-        return (
-          <svg
-            key={i}
-            width={starSize}
-            height={starSize}
-            viewBox="0 0 24 24"
-            fill={isFull ? "#D4753E" : "none"}
-            stroke={isFull || isHalf ? "#D4753E" : "#555"}
-            strokeWidth={2}
-            style={{ cursor: readonly ? "default" : "pointer", transition: "all 0.15s", overflow: "visible" }}
-            onMouseMove={(e) => handleMouseMove(i, e)}
-            onMouseLeave={() => isInteractive && setHover(0)}
-            onClick={(e) => handleClick(i, e)}
-          >
-            <defs>
-              <clipPath id={`half-star-${i}`}>
-                <rect x="0" y="0" width="12" height="24" />
-              </clipPath>
-            </defs>
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            {isHalf && (
-              <polygon
-                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-                fill="#D4753E"
-                clipPath={`url(#half-star-${i})`}
-              />
-            )}
-          </svg>
-        )
-      })}
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div
+          key={i}
+          style={{ cursor: readonly ? "default" : "pointer", transition: "all 0.15s" }}
+          onMouseMove={(e) => handleMouseMove(i, e)}
+          onMouseLeave={() => isInteractive && setHover(0)}
+          onClick={(e) => handleClick(i, e)}
+        >
+          <RatingStar
+            fill={getStarFill(i, displayValue)}
+            size={starSize}
+            filledColor="#D4753E"
+            emptyColor="#555"
+            uid={`desktop-sr-${baseId}-${i}`}
+          />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Inline Stars (read-only SVG display) ───────────────────
+
+function InlineStars({ rating, size = 14, className }: { rating: number; size?: number; className?: string }) {
+  const baseId = useId()
+  return (
+    <div className={`flex gap-0.5 ${className || ""}`}>
+      {[1, 2, 3, 4, 5].map((s) => (
+        <RatingStar
+          key={s}
+          fill={getStarFill(s, rating)}
+          size={size}
+          filledColor="#ff6b2d"
+          emptyColor="rgba(232,226,214,0.2)"
+          uid={`inline-${baseId}-${s}`}
+        />
+      ))}
     </div>
   )
 }
@@ -1187,23 +1181,7 @@ export default function FilmDetailPage() {
                 {communityStats && communityStats.ratingCount > 0 && (
                   <div className="flex items-center gap-2 lg:mt-3.5">
                     <div className="flex gap-0.5">
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const avg = communityStats.averageScore || 0
-                        const isFull = avg >= star
-                        const isHalf = !isFull && avg >= star - 0.5
-                        return (
-                          <span
-                            key={star}
-                            className="relative text-sm lg:hidden"
-                            style={{ color: isFull ? "#ff6b2d" : "rgba(232,226,214,0.2)" }}
-                          >
-                            ★
-                            {isHalf && (
-                              <span className="absolute inset-0 overflow-hidden" style={{ width: "50%", color: "#ff6b2d" }}>★</span>
-                            )}
-                          </span>
-                        )
-                      })}
+                      <InlineStars rating={communityStats.averageScore || 0} size={14} className="lg:hidden" />
                       <span className="hidden lg:flex">
                         <DesktopStarRating value={communityStats.averageScore || 0} readonly starSize={16} />
                       </span>
@@ -1819,22 +1797,7 @@ export default function FilmDetailPage() {
                           <div className="flex-1">
                             <p className="text-sm lg:text-[15px] font-semibold mb-1">You</p>
                             <div className="flex gap-0.5 lg:hidden">
-                              {[1, 2, 3, 4, 5].map((s) => {
-                                const isFull = userRating >= s
-                                const isHalf = !isFull && userRating >= s - 0.5
-                                return (
-                                  <span
-                                    key={s}
-                                    className="relative text-sm"
-                                    style={{ color: isFull ? "#ff6b2d" : "rgba(232,226,214,0.2)" }}
-                                  >
-                                    ★
-                                    {isHalf && (
-                                      <span className="absolute inset-0 overflow-hidden" style={{ width: "50%", color: "#ff6b2d" }}>★</span>
-                                    )}
-                                  </span>
-                                )
-                              })}
+                              <InlineStars rating={userRating} size={14} />
                             </div>
                             <div className="hidden lg:block">
                               <DesktopStarRating value={userRating} readonly starSize={14} />
@@ -1863,22 +1826,7 @@ export default function FilmDetailPage() {
                           <div className="flex-1">
                             <p className="text-sm lg:text-[15px] font-semibold mb-1">{member.user_name || "User"}</p>
                             <div className="flex gap-0.5 lg:hidden">
-                              {[1, 2, 3, 4, 5].map((s) => {
-                                const isFull = member.score >= s
-                                const isHalf = !isFull && member.score >= s - 0.5
-                                return (
-                                  <span
-                                    key={s}
-                                    className="relative text-sm"
-                                    style={{ color: isFull ? "#ff6b2d" : "rgba(232,226,214,0.2)" }}
-                                  >
-                                    ★
-                                    {isHalf && (
-                                      <span className="absolute inset-0 overflow-hidden" style={{ width: "50%", color: "#ff6b2d" }}>★</span>
-                                    )}
-                                  </span>
-                                )
-                              })}
+                              <InlineStars rating={member.score} size={14} />
                             </div>
                             <div className="hidden lg:block">
                               <DesktopStarRating value={member.score} readonly starSize={14} />

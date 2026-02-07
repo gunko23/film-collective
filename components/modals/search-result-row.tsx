@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useId } from "react"
 import { getImageUrl } from "@/lib/tmdb/image"
 import { colors } from "@/lib/design-tokens"
 import type { Film } from "@/components/modals/log-film-modal"
+import { RatingStar, getStarFill } from "@/components/ui/rating-star"
 
 function extractYear(dateString?: string): string {
   if (!dateString) return ""
@@ -20,6 +21,7 @@ export function SearchResultRow({
   onSelect: (film: Film) => void
 }) {
   const [hovered, setHovered] = useState(false)
+  const baseId = useId()
   const posterUrl = getImageUrl(film.posterPath ?? null, "w92")
   const hasRating = existingRating != null && existingRating > 0
 
@@ -80,25 +82,16 @@ export function SearchResultRow({
         {hasRating && (
           <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "4px" }}>
             <div style={{ display: "flex", gap: "1px" }}>
-              {[1, 2, 3, 4, 5].map((s) => {
-                const isFull = existingRating! >= s
-                const isHalf = !isFull && existingRating! >= s - 0.5
-                return (
-                  <span
-                    key={s}
-                    style={{
-                      fontSize: "11px",
-                      color: isFull ? colors.accent : `${colors.cream}15`,
-                      position: "relative" as const,
-                    }}
-                  >
-                    ★
-                    {isHalf && (
-                      <span style={{ position: "absolute", inset: 0, overflow: "hidden", width: "50%", color: colors.accent }}>★</span>
-                    )}
-                  </span>
-                )
-              })}
+              {[1, 2, 3, 4, 5].map((s) => (
+                <RatingStar
+                  key={s}
+                  fill={getStarFill(s, existingRating!)}
+                  size={11}
+                  filledColor={colors.accent}
+                  emptyColor={`${colors.cream}15`}
+                  uid={`srr-${baseId}-${s}`}
+                />
+              ))}
             </div>
             <span style={{ fontSize: "11px", color: colors.textMuted }}>Rated</span>
           </div>

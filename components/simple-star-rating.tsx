@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState, useRef, useCallback } from "react"
-import { Star } from "lucide-react"
+import { useState, useRef, useCallback, useId } from "react"
 import { cn } from "@/lib/utils"
+import { RatingStar, getStarFill } from "@/components/ui/rating-star"
 
 interface SimpleStarRatingProps {
   value: number
@@ -24,6 +24,7 @@ export function SimpleStarRating({
   const [hoverValue, setHoverValue] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const isTouchRef = useRef(false)
+  const baseId = useId()
   const isInteractive = !disabled && !readonly
 
   const displayValue = hoverValue ?? value
@@ -89,22 +90,16 @@ export function SimpleStarRating({
     setTimeout(() => { isTouchRef.current = false }, 300)
   }
 
-  const renderStar = (star: number) => {
-    const isFull = displayValue >= star
-    const isHalf = !isFull && displayValue >= star - 0.5
-
-    return (
-      <div className="relative h-8 w-8 sm:h-9 sm:w-9">
-        <Star className="absolute h-8 w-8 sm:h-9 sm:w-9 fill-transparent text-muted-foreground/30" />
-        {isHalf && (
-          <div className="absolute overflow-hidden" style={{ width: "50%" }}>
-            <Star className="h-8 w-8 sm:h-9 sm:w-9 fill-accent text-accent" />
-          </div>
-        )}
-        {isFull && <Star className="absolute h-8 w-8 sm:h-9 sm:w-9 fill-accent text-accent" />}
-      </div>
-    )
-  }
+  const renderStar = (star: number) => (
+    <RatingStar
+      fill={getStarFill(star, displayValue)}
+      size={32}
+      filledColor="hsl(var(--accent))"
+      emptyColor="hsl(var(--muted-foreground) / 0.3)"
+      uid={`${baseId}-${star}`}
+      className="h-8 w-8 sm:h-9 sm:w-9"
+    />
+  )
 
   return (
     <div className="space-y-3">
