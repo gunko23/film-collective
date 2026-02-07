@@ -12,12 +12,12 @@ import { TonightsPick } from "@/components/tonights-pick"
 import { MembersModal } from "@/components/members-modal"
 import { SectionLabel } from "@/components/ui/section-label"
 import { getImageUrl } from "@/lib/tmdb/image"
-import { formatDistanceToNow } from "date-fns"
 import { CollectiveBadge, getCollectiveGradient, getCollectiveInitials } from "@/components/soulframe/collective-badge"
 import { LogFilmFAB } from "@/components/soulframe/fab"
 import { BackIcon, SearchIcon, PlusIcon, DiscussionIcon, StarIcon } from "@/components/collective/collective-icons"
 import { PillTabBar, EASING, type CollectiveTab } from "@/components/collective/pill-tab-bar"
 import { InviteModal } from "@/components/collective/invite-modal"
+import { DashboardActivityItem, type Activity as FeedActivity } from "@/components/dashboard/dashboard-activity-item"
 
 // ─── Color helpers ──────────────────────────────────────────
 
@@ -84,21 +84,6 @@ type Analytics = {
   active_raters: number
 }
 
-type Activity = {
-  id: string
-  activity_type: "comment" | "reaction"
-  user_id: string
-  user_name: string | null
-  user_avatar: string | null
-  rating_owner_name: string | null
-  media_title: string | null
-  media_type: string | null
-  tmdb_id: number | null
-  reaction_type: string | null
-  created_at: string
-  rating_id: string
-}
-
 type Props = {
   collectiveId: string
   collectiveName: string
@@ -113,15 +98,6 @@ type Props = {
   analytics: Analytics
   memberSimilarity: MemberSimilarity[]
   insightsContent: React.ReactNode
-}
-
-const REACTION_EMOJI_MAP: Record<string, string> = {
-  thumbsup: "\uD83D\uDC4D",
-  heart: "\u2764\uFE0F",
-  laugh: "\uD83D\uDE02",
-  fire: "\uD83D\uDD25",
-  sad: "\uD83D\uDE22",
-  celebrate: "\uD83C\uDF89",
 }
 
 // ─── Main Component ─────────────────────────────────────────
@@ -143,7 +119,7 @@ export function MobileCollectiveView({
 }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<CollectiveTab>("feed")
-  const [recentActivity, setRecentActivity] = useState<Activity[]>([])
+  const [recentActivity, setRecentActivity] = useState<FeedActivity[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
   const [showMembersModal, setShowMembersModal] = useState(false)
   const [scrolled, setScrolled] = useState(false)
@@ -337,77 +313,25 @@ export function MobileCollectiveView({
 
               {/* Recent Activity */}
               <SectionLabel className="mb-4 block">Recent Activity</SectionLabel>
-              {(() => {
-                const othersActivity = recentActivity.filter(item => item.user_id !== currentUserId)
-                if (activityLoading) {
-                  return (
-                    <div className="flex items-center justify-center py-12">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent" />
-                    </div>
-                  )
-                }
-                if (othersActivity.length === 0) {
-                  return (
-                    <div className="py-12 text-center" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
-                      <p style={{ fontSize: 14, color: "#6b6358" }}>No recent activity</p>
-                      <p style={{ fontSize: 12, color: "rgba(107,99,88,0.4)", marginTop: 4 }}>Rate some films to get started</p>
-                    </div>
-                  )
-                }
-                return (
-                  <div>
-                    {othersActivity.slice(0, 8).map((item) => {
-                      const name = item.user_name || "Someone"
-                      const colors = getMemberColor(name)
-                      return (
-                        <Link
-                          key={item.id}
-                          href={`/collectives/${collectiveId}/movie/${item.tmdb_id}/conversation`}
-                          className="flex items-start gap-3.5"
-                          style={{ padding: "14px 0", borderBottom: "1px solid rgba(107,99,88,0.05)" }}
-                        >
-                          <div
-                            style={{
-                              width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                              background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]}80)`,
-                              boxShadow: `0 2px 10px ${colors[0]}22`,
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 13, fontWeight: 700, color: "#0f0d0b",
-                            }}
-                          >
-                            {name[0].toUpperCase()}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 13.5, color: "#e8e2d6", lineHeight: 1.5 }}>
-                              <span style={{ fontWeight: 500 }}>{name}</span>{" "}
-                              {item.activity_type === "comment" ? (
-                                <>
-                                  <span style={{ color: "#a69e90" }}>commented on </span>
-                                  <span style={{ fontWeight: 500 }}>{item.rating_owner_name}&apos;s review</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span style={{ color: "#a69e90" }}>reacted </span>
-                                  <span>{REACTION_EMOJI_MAP[item.reaction_type || ""] || item.reaction_type}</span>
-                                  <span style={{ color: "#a69e90" }}> to </span>
-                                  <span style={{ fontWeight: 500 }}>{item.rating_owner_name}&apos;s review</span>
-                                </>
-                              )}
-                            </p>
-                            {item.media_title && (
-                              <div style={{ fontSize: 12, color: "#6b6358", marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontWeight: 500, color: "#a69e90" }}>{item.media_title}</span>
-                                <span style={{ color: "rgba(107,99,88,0.4)" }}>·</span>
-                                <span>{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
-                              </div>
-                            )}
-                          </div>
-                        </Link>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
+              {activityLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent" />
+                </div>
+              ) : recentActivity.length === 0 ? (
+                <div className="py-12 text-center" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
+                  <p style={{ fontSize: 14, color: "#6b6358" }}>No recent activity</p>
+                  <p style={{ fontSize: 12, color: "rgba(107,99,88,0.4)", marginTop: 4 }}>Rate some films to get started</p>
+                </div>
+              ) : (
+                <div>
+                  {recentActivity.slice(0, 8).map((activity, i) => (
+                    <DashboardActivityItem
+                      key={`${activity.activity_type}-${activity.activity_id}-${i}`}
+                      activity={activity}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -683,84 +607,36 @@ export function MobileCollectiveView({
             </div>
 
             {/* Recent Activity */}
-            {(() => {
-              const othersActivity = recentActivity.filter(item => item.user_id !== currentUserId)
-              return (
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "30px 24px 12px" }}>
-                    <SectionLabel>Recent Activity</SectionLabel>
-                    {othersActivity.length > 5 && (
-                      <Link href={`/collectives/${collectiveId}/feed`} className="flex items-center gap-1" style={{ fontSize: 12, color: "#3d5a96" }}>
-                        View all <ChevronRight className="h-3 w-3" />
-                      </Link>
-                    )}
-                  </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "30px 24px 12px" }}>
+                <SectionLabel>Recent Activity</SectionLabel>
+                {recentActivity.length > 5 && (
+                  <Link href={`/collectives/${collectiveId}/feed`} className="flex items-center gap-1" style={{ fontSize: 12, color: "#3d5a96" }}>
+                    View all <ChevronRight className="h-3 w-3" />
+                  </Link>
+                )}
+              </div>
 
-                  {activityLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent" />
-                    </div>
-                  ) : othersActivity.length === 0 ? (
-                    <div className="py-8 text-center mx-6" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
-                      <p style={{ fontSize: 14, color: "#6b6358" }}>No recent activity</p>
-                      <p style={{ fontSize: 12, color: "rgba(107,99,88,0.4)", marginTop: 4 }}>Rate some films to get started</p>
-                    </div>
-                  ) : (
-                    <div>
-                      {othersActivity.slice(0, 5).map((item) => {
-                        const name = item.user_name || "Someone"
-                        const colors = getMemberColor(name)
-                        return (
-                          <Link
-                            key={item.id}
-                            href={`/collectives/${collectiveId}/movie/${item.tmdb_id}/conversation`}
-                            className="flex items-start gap-3.5"
-                            style={{ padding: "14px 24px", borderBottom: "1px solid rgba(107,99,88,0.05)" }}
-                          >
-                            <div
-                              style={{
-                                width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                                background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]}80)`,
-                                boxShadow: `0 2px 10px ${colors[0]}22`,
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                fontSize: 13, fontWeight: 700, color: "#0f0d0b",
-                              }}
-                            >
-                              {name[0].toUpperCase()}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: 13.5, color: "#e8e2d6", lineHeight: 1.5 }}>
-                                <span style={{ fontWeight: 500 }}>{name}</span>{" "}
-                                {item.activity_type === "comment" ? (
-                                  <>
-                                    <span style={{ color: "#a69e90" }}>commented on </span>
-                                    <span style={{ fontWeight: 500 }}>{item.rating_owner_name}&apos;s review</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span style={{ color: "#a69e90" }}>reacted </span>
-                                    <span>{REACTION_EMOJI_MAP[item.reaction_type || ""] || item.reaction_type}</span>
-                                    <span style={{ color: "#a69e90" }}> to </span>
-                                    <span style={{ fontWeight: 500 }}>{item.rating_owner_name}&apos;s review</span>
-                                  </>
-                                )}
-                              </p>
-                              {item.media_title && (
-                                <div style={{ fontSize: 12, color: "#6b6358", marginTop: 4, display: "flex", alignItems: "center", gap: 8, lineHeight: 1.5 }}>
-                                  <span style={{ fontWeight: 500, color: "#a69e90" }}>{item.media_title}</span>
-                                  <span style={{ color: "rgba(107,99,88,0.4)" }}>·</span>
-                                  <span>{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
-                                </div>
-                              )}
-                            </div>
-                          </Link>
-                        )
-                      })}
-                    </div>
-                  )}
+              {activityLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent" />
                 </div>
-              )
-            })()}
+              ) : recentActivity.length === 0 ? (
+                <div className="py-8 text-center mx-6" style={{ background: "#1a1714", borderRadius: 14, border: "1px solid rgba(107,99,88,0.04)" }}>
+                  <p style={{ fontSize: 14, color: "#6b6358" }}>No recent activity</p>
+                  <p style={{ fontSize: 12, color: "rgba(107,99,88,0.4)", marginTop: 4 }}>Rate some films to get started</p>
+                </div>
+              ) : (
+                <div style={{ padding: "0 24px" }}>
+                  {recentActivity.slice(0, 5).map((activity, i) => (
+                    <DashboardActivityItem
+                      key={`${activity.activity_type}-${activity.activity_id}-${i}`}
+                      activity={activity}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Members Section */}
             <div>
