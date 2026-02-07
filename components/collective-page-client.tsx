@@ -23,6 +23,7 @@ import { TonightsPick } from "@/components/tonights-pick"
 import { Sparkles } from "lucide-react"
 import { FeedSection } from "@/components/collective/feed-section"
 import { DashboardSection } from "@/components/collective/dashboard-section"
+import type { Activity as FeedActivity } from "@/components/dashboard/dashboard-activity-item"
 
 type MovieStat = {
   tmdb_id: string
@@ -91,25 +92,6 @@ type Member = {
   joined_at: string
 }
 
-type FeedItemWithEngagement = {
-  rating_id: string
-  user_id: string
-  user_name: string | null
-  user_avatar: string | null
-  overall_score: number
-  user_comment: string | null
-  rated_at: string
-  tmdb_id: string
-  title: string
-  poster_path: string | null
-  media_type: string
-  episode_name?: string
-  episode_number?: number
-  season_number?: number
-  tv_show_name?: string
-  tv_show_id?: number
-}
-
 type Props = {
   collectiveId: string
   currentUserId: string
@@ -175,7 +157,7 @@ export function CollectivePageClient({
   const [isMembersModalOpen, setIsMembersModalOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
 
-  const [feedItems, setFeedItems] = useState<FeedItemWithEngagement[]>([])
+  const [feedActivities, setFeedActivities] = useState<FeedActivity[]>([])
   const [feedPage, setFeedPage] = useState(0)
   const [feedTotal, setFeedTotal] = useState(0)
   const [feedLoading, setFeedLoading] = useState(false)
@@ -217,7 +199,7 @@ export function CollectivePageClient({
       const res = await fetch(`/api/collectives/${collectiveId}/feed?page=${feedPage}&limit=${FEED_LIMIT}`)
       if (res.ok) {
         const data = await res.json()
-        setFeedItems(data.feedItems)
+        setFeedActivities(data.activities || [])
         setFeedTotal(data.total)
       }
     } catch (error) {
@@ -388,15 +370,12 @@ export function CollectivePageClient({
         {/* Feed Section */}
         {activeSection === "feed" && (
           <FeedSection
-            feedItems={feedItems}
+            activities={feedActivities}
             feedLoading={feedLoading}
             feedTotal={feedTotal}
             feedPage={feedPage}
             totalFeedPages={totalFeedPages}
             setFeedPage={setFeedPage}
-            collectiveId={collectiveId}
-            currentUserId={currentUserId}
-            onSelectMovie={(movie) => setSelectedMovie(movie)}
           />
         )}
 

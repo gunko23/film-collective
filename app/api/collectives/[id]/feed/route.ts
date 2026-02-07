@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import { stackServerApp } from "@/stack"
+import { sql } from "@/lib/db"
 import {
-  getCollectiveFeedWithInteractions,
-  getCollectiveFeedCount,
-  getUserReactionsForRatings,
+  getCollectiveActivityFeed,
+  getCollectiveActivityCount,
 } from "@/lib/feed/feed-service"
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -23,22 +23,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const limit = Number.parseInt(searchParams.get("limit") || "10")
     const offset = page * limit
 
-    const [feed, totalCount] = await Promise.all([
-      getCollectiveFeedWithInteractions(collectiveId, limit, offset),
-      getCollectiveFeedCount(collectiveId),
+    // Fetch collective name for the activity feed
+    const nameResult = (await sql`
+      SELECT name FROM collectives WHERE id = ${collectiveId}
+    `) as { name: string }[]
+    const collectiveName = nameResult[0]?.name || "Collective"
+
+    const [activities, totalCount] = await Promise.all([
+      getCollectiveActivityFeed(collectiveId, collectiveName, limit, offset),
+      getCollectiveActivityCount(collectiveId),
     ])
 
-    // Get user's reactions for these ratings (only if user is authenticated)
-    let userReactions: any[] = []
-    if (user) {
-      const ratingIds = feed.map((item: any) => item.rating_id)
-      userReactions = ratingIds.length > 0 ? await getUserReactionsForRatings(user.id, ratingIds) : []
-    }
-
     return NextResponse.json({
-      feedItems: feed,
+      activities,
       total: totalCount,
-      userReactions,
       totalPages: Math.ceil(totalCount / limit),
       currentPage: page,
     })

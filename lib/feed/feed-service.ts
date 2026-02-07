@@ -177,14 +177,157 @@ export async function getUserReactionsForRatings(userId: string, ratingIds: stri
 export async function getCollectiveFeedCount(collectiveId: string) {
   const result = await sql`
     SELECT (
-      (SELECT COUNT(*)::int FROM user_movie_ratings umr 
+      (SELECT COUNT(*)::int FROM user_movie_ratings umr
        WHERE umr.user_id IN (SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid))
       +
-      (SELECT COUNT(*)::int FROM user_tv_show_ratings utr 
+      (SELECT COUNT(*)::int FROM user_tv_show_ratings utr
        WHERE utr.user_id IN (SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid))
       +
-      (SELECT COUNT(*)::int FROM user_episode_ratings uer 
+      (SELECT COUNT(*)::int FROM user_episode_ratings uer
        WHERE uer.user_id IN (SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid))
+    ) as count
+  `
+  return result[0]?.count || 0
+}
+
+// Returns all activity (ratings, comments, reactions) for a collective in the Activity shape
+export async function getCollectiveActivityFeed(collectiveId: string, collectiveName: string, limit = 10, offset = 0) {
+  try {
+    const result = await sql`
+      SELECT * FROM (
+        -- Movie ratings
+        SELECT
+          'rating' as activity_type,
+          umr.id as activity_id,
+          umr.rated_at as created_at,
+          u.id as actor_id,
+          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as actor_name,
+          u.avatar_url as actor_avatar,
+          m.tmdb_id,
+          m.title as media_title,
+          m.poster_path,
+          'movie' as media_type,
+          umr.overall_score as score,
+          NULL as content,
+          NULL as reaction_type,
+          ${collectiveId}::uuid as collective_id,
+          ${collectiveName} as collective_name,
+          umr.id as rating_id,
+          NULL as target_user_name
+        FROM user_movie_ratings umr
+        JOIN users u ON umr.user_id = u.id
+        JOIN movies m ON umr.movie_id = m.id
+        JOIN collective_memberships cm ON umr.user_id = cm.user_id AND cm.collective_id = ${collectiveId}::uuid
+
+        UNION ALL
+
+        -- TV show ratings
+        SELECT
+          'rating' as activity_type,
+          utsr.id as activity_id,
+          utsr.rated_at as created_at,
+          u.id as actor_id,
+          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as actor_name,
+          u.avatar_url as actor_avatar,
+          ts.id as tmdb_id,
+          ts.name as media_title,
+          ts.poster_path,
+          'tv' as media_type,
+          utsr.overall_score as score,
+          NULL as content,
+          NULL as reaction_type,
+          ${collectiveId}::uuid as collective_id,
+          ${collectiveName} as collective_name,
+          utsr.id as rating_id,
+          NULL as target_user_name
+        FROM user_tv_show_ratings utsr
+        JOIN users u ON utsr.user_id = u.id
+        JOIN tv_shows ts ON utsr.tv_show_id = ts.id
+        JOIN collective_memberships cm ON utsr.user_id = cm.user_id AND cm.collective_id = ${collectiveId}::uuid
+
+        UNION ALL
+
+        -- Comments on ratings
+        SELECT
+          'comment' as activity_type,
+          fc.id as activity_id,
+          fc.created_at,
+          u.id as actor_id,
+          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as actor_name,
+          u.avatar_url as actor_avatar,
+          COALESCE(m.tmdb_id, ts.id, 0)::int as tmdb_id,
+          COALESCE(m.title, ts.name, 'Unknown') as media_title,
+          COALESCE(m.poster_path, ts.poster_path) as poster_path,
+          CASE WHEN m.id IS NOT NULL THEN 'movie' ELSE 'tv' END as media_type,
+          NULL as score,
+          fc.content,
+          NULL as reaction_type,
+          fc.collective_id,
+          ${collectiveName} as collective_name,
+          fc.rating_id,
+          COALESCE(ru.name, SPLIT_PART(ru.email, '@', 1), 'User') as target_user_name
+        FROM feed_comments fc
+        JOIN users u ON fc.user_id = u.id
+        LEFT JOIN user_movie_ratings umr ON fc.rating_id = umr.id
+        LEFT JOIN movies m ON umr.movie_id = m.id
+        LEFT JOIN user_tv_show_ratings utsr ON fc.rating_id = utsr.id
+        LEFT JOIN tv_shows ts ON utsr.tv_show_id = ts.id
+        LEFT JOIN users ru ON COALESCE(umr.user_id, utsr.user_id) = ru.id
+        WHERE fc.collective_id = ${collectiveId}::uuid
+
+        UNION ALL
+
+        -- Reactions on ratings
+        SELECT
+          'reaction' as activity_type,
+          fr.id as activity_id,
+          fr.created_at,
+          u.id as actor_id,
+          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as actor_name,
+          u.avatar_url as actor_avatar,
+          COALESCE(m.tmdb_id, ts.id, 0)::int as tmdb_id,
+          COALESCE(m.title, ts.name, 'Unknown') as media_title,
+          COALESCE(m.poster_path, ts.poster_path) as poster_path,
+          CASE WHEN m.id IS NOT NULL THEN 'movie' ELSE 'tv' END as media_type,
+          NULL as score,
+          NULL as content,
+          fr.reaction_type,
+          fr.collective_id,
+          ${collectiveName} as collective_name,
+          fr.rating_id,
+          COALESCE(ru.name, SPLIT_PART(ru.email, '@', 1), 'User') as target_user_name
+        FROM feed_reactions fr
+        JOIN users u ON fr.user_id = u.id
+        LEFT JOIN user_movie_ratings umr ON fr.rating_id = umr.id
+        LEFT JOIN movies m ON umr.movie_id = m.id
+        LEFT JOIN user_tv_show_ratings utsr ON fr.rating_id = utsr.id
+        LEFT JOIN tv_shows ts ON utsr.tv_show_id = ts.id
+        LEFT JOIN users ru ON COALESCE(umr.user_id, utsr.user_id) = ru.id
+        WHERE fr.collective_id = ${collectiveId}::uuid
+      ) combined
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `
+    return result
+  } catch (error) {
+    console.error("[v0] Error in getCollectiveActivityFeed:", error)
+    throw error
+  }
+}
+
+export async function getCollectiveActivityCount(collectiveId: string) {
+  const result = await sql`
+    SELECT (
+      (SELECT COUNT(*)::int FROM user_movie_ratings umr
+       WHERE umr.user_id IN (SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid))
+      +
+      (SELECT COUNT(*)::int FROM user_tv_show_ratings utr
+       WHERE utr.user_id IN (SELECT user_id FROM collective_memberships WHERE collective_id = ${collectiveId}::uuid))
+      +
+      (SELECT COUNT(*)::int FROM feed_comments WHERE collective_id = ${collectiveId}::uuid)
+      +
+      (SELECT COUNT(*)::int FROM feed_reactions WHERE collective_id = ${collectiveId}::uuid)
     ) as count
   `
   return result[0]?.count || 0
