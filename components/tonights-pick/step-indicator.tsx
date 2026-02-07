@@ -1,4 +1,4 @@
-import { C, FONT_STACK } from "./constants"
+const SANS = "'DM Sans', sans-serif"
 
 export function StepIndicator({ currentStep }: { currentStep: "members" | "mood" | "results" }) {
   const steps = ["members", "mood", "results"] as const
@@ -12,7 +12,7 @@ export function StepIndicator({ currentStep }: { currentStep: "members" | "mood"
         alignItems: "center",
         justifyContent: "center",
         gap: 0,
-        padding: "0 24px",
+        padding: "4px 0 8px",
       }}
     >
       {steps.map((s, i) => {
@@ -21,8 +21,7 @@ export function StepIndicator({ currentStep }: { currentStep: "members" | "mood"
         const isLast = i === steps.length - 1
 
         return (
-          <div key={s} style={{ display: "flex", alignItems: "center" }}>
-            {/* Node + label (inline) */}
+          <div key={s} style={{ display: "flex", alignItems: "center", gap: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div
                 style={{
@@ -30,23 +29,18 @@ export function StepIndicator({ currentStep }: { currentStep: "members" | "mood"
                   height: 24,
                   borderRadius: "50%",
                   background: isComplete
-                    ? `linear-gradient(135deg, ${C.orange}, ${C.orangeLight})`
+                    ? "#e8843a"
                     : isActive
-                      ? `linear-gradient(135deg, ${C.blue}, ${C.blueLight})`
-                      : `${C.creamSoft}15`,
-                  border: isActive
-                    ? `1px solid ${C.blue}40`
-                    : isComplete
-                      ? "none"
-                      : `1px solid ${C.creamSoft}20`,
+                      ? "#e8843a22"
+                      : "#1a1816",
+                  border: isActive ? "1.5px solid #e8843a" : "none",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   fontSize: 11,
                   fontWeight: 700,
-                  fontFamily: FONT_STACK,
-                  color: isComplete || isActive ? C.warmBlack : C.creamSoft,
-                  transition: "all 0.35s ease",
+                  color: isComplete ? "#fff" : isActive ? "#e8843a" : "#555",
+                  fontFamily: SANS,
                 }}
               >
                 {isComplete ? (
@@ -55,12 +49,11 @@ export function StepIndicator({ currentStep }: { currentStep: "members" | "mood"
                     height={12}
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke={C.warmBlack}
+                    stroke="white"
                     strokeWidth="3"
                     strokeLinecap="round"
-                    strokeLinejoin="round"
                   >
-                    <path d="M20 6L9 17l-5-5" />
+                    <polyline points="20 6 9 17 4 12" />
                   </svg>
                 ) : (
                   i + 1
@@ -69,25 +62,24 @@ export function StepIndicator({ currentStep }: { currentStep: "members" | "mood"
               <span
                 style={{
                   fontSize: 13,
-                  fontWeight: isActive ? 600 : 400,
-                  color: isActive ? C.cream : isComplete ? C.creamMuted : C.creamSoft,
-                  letterSpacing: "-0.01em",
+                  color: isComplete || isActive ? "#ccc" : "#555",
+                  fontFamily: SANS,
+                  fontWeight: 500,
                 }}
               >
                 {labels[s]}
               </span>
             </div>
-            {/* Connector line after (except last) */}
             {!isLast && (
               <div
                 style={{
-                  width: 32,
-                  height: 1,
-                  margin: "0 10px",
+                  width: 36,
+                  height: 1.5,
                   background: isComplete
-                    ? `linear-gradient(to right, ${C.orange}50, ${C.orange}20)`
-                    : `${C.creamSoft}18`,
-                  transition: "all 0.35s ease",
+                    ? "linear-gradient(90deg, #e8843a, #e8843a88)"
+                    : "#2a2420",
+                  margin: "0 10px",
+                  borderRadius: 1,
                 }}
               />
             )}

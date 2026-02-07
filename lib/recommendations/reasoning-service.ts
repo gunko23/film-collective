@@ -61,9 +61,19 @@ type ReasoningInput = {
   memberCount: number
 }
 
+type ReasoningResult = {
+  summary: string
+  pairings?: {
+    cocktail: { name: string; desc: string }
+    zeroproof: { name: string; desc: string }
+    snack: { name: string; desc: string }
+  }
+  parentalSummary?: string
+}
+
 export async function generateRecommendationReasoning(
   input: ReasoningInput
-): Promise<Map<number, string>> {
+): Promise<Map<number, ReasoningResult>> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     console.warn("[LLM Reasoning] ANTHROPIC_API_KEY not set, using template reasoning")
@@ -97,7 +107,7 @@ export async function generateRecommendationReasoning(
     ].filter(Boolean).join("\n")
   }).join("\n\n")
 
-  const systemPrompt = `You are a passionate film curator for Film Collective, a social movie app. Your job is to SELL each recommended movie — find the most compelling angle that would make this specific audience excited to watch it tonight. You are enthusiastic, specific, and persuasive. Never say a movie doesn't fit, doesn't align, or might not match their taste. Every movie on this list earned its spot — your job is to make them want to press play. Respond with ONLY a JSON object mapping the movie number (1-indexed) to the reasoning string. No markdown, no backticks, no preamble.`
+  const systemPrompt = `You are a passionate film curator for Film Collective, a social movie app. Your job is to SELL each recommended movie — find the most compelling angle that would make this specific audience excited to watch it tonight. You are enthusiastic, specific, and persuasive. Never say a movie doesn't fit, doesn't align, or might not match their taste. Every movie on this list earned its spot — your job is to make them want to press play. Respond with ONLY a JSON object. No markdown, no backticks, no preamble.`
 
   const userPrompt = `## Taste Profile for ${audienceLabel}
 
@@ -113,22 +123,44 @@ ${movieList}
 
 ## Instructions
 
-For each movie, write 1-2 sentences that SELL it to this audience:
-- Find the most exciting connection to movies they already love (e.g., "If [loved movie] blew you away, this delivers that same [specific quality] with [unique twist]")
-- Reference specific qualities that make it compelling: a standout performance, a bold directorial choice, an unforgettable scene, a unique narrative structure, a tone that hooks you
-- Be enthusiastic and specific, like a trusted friend who just watched it and can't stop talking about it
-- NEVER say a movie doesn't fit, doesn't align, might disappoint, or isn't a match — find the compelling angle
-- NEVER use generic filler like "highly acclaimed", "well-regarded", "critically praised", or "a must-watch" — say WHY it's exciting
-- If some group members have seen it, frame it as a positive: "Some of you already know how good this is"
-- Keep it to 1-2 punchy sentences — make every word count
-- ${soloMode ? 'Address the user as "you"' : 'Address the group as "your group" or "you all"'}
+For each movie, provide:
 
-Example format: {"1": "reasoning for movie 1", "2": "reasoning for movie 2"}`
+1. **Summary** (1-2 sentences): SELL it to this audience.
+   - Find the most exciting connection to movies they already love
+   - Reference specific qualities: a standout performance, a bold directorial choice, an unforgettable scene, a unique narrative structure, a tone that hooks you
+   - Be enthusiastic and specific, like a trusted friend who just watched it
+   - NEVER say a movie doesn't fit, doesn't align, might disappoint, or isn't a match
+   - NEVER use generic filler like "highly acclaimed", "well-regarded", "critically praised", or "a must-watch"
+   - If some group members have seen it, frame it as a positive
+   - Keep it to 1-2 punchy sentences
+   - ${soloMode ? 'Address the user as "you"' : 'Address the group as "your group" or "you all"'}
+
+2. **Tonight's Concession Stand** — three pairings:
+   - One signature **cocktail** inspired by the film's setting, mood, or themes
+   - One **zero-proof** (non-alcoholic) drink inspired by the film
+   - One themed **snack** that complements the viewing experience
+   For each pairing, give it a fun creative name and a one-line description (under 15 words) of why it fits the movie.
+
+3. **Parental summary** — a brief 1-2 sentence content advisory (e.g., "Stylized violence, mild language, brief frightening sequences. Suitable for teens 13+."). If the movie is suitable for all ages, say so.
+
+Respond in this exact JSON format:
+{
+  "1": {
+    "summary": "your recommendation summary text",
+    "pairings": {
+      "cocktail": { "name": "Drink Name", "desc": "one-line description" },
+      "zeroproof": { "name": "Drink Name", "desc": "one-line description" },
+      "snack": { "name": "Snack Name", "desc": "one-line description" }
+    },
+    "parentalSummary": "Brief content advisory"
+  },
+  "2": { ... }
+}`
 
   try {
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: [
         {
           type: "text",
@@ -146,13 +178,22 @@ Example format: {"1": "reasoning for movie 1", "2": "reasoning for movie 2"}`
 
     // Parse JSON — strip markdown fences if present
     const cleaned = text.replace(/```json\s?|```/g, "").trim()
-    const parsed = JSON.parse(cleaned) as Record<string, string>
+    const parsed = JSON.parse(cleaned) as Record<string, any>
 
-    const result = new Map<number, string>()
-    for (const [indexStr, reasoning] of Object.entries(parsed)) {
+    const result = new Map<number, ReasoningResult>()
+    for (const [indexStr, value] of Object.entries(parsed)) {
       const idx = parseInt(indexStr) - 1
-      if (idx >= 0 && idx < recommendations.length && typeof reasoning === "string") {
-        result.set(recommendations[idx].tmdbId, reasoning)
+      if (idx >= 0 && idx < recommendations.length) {
+        if (typeof value === "string") {
+          // Backwards-compatible: plain string reasoning
+          result.set(recommendations[idx].tmdbId, { summary: value })
+        } else if (value && typeof value === "object" && typeof value.summary === "string") {
+          result.set(recommendations[idx].tmdbId, {
+            summary: value.summary,
+            pairings: value.pairings || undefined,
+            parentalSummary: value.parentalSummary || undefined,
+          })
+        }
       }
     }
 

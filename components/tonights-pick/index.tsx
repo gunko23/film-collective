@@ -181,7 +181,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
         ...(isFullscreenMobile
           ? {
               height: "100vh",
-              background: C.bg,
+              background: "#0e0c0a",
               overflow: "hidden",
             }
           : {
@@ -194,6 +194,12 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
 
       {/* Light leaks */}
       {isFullscreenMobile && <LightLeaks />}
+
+      {/* Google Fonts */}
+      <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
 
       {/* Global animation keyframes */}
       <style>{`
