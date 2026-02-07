@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { upsertRating, getUserRatingByTmdbId } from "@/lib/ratings/rating-service"
+import { upsertRating, getUserRatingByTmdbId, deleteRatingByTmdbId } from "@/lib/ratings/rating-service"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 import {
@@ -137,6 +137,42 @@ export async function POST(request: NextRequest) {
     console.error("Error saving rating:", error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to save rating" },
+      { status: 500 },
+    )
+  }
+}
+
+// DELETE - Remove a user's rating
+export async function DELETE(request: NextRequest) {
+  try {
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable" }, { status: 503 })
+    }
+
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const tmdbId = searchParams.get("tmdbId")
+
+    if (!tmdbId) {
+      return NextResponse.json({ error: "tmdbId is required" }, { status: 400 })
+    }
+
+    const deleted = await deleteRatingByTmdbId(user.id, Number.parseInt(tmdbId))
+
+    if (!deleted) {
+      return NextResponse.json({ error: "Rating not found" }, { status: 404 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting rating:", error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete rating" },
       { status: 500 },
     )
   }

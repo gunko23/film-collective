@@ -730,6 +730,28 @@ export default function FilmDetailPage() {
     }
   }
 
+  const handleDeleteRating = async () => {
+    if (!user || !userRating) return
+    const previousRating = userRating
+    const previousReview = userReview
+    setUserRating(0)
+    setUserReview("")
+    setIsEditingReview(false)
+
+    try {
+      const res = await fetch(`/api/ratings?tmdbId=${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete rating")
+      mutate(`/api/ratings?tmdbId=${id}`)
+      if (ratingsKey) mutate(ratingsKey)
+      mutate(`all-ratings-${id}`)
+      mutate(`/api/movies/${id}/stats`)
+    } catch (error) {
+      console.error("Error deleting rating:", error)
+      setUserRating(previousRating)
+      setUserReview(previousReview)
+    }
+  }
+
   const handleSaveReview = async () => {
     if (!user || !userRating) return
     setIsSavingReview(true)
@@ -1056,8 +1078,20 @@ export default function FilmDetailPage() {
                       Saved
                     </div>
                   ) : (
-                    <div className="text-[12px] text-foreground/30 mt-2.5">
-                      {userRating > 0 ? "Tap a star to update" : "Tap a star to rate"}
+                    <div className="text-[12px] text-foreground/30 mt-2.5 flex items-center justify-center gap-2">
+                      <span>{userRating > 0 ? "Tap a star to update" : "Tap a star to rate"}</span>
+                      {userRating > 0 && (
+                        <>
+                          <span className="text-foreground/20">·</span>
+                          <button
+                            type="button"
+                            onClick={handleDeleteRating}
+                            className="text-red-400/70 hover:text-red-400 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -1273,7 +1307,17 @@ export default function FilmDetailPage() {
                         </div>
                         <StarRating value={userRating} onChange={handleSaveRating} />
                         {userRating > 0 && (
-                          <p className="text-center text-[11px] text-foreground/40 mt-2">Tap a star to update</p>
+                          <div className="flex items-center justify-center gap-3 mt-2">
+                            <p className="text-[11px] text-foreground/40">Tap a star to update</p>
+                            <span className="text-foreground/20">·</span>
+                            <button
+                              type="button"
+                              onClick={handleDeleteRating}
+                              className="text-[11px] text-red-400/70 hover:text-red-400 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
                         )}
 
                         {/* Review section */}
@@ -1803,6 +1847,17 @@ export default function FilmDetailPage() {
                               <DesktopStarRating value={userRating} readonly starSize={14} />
                             </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={handleDeleteRating}
+                            className="p-2 rounded-lg text-foreground/30 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                            title="Remove rating"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
                         </div>
                         {userReview && (
                           <div className="px-3.5 lg:px-6 pb-3.5 lg:pb-[18px]">
