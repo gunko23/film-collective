@@ -1229,17 +1229,19 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
   return (
     <div
       style={{
+        display: "flex",
+        flexDirection: "column" as const,
+        position: "relative" as const,
+        fontFamily: FONT_STACK,
         ...(isFullscreenMobile
           ? {
               height: "100vh",
-              display: "flex",
-              flexDirection: "column" as const,
               background: C.bg,
-              position: "relative" as const,
               overflow: "hidden",
             }
-          : { position: "relative" as const }),
-        fontFamily: FONT_STACK,
+          : {
+              minHeight: "100vh",
+            }),
       }}
     >
       {/* Grain overlay */}
@@ -1264,7 +1266,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
       )}
 
       {/* Step Indicator */}
-      <div style={{ position: "relative", zIndex: 10 }}>
+      <div style={{ position: "relative", zIndex: 10, paddingBottom: 16 }}>
         <StepIndicator currentStep={step} />
       </div>
 
@@ -1275,7 +1277,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
           overflowY: "auto",
           position: "relative",
           zIndex: 5,
-          paddingBottom: 100,
+          paddingBottom: 16,
         }}
       >
         <div style={{ padding: "0 20px" }}>
@@ -1998,8 +2000,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
       {step === "members" && (
         <div
           style={{
-            position: "sticky",
-            bottom: 0,
+            flexShrink: 0,
             zIndex: 20,
             padding: "12px 20px 20px",
             background: `linear-gradient(to top, ${C.bg} 60%, transparent)`,
@@ -2040,8 +2041,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
       {step === "mood" && (
         <div
           style={{
-            position: "sticky",
-            bottom: 0,
+            flexShrink: 0,
             zIndex: 20,
             padding: "12px 20px 20px",
             background: `linear-gradient(to top, ${C.bg} 60%, transparent)`,
@@ -2110,8 +2110,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
       {step === "results" && results && (
         <div
           style={{
-            position: "sticky",
-            bottom: 0,
+            flexShrink: 0,
             zIndex: 20,
             padding: "12px 20px 20px",
             background: `linear-gradient(to top, ${C.bg} 60%, transparent)`,
