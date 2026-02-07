@@ -25,7 +25,7 @@ export default function TonightsPickPage() {
       <Header />
       <main className="relative z-10 pt-4 lg:pt-20 px-4 sm:px-6 pb-24 lg:pb-12">
         <div className="max-w-2xl mx-auto">
-          <SoloTonightsPick />
+          <SoloTonightsPick onBack={() => router.back()} />
         </div>
       </main>
     </div>
