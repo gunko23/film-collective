@@ -3,374 +3,454 @@
 import { useState } from "react"
 import Image from "next/image"
 import { getImageUrl } from "@/lib/tmdb/image"
-import { C, FONT_STACK, RESULT_ACCENT_COLORS } from "./constants"
-import { IconFilm, IconCheck, IconExternalLink, IconShield, IconChevronRight } from "./icons"
-import type { MovieRecommendation, ParentalGuideInfo } from "./types"
+import type { MovieRecommendation, ConcessionPairings } from "./types"
 
-function ParentalBadge({ category, severity }: { category: string; severity: string }) {
-  if (!severity || severity === "None") return null
+const SERIF = "'Playfair Display', Georgia, serif"
+const SANS = "'DM Sans', sans-serif"
 
-  const severityColors = {
-    None: { bg: `rgba(74,222,128,0.12)`, text: C.green, border: `rgba(74,222,128,0.25)` },
-    Mild: { bg: `rgba(255,107,45,0.10)`, text: C.orange, border: `rgba(255,107,45,0.25)` },
-    Moderate: { bg: `rgba(250,204,21,0.10)`, text: C.yellow, border: `rgba(250,204,21,0.25)` },
-    Severe: { bg: `rgba(239,68,68,0.10)`, text: C.red, border: `rgba(239,68,68,0.25)` },
-  }
-
-  const severityLabels: Record<string, string> = {
-    violence: "Violence",
-    sexNudity: "Sex/Nudity",
-    profanity: "Language",
-    alcoholDrugsSmoking: "Substances",
-    frighteningIntense: "Intense",
-  }
-
-  const colors = severityColors[severity as keyof typeof severityColors] || severityColors.Mild
-
+// ─── METASCORE-STYLE FIT BADGE ───
+function FitScoreBadge({ score }: { score: number }) {
+  const color = score >= 80 ? "#6c3" : score >= 60 ? "#fc3" : "#f33"
   return (
     <div
       style={{
-        display: "inline-flex",
+        width: 32,
+        height: 32,
+        borderRadius: "50%",
+        border: `2px solid ${color}88`,
+        display: "flex",
         alignItems: "center",
-        gap: 6,
-        padding: "4px 8px",
-        borderRadius: 6,
-        fontSize: 11,
-        fontWeight: 500,
-        fontFamily: FONT_STACK,
-        background: colors.bg,
-        border: `1px solid ${colors.border}`,
-        color: colors.text,
+        justifyContent: "center",
+        fontSize: 13,
+        fontWeight: 700,
+        color,
+        fontFamily: SANS,
+        background: `${color}10`,
       }}
     >
-      <span>{severityLabels[category]}: {severity}</span>
+      {score}
     </div>
   )
 }
 
-function FitScoreRing({ score }: { score: number }) {
-  const radius = 18
-  const circumference = 2 * Math.PI * radius
-  const progress = (score / 100) * circumference
-  const color = score >= 80 ? C.teal : score >= 60 ? C.orange : C.creamFaint
+// ─── CHALKBOARD CONCESSION STAND ───
+function ChalkboardSection({ pairings }: { pairings: ConcessionPairings }) {
+  const items = [
+    { label: "cocktail", icon: "\uD83C\uDF78", ...pairings.cocktail },
+    { label: "zero-proof", icon: "\uD83C\uDF3F", ...pairings.zeroproof },
+    { label: "snack", icon: "\uD83E\uDDC2", ...pairings.snack },
+  ]
 
   return (
-    <div style={{ position: "relative", width: 48, height: 48, flexShrink: 0 }}>
-      <svg width="48" height="48" viewBox="0 0 48 48" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="24" cy="24" r={radius} fill="none" stroke={`${C.creamFaint}22`} strokeWidth="3" />
-        <circle
-          cx="24"
-          cy="24"
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth="3"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference - progress}
-          strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 0.6s ease" }}
-        />
-      </svg>
+    <div
+      style={{
+        background: "linear-gradient(170deg, #1b2b1b 0%, #162016 50%, #1a271a 100%)",
+        borderRadius: 6,
+        overflow: "hidden",
+        position: "relative",
+        boxShadow: "inset 0 0 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)",
+      }}
+    >
+      {/* Wood frame top */}
+      <div
+        style={{
+          height: 5,
+          background: "linear-gradient(180deg, #5a3f22, #4a3318)",
+          borderBottom: "1px solid #2a1a08",
+        }}
+      />
+
+      {/* Chalk dust texture */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "monospace",
-          fontSize: 13,
-          fontWeight: 600,
-          color,
+          background: "radial-gradient(ellipse at 25% 15%, rgba(255,255,255,0.025) 0%, transparent 55%)",
+          pointerEvents: "none",
         }}
-      >
-        {score}
+      />
+
+      <div style={{ padding: "14px 16px 10px" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: "50%",
+              border: "1px solid #5a7a5a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 8,
+              color: "#7a9a7a",
+            }}
+          >
+            ✦
+          </div>
+          <span
+            style={{
+              fontSize: 9.5,
+              letterSpacing: 3.5,
+              color: "#7a9a7a",
+              textTransform: "uppercase",
+              fontFamily: SANS,
+              fontWeight: 500,
+            }}
+          >
+            Pair with your screening
+          </span>
+        </div>
+
+        {/* Items */}
+        {items.map((item, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              padding: "9px 0",
+              borderTop: i > 0 ? "1px solid #243024" : "none",
+            }}
+          >
+            <span style={{ fontSize: 15, marginTop: 1, opacity: 0.85 }}>{item.icon}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  gap: 8,
+                  marginBottom: 3,
+                }}
+              >
+                <span style={{ fontSize: 13.5, color: "#e2ddd0", fontFamily: SERIF, fontStyle: "italic" }}>
+                  {item.name}
+                </span>
+                <span
+                  style={{
+                    fontSize: 8,
+                    color: "#5a7a5a",
+                    textTransform: "uppercase",
+                    letterSpacing: 2,
+                    fontFamily: SANS,
+                    flexShrink: 0,
+                  }}
+                >
+                  {item.label}
+                </span>
+              </div>
+              <div style={{ fontSize: 11.5, color: "#7a9a7a", lineHeight: 1.5, fontFamily: SERIF }}>
+                {item.desc}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
+
+      {/* Wood frame bottom */}
+      <div
+        style={{
+          height: 5,
+          background: "linear-gradient(180deg, #4a3318, #5a3f22)",
+          borderTop: "1px solid #2a1a08",
+        }}
+      />
     </div>
   )
 }
 
-export function RecommendationCard({ movie, index }: { movie: MovieRecommendation; index: number }) {
-  const [showGuide, setShowGuide] = useState(false)
+// ─── PARENTAL GUIDE TOGGLE ───
+function ParentalGuide({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          background: "none",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#6b6259"
+          strokeWidth="2"
+          strokeLinecap="round"
+          style={{
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform 0.2s ease",
+          }}
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        <span
+          style={{
+            fontSize: 11,
+            color: "#6b6259",
+            letterSpacing: 1.5,
+            textTransform: "uppercase",
+            fontFamily: SANS,
+            fontWeight: 500,
+          }}
+        >
+          Parental Guide
+        </span>
+      </button>
+      {open && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: "10px 14px",
+            background: "#1a1714",
+            borderRadius: 6,
+            borderLeft: "2px solid #4a3828",
+            fontSize: 12,
+            color: "#8a7e70",
+            lineHeight: 1.6,
+            fontFamily: SERIF,
+          }}
+        >
+          {text}
+        </div>
+      )}
+    </div>
+  )
+}
 
-  const accentColor = RESULT_ACCENT_COLORS[index % RESULT_ACCENT_COLORS.length]
+// ─── MOVIE CARD ───
+export function RecommendationCard({ movie, index }: { movie: MovieRecommendation; index: number }) {
   const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : ""
   const reasoningText = movie.reasoning?.[0] || ""
-
-  const guide = movie.parentalGuide
-  const categories = ["violence", "sexNudity", "profanity", "alcoholDrugsSmoking", "frighteningIntense"] as const
-  const hasParentalContent = guide && categories.some((c) => guide[c] && guide[c] !== "None")
-
-  const severityRank = { None: 0, Mild: 1, Moderate: 2, Severe: 3 }
-  const maxSeverity = guide
-    ? categories.reduce((max, cat) => {
-        const level = guide[cat] || "None"
-        return severityRank[level as keyof typeof severityRank] > severityRank[max as keyof typeof severityRank]
-          ? level
-          : max
-      }, "None")
-    : "None"
-
-  const severityLabels: Record<string, string> = {
-    violence: "Violence",
-    sexNudity: "Sex/Nudity",
-    profanity: "Language",
-    alcoholDrugsSmoking: "Substances",
-    frighteningIntense: "Intense",
-  }
-
-  const parentalWarnings = guide
-    ? categories
-        .filter((cat) => guide[cat] && guide[cat] !== "None")
-        .map((cat) => `${severityLabels[cat]}: ${guide[cat]}`)
-    : []
-
-  const fitScoreColor = movie.groupFitScore >= 80 ? C.teal : movie.groupFitScore >= 60 ? C.orange : C.creamFaint
+  const parentalText = movie.parentalSummary || null
 
   return (
     <div
       style={{
-        borderRadius: 16,
-        background: C.bgCard,
-        border: `1px solid ${C.creamSoft}0c`,
-        position: "relative",
+        background: "linear-gradient(175deg, #181410 0%, #141210 100%)",
+        borderRadius: 10,
         overflow: "hidden",
+        position: "relative",
+        border: "1px solid #2a2420",
         animation: `sfFadeSlideIn 0.4s ease ${index * 0.08}s both`,
       }}
     >
-      {/* Top accent bar */}
+      {/* Left accent stripe */}
       <div
         style={{
           position: "absolute",
-          top: 0,
           left: 0,
-          right: 0,
-          height: 2,
-          background: `linear-gradient(to right, ${accentColor}50, ${accentColor}10, transparent)`,
+          top: 0,
+          bottom: 0,
+          width: 3,
+          background: "linear-gradient(180deg, #e8843a 0%, #c45a2a 100%)",
+          borderRadius: "10px 0 0 10px",
         }}
       />
 
-      {/* Film header */}
-      <div className="flex" style={{ gap: 14, padding: "18px 18px 14px", alignItems: "flex-start" }}>
-        {/* Poster */}
-        <div style={{ flexShrink: 0 }}>
-          {movie.posterPath ? (
-            <Image
-              src={getImageUrl(movie.posterPath, "w185") || ""}
-              alt={movie.title}
-              width={70}
-              height={100}
-              className="object-cover"
+      {/* Card content */}
+      <div style={{ padding: "18px 18px 14px 20px" }}>
+        {/* Movie info row */}
+        <div style={{ display: "flex", gap: 14 }}>
+          {/* Poster */}
+          <div
+            style={{
+              width: 82,
+              height: 120,
+              borderRadius: 5,
+              overflow: "hidden",
+              flexShrink: 0,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+              position: "relative",
+            }}
+          >
+            {movie.posterPath ? (
+              <Image
+                src={getImageUrl(movie.posterPath, "w185") || ""}
+                alt={movie.title}
+                width={82}
+                height={120}
+                style={{ width: 82, height: 120, objectFit: "cover", display: "block" }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  background: "linear-gradient(135deg, #2a2030, #1a1520)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 10,
+                  color: "#4a4050",
+                  fontFamily: SANS,
+                  padding: 8,
+                  textAlign: "center",
+                }}
+              >
+                {movie.title}
+              </div>
+            )}
+          </div>
+
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h3
               style={{
-                width: 70,
-                height: 100,
-                borderRadius: 8,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+                fontSize: 19,
+                fontWeight: 600,
+                color: "#ece6da",
+                margin: "0 0 6px 0",
+                fontFamily: SERIF,
+                lineHeight: 1.2,
               }}
-            />
-          ) : (
+            >
+              {movie.title}
+            </h3>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 13, color: "#6b6259", fontFamily: SANS }}>{year}</span>
+
+              {/* Star rating */}
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="#e8a43a">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "#e8a43a", fontFamily: SANS }}>
+                  {movie.voteAverage?.toFixed(1)}
+                </span>
+              </div>
+
+              <FitScoreBadge score={movie.groupFitScore} />
+            </div>
+          </div>
+        </div>
+
+        {/* Why we picked this */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
             <div
               style={{
-                width: 70,
-                height: 100,
-                borderRadius: 8,
-                background: `linear-gradient(155deg, ${accentColor}12, ${C.bgElevated})`,
-                border: `1px solid ${C.creamSoft}0c`,
+                width: 18,
+                height: 18,
+                borderRadius: "50%",
+                background: "#e8843a18",
+                border: "1.5px solid #e8843a55",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <IconFilm size={20} color={C.creamFaint} />
-            </div>
-          )}
-        </div>
-
-        {/* Title + meta */}
-        <div style={{ flex: 1 }}>
-          <h3
-            style={{
-              margin: 0,
-              fontFamily: FONT_STACK,
-              fontSize: 18,
-              fontWeight: 700,
-              color: C.cream,
-              letterSpacing: "-0.02em",
-              lineHeight: 1.2,
-            }}
-          >
-            {movie.title}
-          </h3>
-          <div className="flex items-center" style={{ gap: 8, marginTop: 6 }}>
-            <span style={{ fontSize: 13, color: C.creamMuted }}>{year}</span>
-            <span style={{ color: `${C.creamSoft}40` }}>&middot;</span>
-            <div className="inline-flex items-center" style={{ gap: 4 }}>
-              <svg width={12} height={12} viewBox="0 0 24 24" fill={C.orange} stroke="none">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#e8843a"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
               </svg>
-              <span style={{ fontSize: 13, fontWeight: 600, color: C.cream }}>
-                {movie.voteAverage?.toFixed(1)}
-              </span>
             </div>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: 2.5,
+                color: "#e8843a",
+                textTransform: "uppercase",
+                fontFamily: SANS,
+              }}
+            >
+              Why we picked this
+            </span>
           </div>
-          {/* Fit score circle */}
-          <div
+          <p
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 34,
-              height: 34,
-              borderRadius: "50%",
-              border: `2px solid ${fitScoreColor}50`,
-              background: `${fitScoreColor}10`,
-              fontSize: 11,
-              fontWeight: 700,
-              fontFamily: "monospace",
-              color: fitScoreColor,
-              marginTop: 8,
+              fontSize: 13.5,
+              color: "#998e80",
+              lineHeight: 1.7,
+              margin: 0,
+              fontFamily: SERIF,
             }}
           >
-            {movie.groupFitScore}
-          </div>
+            {reasoningText}
+          </p>
         </div>
-      </div>
 
-      {/* Why we picked this */}
-      <div style={{ padding: "0 18px 16px" }}>
-        <div className="flex items-center" style={{ gap: 6, marginBottom: 8 }}>
-          <IconCheck size={13} color={C.orange} />
-          <span
-            style={{
-              fontSize: 11,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: C.orange,
-              fontWeight: 600,
-              fontFamily: FONT_STACK,
-            }}
-          >
-            Why We Picked This
-          </span>
-        </div>
-        <p
+        {/* Chalkboard concession stand */}
+        {movie.pairings && (
+          <div style={{ marginTop: 16 }}>
+            <ChalkboardSection pairings={movie.pairings} />
+          </div>
+        )}
+
+        {/* Bottom actions */}
+        <div
           style={{
-            margin: 0,
-            fontSize: 13.5,
-            color: C.creamMuted,
-            lineHeight: 1.65,
-            fontFamily: FONT_STACK,
+            marginTop: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          {reasoningText}
-        </p>
-      </div>
+          {parentalText ? (
+            <ParentalGuide text={parentalText} />
+          ) : (
+            <div />
+          )}
 
-      {/* Parental guide -- collapsed toggle */}
-      {hasParentalContent && (
-        <div style={{ padding: "0 18px 14px" }}>
           <button
-            onClick={() => setShowGuide(!showGuide)}
+            onClick={() => (window.location.href = `/movies/${movie.tmdbId}`)}
             style={{
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
               gap: 6,
-              padding: "6px 12px",
-              borderRadius: 10,
-              background: showGuide ? `${C.red}0a` : "transparent",
-              border: `1px solid ${showGuide ? `${C.red}20` : `${C.creamSoft}18`}`,
+              background: "none",
+              border: "1px solid #2a2420",
+              borderRadius: 20,
+              padding: "8px 16px",
               cursor: "pointer",
-              transition: "all 0.25s ease",
-              fontFamily: FONT_STACK,
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "#e8843a55"
+              e.currentTarget.style.background = "#e8843a0a"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "#2a2420"
+              e.currentTarget.style.background = "none"
             }}
           >
-            <IconShield size={12} color={showGuide ? C.red : C.creamFaint} />
-            <span
-              style={{
-                fontSize: 11.5,
-                fontWeight: 500,
-                color: showGuide ? C.red : C.creamFaint,
-                transition: "color 0.25s ease",
-              }}
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#8a7e70"
+              strokeWidth="2"
+              strokeLinecap="round"
             >
-              Parental Guide
-            </span>
-            <span
-              style={{
-                transform: showGuide ? "rotate(90deg)" : "rotate(0)",
-                transition: "transform 0.25s ease",
-                display: "inline-flex",
-              }}
-            >
-              <IconChevronRight size={12} color={showGuide ? C.red : C.creamFaint} />
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+            <span style={{ fontSize: 12, color: "#8a7e70", fontFamily: SANS, fontWeight: 500 }}>
+              View Details
             </span>
           </button>
-
-          {/* Expandable content */}
-          <div
-            style={{
-              maxHeight: showGuide ? 120 : 0,
-              opacity: showGuide ? 1 : 0,
-              overflow: "hidden",
-              transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
-            }}
-          >
-            <div className="flex items-center" style={{ gap: 8, paddingTop: 12, paddingBottom: 8 }}>
-              <span
-                style={{
-                  fontSize: 11,
-                  padding: "2px 8px",
-                  borderRadius: 10,
-                  background: `${C.red}12`,
-                  border: `1px solid ${C.red}25`,
-                  color: C.red,
-                  fontWeight: 500,
-                }}
-              >
-                Up to {maxSeverity}
-              </span>
-            </div>
-            <div className="flex flex-wrap" style={{ gap: 6 }}>
-              {parentalWarnings.map((w, wi) => (
-                <span
-                  key={wi}
-                  style={{
-                    fontSize: 11,
-                    padding: "4px 10px",
-                    borderRadius: 10,
-                    border: `1px solid ${C.red}25`,
-                    color: C.red,
-                  }}
-                >
-                  {w}
-                </span>
-              ))}
-            </div>
-          </div>
         </div>
-      )}
-
-      {/* View Details */}
-      <div className="flex justify-end" style={{ padding: "0 18px 16px" }}>
-        <button
-          onClick={() => (window.location.href = `/movies/${movie.tmdbId}`)}
-          className="inline-flex items-center"
-          style={{
-            gap: 6,
-            padding: "8px 16px",
-            borderRadius: 10,
-            border: `1px solid ${C.creamSoft}20`,
-            background: "transparent",
-            fontSize: 12,
-            color: C.cream,
-            fontWeight: 500,
-            fontFamily: FONT_STACK,
-            cursor: "pointer",
-          }}
-        >
-          <IconExternalLink size={13} color={C.cream} />
-          View Details
-        </button>
       </div>
     </div>
   )

@@ -19,6 +19,12 @@ export type ParentalGuideInfo = {
   frighteningIntense: "None" | "Mild" | "Moderate" | "Severe" | null
 }
 
+export type ConcessionPairings = {
+  cocktail: { name: string; desc: string }
+  zeroproof: { name: string; desc: string }
+  snack: { name: string; desc: string }
+}
+
 export type MovieRecommendation = {
   tmdbId: number
   title: string
@@ -36,6 +42,8 @@ export type MovieRecommendation = {
   reasoning: string[]
   seenBy: string[]
   parentalGuide?: ParentalGuideInfo | null
+  pairings?: ConcessionPairings | null
+  parentalSummary?: string | null
 }
 
 export type TonightPickResponse = {

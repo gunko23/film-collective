@@ -1,5 +1,7 @@
 import { C, FONT_STACK } from "./constants"
-import { IconChevronRight, IconChevronLeft, IconSparkle, IconLoader, IconRefreshCw } from "./icons"
+import { IconChevronRight, IconChevronLeft, IconSparkle, IconLoader } from "./icons"
+
+const SANS = "'DM Sans', sans-serif"
 
 export function BottomActionBar({
   step,
@@ -138,63 +140,96 @@ export function BottomActionBar({
         style={{
           flexShrink: 0,
           zIndex: 20,
-          padding: "12px 20px 20px",
-          background: `linear-gradient(to top, ${C.bg} 60%, transparent)`,
+          padding: "12px 14px 20px",
+          background: "linear-gradient(180deg, transparent 0%, #0e0c0a 30%)",
         }}
       >
-        <div className="flex items-center" style={{ gap: 10 }}>
+        <div style={{ display: "flex", gap: 10 }}>
           <button
             onClick={onBack}
             style={{
               flex: 1,
-              height: 46,
-              borderRadius: 14,
-              border: `1px solid ${C.creamFaint}22`,
+              padding: 14,
+              borderRadius: 10,
+              border: "1px solid #2a2420",
+              background: "#141210",
               cursor: "pointer",
-              fontSize: 14,
-              fontWeight: 500,
-              fontFamily: FONT_STACK,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 6,
-              background: C.bgCard,
-              color: C.cream,
-              transition: "all 0.15s ease",
+              gap: 7,
+              transition: "all 0.2s",
             }}
           >
-            <IconChevronLeft size={16} color={C.cream} />
-            Back
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#8a7e70"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            <span
+              style={{
+                fontSize: 14,
+                color: "#8a7e70",
+                fontFamily: SANS,
+                fontWeight: 600,
+              }}
+            >
+              Back
+            </span>
           </button>
-
           <button
             onClick={onShuffle}
             disabled={loading}
             style={{
-              flex: 1.4,
-              height: 46,
-              borderRadius: 14,
+              flex: 1.5,
+              padding: 14,
+              borderRadius: 10,
               border: "none",
+              background: "linear-gradient(135deg, #e8843a, #d46a28)",
               cursor: loading ? "not-allowed" : "pointer",
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: FONT_STACK,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 6,
-              background: `linear-gradient(135deg, ${C.orange}, ${C.orangeLight})`,
-              color: C.warmBlack,
+              gap: 7,
+              boxShadow: "0 4px 20px #e8843a33",
               opacity: loading ? 0.7 : 1,
-              transition: "all 0.2s ease",
+              transition: "all 0.2s",
             }}
           >
             {loading ? (
-              <IconLoader size={16} color={C.warmBlack} />
+              <IconLoader size={16} color="#fff" />
             ) : (
-              <IconRefreshCw size={16} color={C.warmBlack} />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M23 4l-6 6" />
+                <path d="M17 4h6v6" />
+                <path d="M1 20l6-6" />
+                <path d="M7 20H1v-6" />
+              </svg>
             )}
-            Shuffle
+            <span
+              style={{
+                fontSize: 14,
+                color: "#fff",
+                fontFamily: SANS,
+                fontWeight: 700,
+              }}
+            >
+              Shuffle
+            </span>
           </button>
         </div>
       </div>

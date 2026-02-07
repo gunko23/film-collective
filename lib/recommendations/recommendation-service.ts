@@ -78,6 +78,10 @@ export type MovieRecommendation = {
   seenBy: string[]
   // Parental guide data (from IMDb)
   parentalGuide?: ParentalGuideInfo | null
+  // Concession stand pairings (from LLM)
+  pairings?: { cocktail: { name: string; desc: string }; zeroproof: { name: string; desc: string }; snack: { name: string; desc: string } } | null
+  // Brief parental content summary (from LLM)
+  parentalSummary?: string | null
 }
 
 export type ParentalFilters = {
@@ -1455,9 +1459,11 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
   })
 
   for (const rec of result.recommendations) {
-    const llmText = llmReasoning.get(rec.tmdbId)
-    if (llmText) {
-      rec.reasoning = [llmText]
+    const llmData = llmReasoning.get(rec.tmdbId)
+    if (llmData) {
+      rec.reasoning = [llmData.summary]
+      if (llmData.pairings) rec.pairings = llmData.pairings
+      if (llmData.parentalSummary) rec.parentalSummary = llmData.parentalSummary
     }
   }
 
@@ -1508,9 +1514,11 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
   })
 
   for (const rec of result.recommendations) {
-    const llmText = llmReasoning.get(rec.tmdbId)
-    if (llmText) {
-      rec.reasoning = [llmText]
+    const llmData = llmReasoning.get(rec.tmdbId)
+    if (llmData) {
+      rec.reasoning = [llmData.summary]
+      if (llmData.pairings) rec.pairings = llmData.pairings
+      if (llmData.parentalSummary) rec.parentalSummary = llmData.parentalSummary
     }
   }
 
