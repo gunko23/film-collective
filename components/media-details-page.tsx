@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { Header } from "@/components/header"
-import { SimpleStarRating } from "@/components/simple-star-rating"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getImageUrl } from "@/lib/tmdb/image"
-import { InlineBreakdownFlow } from "@/components/inline-breakdown-flow"
+import { RatingSection } from "@/components/media/rating-section"
+import { CastCarousel } from "@/components/media/cast-carousel"
+import { MediaStatsGrid } from "@/components/media/media-stats-grid"
+import type { ExistingBreakdown } from "@/components/media/rating-section"
 import {
   ArrowLeft,
   Calendar,
@@ -22,8 +23,6 @@ import {
   Users,
   Tv,
   Film,
-  Clapperboard,
-  DollarSign,
   ChevronRight,
 } from "lucide-react"
 
@@ -72,31 +71,6 @@ interface MediaDetailsPageProps {
     averageScore?: number
     ratingCount?: number
   }
-}
-
-interface ExistingBreakdown {
-  dimensionScores?: Record<string, number>
-  dimensionTags?: Record<string, string[]>
-  // Legacy fields kept for backwards compatibility
-  emotional_impact?: number
-  pacing?: number
-  aesthetic?: number
-  rewatchability?: number
-  breakdown_tags?: string[]
-  breakdown_notes?: string
-}
-
-function formatCurrency(amount: number): string {
-  if (amount >= 1_000_000_000) {
-    return `$${(amount / 1_000_000_000).toFixed(1)}B`
-  }
-  if (amount >= 1_000_000) {
-    return `$${(amount / 1_000_000).toFixed(0)}M`
-  }
-  if (amount >= 1_000) {
-    return `$${(amount / 1_000).toFixed(0)}K`
-  }
-  return `$${amount}`
 }
 
 export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDetailsPageProps) {
@@ -578,262 +552,41 @@ export function MediaDetailsPage({ mediaType, media, communityStats }: MediaDeta
               )}
 
               {/* Cast */}
-              {cast.length > 0 && (
-                <div className="space-y-2">
-                  <h2 className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-muted-foreground text-center lg:text-left">
-                    Cast
-                  </h2>
-                  <div className="relative -mx-4 sm:mx-0">
-                    <div className="flex gap-2 sm:gap-3 overflow-x-auto px-4 sm:px-0 pb-2 scrollbar-hide">
-                      {cast.slice(0, 10).map((actor: any) => (
-                        <div key={actor.id} className="flex-shrink-0 w-14 sm:w-20 text-center">
-                          <div className="relative w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-1 sm:mb-2 rounded-full overflow-hidden bg-card ring-1 ring-border/50">
-                            {actor.profilePath || actor.profile_path ? (
-                              <Image
-                                src={getImageUrl(actor.profilePath || actor.profile_path, "w185") || ""}
-                                alt={actor.name}
-                                fill
-                                className="object-cover"
-                              />
-                            ) : (
-                              <div className="flex items-center justify-center h-full">
-                                <Users className="h-4 w-4 sm:h-6 sm:w-6 text-muted-foreground/50" />
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-[10px] sm:text-xs font-medium text-foreground truncate">{actor.name}</p>
-                          <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{actor.character}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
+              {cast.length > 0 && <CastCarousel cast={cast} />}
 
               {/* Details Stats */}
-              <div className="space-y-2">
-                <h2 className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-muted-foreground text-center lg:text-left">
-                  Details
-                </h2>
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
-                  {media.status && (
-                    <div className="text-center lg:text-left">
-                      <p className="text-muted-foreground text-[10px] sm:text-xs flex items-center justify-center lg:justify-start gap-1">
-                        <Film className="h-3 w-3" /> Status
-                      </p>
-                      <p className="font-medium text-foreground">{media.status}</p>
-                    </div>
-                  )}
-                  {/* Movie-specific details */}
-                  {isMovie && media.budget && media.budget > 0 && (
-                    <div className="text-center lg:text-left">
-                      <p className="text-muted-foreground text-[10px] sm:text-xs flex items-center justify-center lg:justify-start gap-1">
-                        <DollarSign className="h-3 w-3" /> Budget
-                      </p>
-                      <p className="font-medium text-foreground">{formatCurrency(media.budget)}</p>
-                    </div>
-                  )}
-                  {isMovie && media.revenue && media.revenue > 0 && (
-                    <div className="text-center lg:text-left">
-                      <p className="text-muted-foreground text-[10px] sm:text-xs flex items-center justify-center lg:justify-start gap-1">
-                        <DollarSign className="h-3 w-3" /> Revenue
-                      </p>
-                      <p className="font-medium text-foreground">{formatCurrency(media.revenue)}</p>
-                    </div>
-                  )}
-                  {isMovie && media.production_companies && media.production_companies.length > 0 && (
-                    <div className="text-center lg:text-left">
-                      <p className="text-muted-foreground text-[10px] sm:text-xs flex items-center justify-center lg:justify-start gap-1">
-                        <Clapperboard className="h-3 w-3" /> Studio
-                      </p>
-                      <p className="font-medium text-foreground truncate">{media.production_companies[0].name}</p>
-                    </div>
-                  )}
-                  {/* TV-specific details */}
-                  {!isMovie && media.type && (
-                    <div className="text-center lg:text-left">
-                      <p className="text-muted-foreground text-[10px] sm:text-xs flex items-center justify-center lg:justify-start gap-1">
-                        <Tv className="h-3 w-3" /> Type
-                      </p>
-                      <p className="font-medium text-foreground">{media.type}</p>
-                    </div>
-                  )}
-                  {!isMovie && media.number_of_episodes && (
-                    <div className="text-center lg:text-left">
-                      <p className="text-muted-foreground text-[10px] sm:text-xs flex items-center justify-center lg:justify-start gap-1">
-                        <Clapperboard className="h-3 w-3" /> Episodes
-                      </p>
-                      <p className="font-medium text-foreground">{media.number_of_episodes}</p>
-                    </div>
-                  )}
-                  {!isMovie && media.networks && media.networks.length > 0 && (
-                    <div className="text-center lg:text-left">
-                      <p className="text-muted-foreground text-[10px] sm:text-xs flex items-center justify-center lg:justify-start gap-1">
-                        <Tv className="h-3 w-3" /> Network
-                      </p>
-                      <p className="font-medium text-foreground truncate">{media.networks[0].name}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <MediaStatsGrid
+                isMovie={isMovie}
+                status={media.status}
+                budget={media.budget}
+                revenue={media.revenue}
+                productionCompanies={media.production_companies}
+                type={media.type}
+                numberOfEpisodes={media.number_of_episodes}
+                networks={media.networks}
+              />
 
               {/* Rating Section */}
-              <div className="space-y-3 sm:space-y-4 rounded-xl bg-card p-3 sm:p-6 ring-1 ring-border/50">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Your Rating
-                  </h2>
-                  {!user && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      onClick={() => (window.location.href = "/auth/signin")} // Redirect to sign in page
-                      className="text-accent p-0 h-auto text-[10px] sm:text-xs"
-                    >
-                      Sign in to rate
-                    </Button>
-                  )}
-                </div>
-
-                {user && (
-                  <>
-                    {!showBreakdownFlow ? (
-                      <>
-                        {!hasExistingRating || isEditMode ? (
-                          <SimpleStarRating
-                            value={userRating}
-                            onChange={setUserRating}
-                            disabled={isSaving || isRateLimited}
-                          />
-                        ) : (
-                          <SimpleStarRating value={userRating} onChange={() => {}} readonly={true} />
-                        )}
-                        <div className="space-y-2">
-                          <label className="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                            Notes
-                          </label>
-                          <Textarea
-                            placeholder={`Your thoughts on this ${isMovie ? "film" : "show"}...`}
-                            value={userComment}
-                            onChange={(e) => setUserComment(e.target.value)}
-                            className="min-h-[60px] sm:min-h-[80px] resize-none bg-background text-xs sm:text-sm"
-                            disabled={isSaving || isRateLimited || (hasExistingRating && !isEditMode)}
-                          />
-                        </div>
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
-                          {hasExistingRating && !isEditMode ? (
-                            <Button
-                              onClick={() => setIsEditMode(true)}
-                              disabled={isRateLimited}
-                              className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs sm:text-sm w-full sm:w-auto"
-                            >
-                              Update Rating
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={handleSaveRating}
-                              disabled={isSaving || userRating === 0 || isRateLimited}
-                              className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs sm:text-sm w-full sm:w-auto"
-                            >
-                              {isSaving ? "Saving..." : "Save Rating"}
-                            </Button>
-                          )}
-                          {isEditMode && (
-                            <Button
-                              onClick={() => setIsEditMode(false)}
-                              variant="outline"
-                              className="text-xs sm:text-sm w-full sm:w-auto"
-                            >
-                              Cancel
-                            </Button>
-                          )}
-                          {saveMessage && (
-                            <span
-                              className={`text-xs sm:text-sm text-center sm:text-left ${saveMessage === "Saved" ? "text-green-500" : "text-red-500"}`}
-                            >
-                              {saveMessage}
-                            </span>
-                          )}
-                        </div>
-                        {existingBreakdown && (
-                          <div className="mt-4 pt-4 border-t border-border">
-                            <p className="text-sm text-muted-foreground mb-2">Your breakdown:</p>
-                            <div className="flex flex-wrap gap-2 text-xs">
-                              {existingBreakdown.dimensionScores &&
-                                Object.entries(existingBreakdown.dimensionScores).map(([key, value]) => (
-                                  <span key={key} className="px-2 py-1 bg-muted rounded capitalize">
-                                    {key.replace(/_/g, " ")}: {value}/5
-                                  </span>
-                                ))}
-                              {!existingBreakdown.dimensionScores && (
-                                <>
-                                  {existingBreakdown.emotional_impact && (
-                                    <span className="px-2 py-1 bg-muted rounded">
-                                      Emotional: {existingBreakdown.emotional_impact}/5
-                                    </span>
-                                  )}
-                                  {existingBreakdown.pacing && (
-                                    <span className="px-2 py-1 bg-muted rounded">
-                                      Pacing: {existingBreakdown.pacing}/5
-                                    </span>
-                                  )}
-                                  {existingBreakdown.aesthetic && (
-                                    <span className="px-2 py-1 bg-muted rounded">
-                                      Aesthetic: {existingBreakdown.aesthetic}/5
-                                    </span>
-                                  )}
-                                  {existingBreakdown.rewatchability && (
-                                    <span className="px-2 py-1 bg-muted rounded">
-                                      Rewatchability: {existingBreakdown.rewatchability}/5
-                                    </span>
-                                  )}
-                                </>
-                              )}
-                              {existingBreakdown.dimensionTags &&
-                                Object.entries(existingBreakdown.dimensionTags).map(([dimKey, tags]) =>
-                                  tags.map((tag) => (
-                                    <span
-                                      key={`${dimKey}-${tag}`}
-                                      className="px-2 py-1 bg-accent/20 text-accent rounded capitalize"
-                                    >
-                                      {tag.replace(/_/g, " ")}
-                                    </span>
-                                  )),
-                                )}
-                              {!existingBreakdown.dimensionTags &&
-                                existingBreakdown.breakdown_tags?.map((tag) => (
-                                  <span key={tag} className="px-2 py-1 bg-accent/20 text-accent rounded capitalize">
-                                    {tag.replace(/_/g, " ")}
-                                  </span>
-                                ))}
-                            </div>
-                            <Button
-                              variant="link"
-                              size="sm"
-                              onClick={() => setShowBreakdownFlow(true)}
-                              className="mt-2 h-auto p-0 text-accent"
-                            >
-                              Edit breakdown
-                            </Button>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <SimpleStarRating rating={userRating} readonly size="lg" />
-                        <span className="text-sm text-muted-foreground">Rating saved!</span>
-                        <InlineBreakdownFlow
-                          isActive={showBreakdownFlow}
-                          mediaType={isMovie ? "movie" : "tv"}
-                          tmdbId={media.id}
-                          onComplete={handleBreakdownComplete}
-                          existingBreakdown={existingBreakdown}
-                        />
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
+              <RatingSection
+                user={user}
+                isRateLimited={isRateLimited}
+                userRating={userRating}
+                setUserRating={setUserRating}
+                userComment={userComment}
+                setUserComment={setUserComment}
+                isSaving={isSaving}
+                saveMessage={saveMessage}
+                isEditMode={isEditMode}
+                setIsEditMode={setIsEditMode}
+                showBreakdownFlow={showBreakdownFlow}
+                setShowBreakdownFlow={setShowBreakdownFlow}
+                existingBreakdown={existingBreakdown}
+                hasExistingRating={hasExistingRating}
+                handleSaveRating={handleSaveRating}
+                handleBreakdownComplete={handleBreakdownComplete}
+                isMovie={isMovie}
+                tmdbId={media.id}
+              />
             </div>
           </div>
         </main>

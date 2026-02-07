@@ -3,36 +3,26 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import Image from "next/image"
 import {
   ChevronDown,
   LayoutDashboard,
   BarChart3,
   Activity,
   Users,
-  Film,
-  Tv,
-  Clapperboard,
-  Star,
-  PlayCircle,
-  ChevronLeft,
-  ChevronRight,
   MessagesSquare,
   ArrowLeft,
 } from "lucide-react"
-import { CollectiveMoviesGrid } from "@/components/collective-movies-grid"
 import { CollectiveMovieModal } from "@/components/collective-movie-modal"
 import { CollectiveTVShowModal } from "@/components/collective-tv-show-modal"
 import { MembersModal } from "@/components/members-modal"
-import { StarRatingDisplay } from "@/components/star-rating-display"
-import { EnhancedComments } from "@/components/enhanced-comments"
-import { getImageUrl } from "@/lib/tmdb/image"
-import { MessageCircle, Trophy } from "lucide-react"
+import { Trophy } from "lucide-react"
 import { GeneralDiscussion } from "@/components/general-discussion"
 import { CollectiveActions } from "@/components/collective-actions"
 import { OscarPredictions } from "@/components/oscar-predictions"
 import { TonightsPick } from "@/components/tonights-pick"
 import { Sparkles } from "lucide-react"
+import { FeedSection } from "@/components/collective/feed-section"
+import { DashboardSection } from "@/components/collective/dashboard-section"
 
 type MovieStat = {
   tmdb_id: string
@@ -165,19 +155,6 @@ const sectionConfig: { value: Section; label: string; icon: React.ReactNode; des
   { value: "feed", label: "Feed", icon: <Activity className="h-4 w-4" />, description: "View recent activity feed" },
 ]
 
-const REACTION_EMOJI_MAP: Record<string, string> = {
-  thumbsup: "👍",
-  heart: "❤️",
-  laugh: "😂",
-  fire: "🔥",
-  sad: "😢",
-  celebrate: "🎉",
-}
-
-const getReactionEmoji = (type: string): string => {
-  return REACTION_EMOJI_MAP[type] || type
-}
-
 export function CollectivePageClient({
   collectiveId,
   currentUserId,
@@ -252,47 +229,12 @@ export function CollectivePageClient({
 
   const totalFeedPages = Math.ceil(feedTotal / FEED_LIMIT)
 
-  const getActivityConversationLink = (item: any) => {
-    if (!item.tmdb_id) {
-      // Fallback to old rating-based link if tmdb_id not available
-      return `/collectives/${collectiveId}/conversation/${item.rating_id}`
-    }
-    const mediaType = item.media_type === "movie" ? "movie" : "tv"
-    return `/collectives/${collectiveId}/movie/${item.tmdb_id}/conversation?type=${mediaType}`
-  }
-
-  const getConversationLink = (item: FeedItemWithEngagement) => {
-    const mediaType = item.media_type === "movie" ? "movie" : "tv"
-    const tmdbId = item.media_type === "movie" ? item.tmdb_id : item.tv_show_id
-    return `/collectives/${collectiveId}/movie/${tmdbId}/conversation?type=${mediaType}`
-  }
-
-  const getMediaIcon = (type: string) => {
-    switch (type) {
-      case "movie":
-        return <Film className="h-3 w-3" />
-      case "tv":
-        return <Tv className="h-3 w-3" />
-      case "episode":
-        return <PlayCircle className="h-3 w-3" />
-      default:
-        return <Film className="h-3 w-3" />
-    }
-  }
-
   const handleMovieClick = (movie: MovieStat) => {
     setSelectedMovie(movie)
   }
 
   const handleTVShowClick = (show: TVShowStat) => {
     setSelectedTVShow(show)
-  }
-
-  const handleMovieClickFromFeed = (tmdbId: string) => {
-    const movie = movieStats.find((m) => m.tmdb_id === tmdbId)
-    if (movie) {
-      setSelectedMovie(movie)
-    }
   }
 
   const currentSection = sectionConfig.find((s) => s.value === activeSection)

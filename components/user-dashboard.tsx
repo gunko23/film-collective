@@ -5,7 +5,6 @@ import { useStackApp } from "@stackframe/stack"
 import useSWR from "swr"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
 import { Settings, LogOut, LayoutDashboard, User, Compass, Users, Info } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { SectionLabel } from "@/components/ui/section-label"
@@ -20,92 +19,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { formatDistanceToNow } from "date-fns"
+import { BellIcon, ChevronRightIcon, PlayIcon, ArrowIcon, PlusIcon } from "@/components/dashboard/dashboard-icons"
+import { DashboardActivityItem, getUserGradient, type Activity } from "@/components/dashboard/dashboard-activity-item"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
-
-// Deterministic gradient for user avatars based on name
-const USER_GRADIENTS: [string, string][] = [
-  ["#ff6b2d", "#ff8f5e"],
-  ["#3d5a96", "#5a7cb8"],
-  ["#4a9e8e", "#6bc4b4"],
-  ["#c4616a", "#d88088"],
-  ["#2e4470", "#5a7cb8"],
-]
-
-function getUserGradient(name: string): [string, string] {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return USER_GRADIENTS[Math.abs(hash) % USER_GRADIENTS.length]
-}
-
-// ---- Icons ----
-
-function BellIcon({ color = "#a69e90", size = 20 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M18 8A6 6 0 0 0 6 8C6 15 3 17 3 17H21C21 17 18 15 18 8Z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M13.73 21C13.37 21.62 12.71 22 12 22C11.29 22 10.63 21.62 10.27 21" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function ChevronRightIcon({ color = "currentColor", size = 14 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-      <path d="M9 18l6-6-6-6" />
-    </svg>
-  )
-}
-
-function PlayIcon({ color = "#3d5a96", size = 12 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 3l15 9-15 9V3z" />
-    </svg>
-  )
-}
-
-function ArrowIcon({ color = "#5a7cb8", size = 13 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 12h14M12 5l7 7-7 7" />
-    </svg>
-  )
-}
-
-function PlusIcon({ color = "#6b6358", size = 24 }: { color?: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" strokeDasharray="2 3" />
-      <path d="M12 8V16M8 12H16" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-// ---- Types ----
-
-type Activity = {
-  activity_type: "rating" | "comment" | "reaction"
-  activity_id: string
-  created_at: string
-  actor_id: string
-  actor_name: string
-  actor_avatar: string | null
-  tmdb_id: number
-  media_title: string
-  poster_path: string | null
-  media_type: "movie" | "tv"
-  score: number | null
-  content: string | null
-  reaction_type: string | null
-  collective_id: string
-  collective_name: string
-  rating_id: string
-  target_user_name: string | null
-}
 
 type DashboardData = {
   user: {
@@ -153,124 +70,7 @@ type DashboardData = {
 
 type ActivityFilter = "all" | "ratings" | "discussions"
 
-const REACTION_EMOJI_MAP: Record<string, string> = {
-  fire: "\uD83D\uDD25",
-  heart: "\u2764\uFE0F",
-  laughing: "\uD83D\uDE02",
-  crying: "\uD83D\uDE22",
-  mindblown: "\uD83E\uDD2F",
-  clap: "\uD83D\uDC4F",
-  thinking: "\uD83E\uDD14",
-  angry: "\uD83D\uDE21",
-  love: "\uD83D\uDE0D",
-  thumbsup: "\uD83D\uDC4D",
-}
-
 const STAT_COLORS = ["#ff6b2d", "#3d5a96", "#4a9e8e", "#c4616a"]
-
-// ---- Activity Item ----
-
-function DashboardActivityItem({ activity }: { activity: Activity }) {
-  const router = useRouter()
-  const gradient = getUserGradient(activity.actor_name || "U")
-
-  const getDescription = () => {
-    switch (activity.activity_type) {
-      case "rating":
-        return (
-          <>
-            <span className="text-cream-muted"> rated </span>
-            <span className="font-medium">{activity.media_title}</span>
-          </>
-        )
-      case "comment":
-        return (
-          <>
-            <span className="text-cream-muted"> commented on </span>
-            {activity.target_user_name && (
-              <><span className="font-medium">{activity.target_user_name}&apos;s</span><span className="text-cream-muted"> review of </span></>
-            )}
-            <span className="font-medium">{activity.media_title}</span>
-          </>
-        )
-      case "reaction":
-        return (
-          <>
-            <span className="text-cream-muted">
-              {" "}reacted {REACTION_EMOJI_MAP[activity.reaction_type || ""] || activity.reaction_type} to{" "}
-            </span>
-            {activity.target_user_name && (
-              <><span className="font-medium">{activity.target_user_name}&apos;s</span><span className="text-cream-muted"> review of </span></>
-            )}
-            <span className="font-medium">{activity.media_title}</span>
-          </>
-        )
-      default:
-        return null
-    }
-  }
-
-  return (
-    <Link
-      href={`/collectives/${activity.collective_id}/movie/${activity.tmdb_id}/conversation`}
-      className="flex gap-3.5 lg:gap-4 p-4 lg:p-5 bg-card rounded-[14px] border border-cream-faint/[0.05] mb-2.5 lg:mb-3 transition-all duration-300 hover:border-cream-faint/[0.12]"
-    >
-      <div
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/user/${activity.actor_id}`) }}
-        className="cursor-pointer shrink-0"
-      >
-        <Avatar size="md" gradient={gradient}>
-          <AvatarImage src={activity.actor_avatar || undefined} />
-          <AvatarFallback>{activity.actor_name?.[0]?.toUpperCase() || "?"}</AvatarFallback>
-        </Avatar>
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <p className="text-[13.5px] lg:text-[15px] leading-[1.5] mb-1.5 lg:mb-2">
-          <span className="font-medium">{activity.actor_name}</span>
-          {getDescription()}
-        </p>
-
-        {activity.activity_type === "rating" && activity.score != null && activity.score > 0 && (
-          <div className="flex gap-0.5 mb-1.5 lg:mb-2 items-center">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <span
-                key={s}
-                className="text-xs lg:text-sm"
-                style={{ color: s <= Math.floor(activity.score! / 20) ? "#ff6b2d" : "rgba(107,99,88,0.2)" }}
-              >
-                ★
-              </span>
-            ))}
-            <span className="text-xs lg:text-sm font-semibold ml-1" style={{ color: "#ff6b2d" }}>
-              {(activity.score / 20).toFixed(1)}
-            </span>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 bg-surface-light rounded text-[11px] lg:text-xs text-cream-muted">
-            {activity.collective_name}
-          </span>
-          <span className="text-[11px] lg:text-xs text-cream-faint">
-            {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
-          </span>
-        </div>
-      </div>
-
-      {activity.poster_path && (
-        <div className="relative w-11 h-[60px] lg:w-[52px] lg:h-[72px] rounded-lg overflow-hidden shrink-0 border border-cream-faint/[0.08]">
-          <Image
-            src={`https://image.tmdb.org/t/p/w92${activity.poster_path}`}
-            alt={activity.media_title}
-            fill
-            className="object-cover"
-          />
-        </div>
-      )}
-    </Link>
-  )
-}
 
 // ---- Main Dashboard ----
 
