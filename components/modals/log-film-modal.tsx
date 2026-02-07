@@ -106,6 +106,7 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ratingContainerRef = useRef<HTMLDivElement>(null)
+  const isTouchRef = useRef(false)
 
   const displayRating = hoverRating || userRating
 
@@ -658,8 +659,11 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
                       gap: "8px",
                       marginBottom: "8px",
                       touchAction: "none",
+                      userSelect: "none",
                     }}
                     onTouchStart={(e) => {
+                      e.preventDefault()
+                      isTouchRef.current = true
                       const val = getStarFromTouch(e.touches[0].clientX)
                       if (val !== null) setHoverRating(val)
                     }}
@@ -667,9 +671,12 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
                       const val = getStarFromTouch(e.touches[0].clientX)
                       if (val !== null) setHoverRating(val)
                     }}
-                    onTouchEnd={() => {
-                      if (hoverRating > 0) setUserRating(hoverRating)
+                    onTouchEnd={(e) => {
+                      const touch = e.changedTouches[0]
+                      const val = getStarFromTouch(touch.clientX)
+                      if (val !== null) setUserRating(val)
                       setHoverRating(0)
+                      setTimeout(() => { isTouchRef.current = false }, 300)
                     }}
                   >
                     {[1, 2, 3, 4, 5].map((star) => {
@@ -680,18 +687,23 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
                           key={star}
                           type="button"
                           onClick={(e) => {
+                            if (isTouchRef.current) return
                             const rect = e.currentTarget.getBoundingClientRect()
                             const x = e.clientX - rect.left
                             const isLeftHalf = x < rect.width / 2
                             setUserRating(isLeftHalf ? star - 0.5 : star)
                           }}
                           onMouseMove={(e) => {
+                            if (isTouchRef.current) return
                             const rect = e.currentTarget.getBoundingClientRect()
                             const x = e.clientX - rect.left
                             const isLeftHalf = x < rect.width / 2
                             setHoverRating(isLeftHalf ? star - 0.5 : star)
                           }}
-                          onMouseLeave={() => setHoverRating(0)}
+                          onMouseLeave={() => {
+                            if (isTouchRef.current) return
+                            setHoverRating(0)
+                          }}
                           aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
                           style={{
                             background: "none",

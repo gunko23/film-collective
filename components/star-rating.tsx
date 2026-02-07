@@ -15,6 +15,7 @@ type StarRatingProps = {
 export function StarRating({ rating, onRatingChange, readonly = false, size = "md" }: StarRatingProps) {
   const [hoverRating, setHoverRating] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const isTouchRef = useRef(false)
   const isInteractive = !readonly && !!onRatingChange
 
   const displayRating = hoverRating ?? rating
@@ -42,8 +43,10 @@ export function StarRating({ rating, onRatingChange, readonly = false, size = "m
     return Math.max(0.5, Math.min(5, snapped))
   }, [])
 
+  // --- Mouse handlers (desktop only, guarded against touch) ---
+
   const handleMouseMove = (starIndex: number, e: React.MouseEvent) => {
-    if (!isInteractive) return
+    if (!isInteractive || isTouchRef.current) return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const isLeftHalf = x < rect.width / 2
@@ -51,34 +54,41 @@ export function StarRating({ rating, onRatingChange, readonly = false, size = "m
   }
 
   const handleClick = (starIndex: number, e: React.MouseEvent) => {
-    if (!isInteractive) return
+    if (!isInteractive || isTouchRef.current) return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const isLeftHalf = x < rect.width / 2
     onRatingChange(isLeftHalf ? starIndex + 0.5 : starIndex + 1)
   }
 
-  // Touch handlers for mobile: treat the star row as a slider
+  const handleMouseLeave = () => {
+    if (isTouchRef.current) return
+    setHoverRating(null)
+  }
+
+  // --- Touch handlers (mobile: star row acts as a slider) ---
+
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isInteractive) return
-    const touch = e.touches[0]
-    const val = getStarValueFromX(touch.clientX)
+    e.preventDefault()
+    isTouchRef.current = true
+    const val = getStarValueFromX(e.touches[0].clientX)
     if (val !== null) setHoverRating(val)
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isInteractive) return
-    const touch = e.touches[0]
-    const val = getStarValueFromX(touch.clientX)
+    const val = getStarValueFromX(e.touches[0].clientX)
     if (val !== null) setHoverRating(val)
   }
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
     if (!isInteractive) return
-    if (hoverRating !== null) {
-      onRatingChange(hoverRating)
-    }
+    const touch = e.changedTouches[0]
+    const val = getStarValueFromX(touch.clientX)
+    if (val !== null) onRatingChange(val)
     setHoverRating(null)
+    setTimeout(() => { isTouchRef.current = false }, 300)
   }
 
   return (
@@ -87,7 +97,7 @@ export function StarRating({ rating, onRatingChange, readonly = false, size = "m
       className={cn(
         "flex items-center",
         gapClasses[size],
-        isInteractive && "touch-none",
+        isInteractive && "touch-none select-none",
       )}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -102,7 +112,7 @@ export function StarRating({ rating, onRatingChange, readonly = false, size = "m
             className={cn("relative p-0.5", isInteractive && "cursor-pointer")}
             onClick={(e) => handleClick(starIndex, e)}
             onMouseMove={(e) => handleMouseMove(starIndex, e)}
-            onMouseLeave={() => isInteractive && setHoverRating(null)}
+            onMouseLeave={handleMouseLeave}
           >
             {/* Background star (empty) */}
             <Star className={cn(sizeClasses[size], "text-muted-foreground/30")} />

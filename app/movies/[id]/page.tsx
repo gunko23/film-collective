@@ -339,6 +339,7 @@ function StarRating({
 }) {
   const [hoverValue, setHoverValue] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  const isTouchRef = useRef(false)
   const isInteractive = !readonly && !!onChange
   const displayValue = hoverValue || value
 
@@ -365,7 +366,7 @@ function StarRating({
   }
 
   const handleMouseMove = (star: number, e: React.MouseEvent) => {
-    if (!isInteractive) return
+    if (!isInteractive || isTouchRef.current) return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const isLeftHalf = x < rect.width / 2
@@ -373,15 +374,22 @@ function StarRating({
   }
 
   const handleClick = (star: number, e: React.MouseEvent) => {
-    if (!isInteractive) return
+    if (!isInteractive || isTouchRef.current) return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const isLeftHalf = x < rect.width / 2
     onChange(isLeftHalf ? star - 0.5 : star)
   }
 
+  const handleMouseLeave = () => {
+    if (isTouchRef.current) return
+    setHoverValue(0)
+  }
+
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isInteractive) return
+    e.preventDefault()
+    isTouchRef.current = true
     const val = getStarValueFromX(e.touches[0].clientX)
     if (val !== null) setHoverValue(val)
   }
@@ -392,16 +400,19 @@ function StarRating({
     if (val !== null) setHoverValue(val)
   }
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
     if (!isInteractive) return
-    if (hoverValue > 0) onChange!(hoverValue)
+    const touch = e.changedTouches[0]
+    const val = getStarValueFromX(touch.clientX)
+    if (val !== null) onChange!(val)
     setHoverValue(0)
+    setTimeout(() => { isTouchRef.current = false }, 300)
   }
 
   return (
     <div
       ref={containerRef}
-      className={`flex justify-center gap-1 lg:gap-2.5 ${isInteractive ? "touch-none" : ""}`}
+      className={`flex justify-center gap-1 lg:gap-2.5 ${isInteractive ? "touch-none select-none" : ""}`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -415,7 +426,7 @@ function StarRating({
             type="button"
             onClick={(e) => handleClick(star, e)}
             onMouseMove={(e) => handleMouseMove(star, e)}
-            onMouseLeave={() => isInteractive && setHoverValue(0)}
+            onMouseLeave={handleMouseLeave}
             disabled={!isInteractive}
             className={`relative ${sizeClasses[size]} transition-transform ${paddingClasses[size]}`}
             style={{
