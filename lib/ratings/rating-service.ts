@@ -125,6 +125,17 @@ export async function upsertRating(params: {
   return transformRating(result[0])
 }
 
+// Delete a user's rating for a movie by TMDB ID
+export async function deleteRatingByTmdbId(userId: string, tmdbMovieId: number): Promise<boolean> {
+  const result = await sql`
+    DELETE FROM user_movie_ratings
+    WHERE user_id = ${userId}
+      AND movie_id IN (SELECT id FROM movies WHERE tmdb_id = ${tmdbMovieId})
+    RETURNING id
+  `
+  return result.length > 0
+}
+
 // Get a user's rating for a movie
 export async function getUserRating(userId: string, movieId: string): Promise<UserRating | null> {
   const result = await sql`
