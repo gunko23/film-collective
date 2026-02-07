@@ -119,15 +119,19 @@ export function DashboardActivityItem({ activity }: { activity: Activity }) {
 
         {activity.activity_type === "rating" && activity.score != null && activity.score > 0 && (
           <div className="flex gap-0.5 mb-1.5 lg:mb-2 items-center">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <span
-                key={s}
-                className="text-xs lg:text-sm"
-                style={{ color: s <= Math.floor(activity.score! / 20) ? "#ff6b2d" : "rgba(107,99,88,0.2)" }}
-              >
-                ★
-              </span>
-            ))}
+            {[1, 2, 3, 4, 5].map((s) => {
+              const starValue = activity.score! / 20
+              const isFull = starValue >= s
+              const isHalf = !isFull && starValue >= s - 0.5
+              return (
+                <span key={s} className="relative text-xs lg:text-sm" style={{ color: isFull ? "#ff6b2d" : "rgba(107,99,88,0.2)" }}>
+                  ★
+                  {isHalf && (
+                    <span className="absolute inset-0 overflow-hidden" style={{ width: "50%", color: "#ff6b2d" }}>★</span>
+                  )}
+                </span>
+              )
+            })}
             <span className="text-xs lg:text-sm font-semibold ml-1" style={{ color: "#ff6b2d" }}>
               {(activity.score / 20).toFixed(1)}
             </span>

@@ -105,8 +105,19 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
   const modalRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ratingContainerRef = useRef<HTMLDivElement>(null)
 
   const displayRating = hoverRating || userRating
+
+  const getStarFromTouch = useCallback((clientX: number) => {
+    const container = ratingContainerRef.current
+    if (!container) return null
+    const rect = container.getBoundingClientRect()
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width))
+    const raw = (x / rect.width) * 5
+    const snapped = Math.round(raw * 2) / 2
+    return Math.max(0.5, Math.min(5, snapped))
+  }, [])
 
   // ---- Fetch user's existing ratings + trending films on open ----------------
 
@@ -640,36 +651,68 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
                   </p>
 
                   <div
+                    ref={ratingContainerRef}
                     style={{
                       display: "flex",
                       justifyContent: "center",
                       gap: "8px",
                       marginBottom: "8px",
+                      touchAction: "none",
+                    }}
+                    onTouchStart={(e) => {
+                      const val = getStarFromTouch(e.touches[0].clientX)
+                      if (val !== null) setHoverRating(val)
+                    }}
+                    onTouchMove={(e) => {
+                      const val = getStarFromTouch(e.touches[0].clientX)
+                      if (val !== null) setHoverRating(val)
+                    }}
+                    onTouchEnd={() => {
+                      if (hoverRating > 0) setUserRating(hoverRating)
+                      setHoverRating(0)
                     }}
                   >
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setUserRating(star)}
-                        onMouseEnter={() => setHoverRating(star)}
-                        onMouseLeave={() => setHoverRating(0)}
-                        aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: "4px",
-                          fontSize: "36px",
-                          lineHeight: 1,
-                          color: star <= displayRating ? colors.accent : `${colors.cream}20`,
-                          transform: star <= displayRating ? "scale(1.1)" : "scale(1)",
-                          transition: "all 0.15s ease",
-                        }}
-                      >
-                        ★
-                      </button>
-                    ))}
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const isFull = displayRating >= star
+                      const isHalf = !isFull && displayRating >= star - 0.5
+                      return (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            const x = e.clientX - rect.left
+                            const isLeftHalf = x < rect.width / 2
+                            setUserRating(isLeftHalf ? star - 0.5 : star)
+                          }}
+                          onMouseMove={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            const x = e.clientX - rect.left
+                            const isLeftHalf = x < rect.width / 2
+                            setHoverRating(isLeftHalf ? star - 0.5 : star)
+                          }}
+                          onMouseLeave={() => setHoverRating(0)}
+                          aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: "4px",
+                            fontSize: "36px",
+                            lineHeight: 1,
+                            color: isFull ? colors.accent : `${colors.cream}20`,
+                            transform: isFull ? "scale(1.1)" : "scale(1)",
+                            transition: "all 0.15s ease",
+                            position: "relative" as const,
+                          }}
+                        >
+                          ★
+                          {isHalf && (
+                            <span style={{ position: "absolute", inset: 0, overflow: "hidden", width: "50%", color: colors.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>★</span>
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
                   <p
                     style={{
@@ -855,17 +898,25 @@ export function LogFilmModal({ isOpen, onClose, onSuccess, recentFilms }: LogFil
                   {selectedFilm.title} — {userRating} out of 5
                 </p>
                 <div style={{ display: "flex", justifyContent: "center", gap: "4px", marginTop: "12px" }}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <span
-                      key={star}
-                      style={{
-                        fontSize: "24px",
-                        color: star <= userRating ? colors.accent : `${colors.cream}20`,
-                      }}
-                    >
-                      ★
-                    </span>
-                  ))}
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const isFull = userRating >= star
+                    const isHalf = !isFull && userRating >= star - 0.5
+                    return (
+                      <span
+                        key={star}
+                        style={{
+                          fontSize: "24px",
+                          color: isFull ? colors.accent : `${colors.cream}20`,
+                          position: "relative" as const,
+                        }}
+                      >
+                        ★
+                        {isHalf && (
+                          <span style={{ position: "absolute", inset: 0, overflow: "hidden", width: "50%", color: colors.accent }}>★</span>
+                        )}
+                      </span>
+                    )
+                  })}
                 </div>
               </div>
             )}

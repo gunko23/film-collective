@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useRef, useCallback } from "react"
 import { cn } from "@/lib/utils"
 
 type StarRatingSize = "sm" | "md" | "lg"
@@ -22,7 +22,7 @@ const containerGap: Record<StarRatingSize, string> = {
 }
 
 const starSize: Record<StarRatingSize, string> = {
-  sm: "text-lg p-0.5",
+  sm: "text-xl p-0.5",
   md: "text-2xl p-1",
   lg: "text-[32px] p-2",
 }
@@ -42,9 +42,21 @@ export function StarRating({
   className,
 }: StarRatingProps) {
   const [hoverValue, setHoverValue] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isInteractive = !readonly && !!onChange
 
   const displayValue = hoverValue ?? value
-  const isInteractive = !readonly && !!onChange
+
+  // Calculate star value (0.5–5) from X position across the star row
+  const getStarValueFromX = useCallback((clientX: number) => {
+    const container = containerRef.current
+    if (!container) return null
+    const rect = container.getBoundingClientRect()
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width))
+    const raw = (x / rect.width) * 5
+    const snapped = Math.round(raw * 2) / 2
+    return Math.max(0.5, Math.min(5, snapped))
+  }, [])
 
   const handleMouseMove = (star: number, e: React.MouseEvent<HTMLButtonElement>) => {
     if (!isInteractive) return
@@ -62,9 +74,42 @@ export function StarRating({
     onChange(isLeftHalf ? star - 0.5 : star)
   }
 
+  // Touch handlers for mobile: treat the star row as a slider
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isInteractive) return
+    const touch = e.touches[0]
+    const val = getStarValueFromX(touch.clientX)
+    if (val !== null) setHoverValue(val)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isInteractive) return
+    const touch = e.touches[0]
+    const val = getStarValueFromX(touch.clientX)
+    if (val !== null) setHoverValue(val)
+  }
+
+  const handleTouchEnd = () => {
+    if (!isInteractive) return
+    if (hoverValue !== null) {
+      onChange(hoverValue)
+    }
+    setHoverValue(null)
+  }
+
   return (
     <div className={cn("flex items-center", className)}>
-      <div className={cn("flex items-center", containerGap[size])}>
+      <div
+        ref={containerRef}
+        className={cn(
+          "flex items-center",
+          containerGap[size],
+          isInteractive && "touch-none",
+        )}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {[1, 2, 3, 4, 5].map((star) => {
           const isFilled = displayValue >= star
           const isHalf = !isFilled && displayValue >= star - 0.5

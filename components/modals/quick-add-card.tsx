@@ -69,17 +69,25 @@ export function QuickAddCard({
       <p style={{ fontSize: "12px", fontWeight: 500, color: colors.cream }}>{film.title}</p>
       {hasRating ? (
         <div style={{ display: "flex", gap: "1px", marginTop: "2px" }}>
-          {[1, 2, 3, 4, 5].map((s) => (
-            <span
-              key={s}
-              style={{
-                fontSize: "10px",
-                color: s <= Math.round(existingRating!) ? colors.accent : `${colors.cream}15`,
-              }}
-            >
-              ★
-            </span>
-          ))}
+          {[1, 2, 3, 4, 5].map((s) => {
+            const isFull = existingRating! >= s
+            const isHalf = !isFull && existingRating! >= s - 0.5
+            return (
+              <span
+                key={s}
+                style={{
+                  fontSize: "10px",
+                  color: isFull ? colors.accent : `${colors.cream}15`,
+                  position: "relative" as const,
+                }}
+              >
+                ★
+                {isHalf && (
+                  <span style={{ position: "absolute", inset: 0, overflow: "hidden", width: "50%", color: colors.accent }}>★</span>
+                )}
+              </span>
+            )
+          })}
         </div>
       ) : (
         <p style={{ fontSize: "11px", color: colors.textMuted }}>{extractYear(film.releaseDate)}</p>

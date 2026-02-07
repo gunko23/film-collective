@@ -80,17 +80,25 @@ export function SearchResultRow({
         {hasRating && (
           <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "4px" }}>
             <div style={{ display: "flex", gap: "1px" }}>
-              {[1, 2, 3, 4, 5].map((s) => (
-                <span
-                  key={s}
-                  style={{
-                    fontSize: "11px",
-                    color: s <= Math.round(existingRating!) ? colors.accent : `${colors.cream}15`,
-                  }}
-                >
-                  ★
-                </span>
-              ))}
+              {[1, 2, 3, 4, 5].map((s) => {
+                const isFull = existingRating! >= s
+                const isHalf = !isFull && existingRating! >= s - 0.5
+                return (
+                  <span
+                    key={s}
+                    style={{
+                      fontSize: "11px",
+                      color: isFull ? colors.accent : `${colors.cream}15`,
+                      position: "relative" as const,
+                    }}
+                  >
+                    ★
+                    {isHalf && (
+                      <span style={{ position: "absolute", inset: 0, overflow: "hidden", width: "50%", color: colors.accent }}>★</span>
+                    )}
+                  </span>
+                )
+              })}
             </div>
             <span style={{ fontSize: "11px", color: colors.textMuted }}>Rated</span>
           </div>
