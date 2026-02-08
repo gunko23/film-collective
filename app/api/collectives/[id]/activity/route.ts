@@ -126,6 +126,33 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         LEFT JOIN tv_shows ts ON utsr.tv_show_id = ts.id
         LEFT JOIN users ru ON COALESCE(umr.user_id, utsr.user_id) = ru.id
         WHERE fr.collective_id = ${collectiveId}::uuid
+
+        UNION ALL
+
+        -- Movie discussion comments
+        SELECT
+          'discussion' as activity_type,
+          mc.id as activity_id,
+          mc.created_at,
+          u.id as actor_id,
+          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as actor_name,
+          u.avatar_url as actor_avatar,
+          mc.tmdb_id,
+          COALESCE(m.title, ts.name, 'Unknown') as media_title,
+          COALESCE(m.poster_path, ts.poster_path) as poster_path,
+          mc.media_type,
+          NULL as score,
+          mc.content,
+          NULL as reaction_type,
+          mc.collective_id,
+          ${collectiveName} as collective_name,
+          NULL as rating_id,
+          NULL as target_user_name
+        FROM movie_comments mc
+        JOIN users u ON mc.user_id = u.id
+        LEFT JOIN movies m ON mc.tmdb_id = m.tmdb_id AND mc.media_type = 'movie'
+        LEFT JOIN tv_shows ts ON mc.tmdb_id = ts.id AND mc.media_type = 'tv'
+        WHERE mc.collective_id = ${collectiveId}::uuid
       ) combined
       ORDER BY created_at DESC
       LIMIT ${limit}

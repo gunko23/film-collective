@@ -26,7 +26,7 @@ export function getUserGradient(name: string): [string, string] {
 }
 
 export type Activity = {
-  activity_type: "rating" | "comment" | "reaction"
+  activity_type: "rating" | "comment" | "reaction" | "discussion"
   activity_id: string
   created_at: string
   actor_id: string
@@ -91,6 +91,13 @@ export function DashboardActivityItem({ activity }: { activity: Activity }) {
             {activity.target_user_name && (
               <><span className="font-medium">{activity.target_user_name}&apos;s</span><span className="text-cream-muted"> review of </span></>
             )}
+            <span className="font-medium">{activity.media_title}</span>
+          </>
+        )
+      case "discussion":
+        return (
+          <>
+            <span className="text-cream-muted"> commented on </span>
             <span className="font-medium">{activity.media_title}</span>
           </>
         )
