@@ -1359,10 +1359,10 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
     filteredMovies.push(movie)
 
-    if (filteredMovies.length >= 10) break
+    if (filteredMovies.length >= 5) break
   }
 
-  const finalResults = filteredMovies.slice(0, 10)
+  const finalResults = filteredMovies.slice(0, 5)
   t6.done()
 
   // Background OMDb fetch for final results (complements the top-50 pre-fetch after Phase 4)

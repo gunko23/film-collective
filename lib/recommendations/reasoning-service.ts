@@ -291,10 +291,9 @@ Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": 
  * Generate LLM reasoning for recommendations.
  *
  * Architecture:
- * - Cap at 4 total parallel LLM calls to avoid API rate limits
- * - Summaries: 2 batches of 5 movies each
- * - Enrichment: up to 2 batches (split uncached movies in half), cached to DB
- * - Everything fires in parallel: 2 summary + up to 2 enrichment = max 4 calls
+ * - Summaries: 1 batch of 5 movies
+ * - Enrichment: 1 batch for uncached movies, cached to DB after first generation
+ * - Both fire in parallel: 2 total LLM calls max
  */
 export async function generateRecommendationReasoning(
   input: ReasoningInput
