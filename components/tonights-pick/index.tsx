@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { TonightsPickLoading } from "@/components/tonights-pick-loading"
 import { C, FONT_STACK } from "./constants"
 import { IconLoader } from "./icons"
@@ -11,6 +11,7 @@ import { MembersStep } from "./members-step"
 import { MoodFiltersStep } from "./mood-filters-step"
 import { ResultsStep } from "./results-step"
 import { BottomActionBar } from "./bottom-action-bar"
+import { useReasoningChannel } from "@/hooks/use-reasoning-channel"
 import type { GroupMember, TonightPickResponse, Mood, ContentLevel } from "./types"
 
 type Props = {
@@ -32,6 +33,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [results, setResults] = useState<TonightPickResponse | null>(null)
+  const [reasoningChannel, setReasoningChannel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resultsPage, setResultsPage] = useState(1)
 
@@ -41,6 +43,18 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
   const [maxSubstances, setMaxSubstances] = useState<ContentLevel>(null)
   const [maxFrightening, setMaxFrightening] = useState<ContentLevel>(null)
   const [showContentFilters, setShowContentFilters] = useState(true)
+
+  // Subscribe to reasoning channel for streaming LLM reasoning
+  const { applyReasoning, isLoading: reasoningLoading } = useReasoningChannel(reasoningChannel)
+
+  // Enrich results with streamed reasoning data
+  const enrichedResults = useMemo(() => {
+    if (!results) return null
+    return {
+      ...results,
+      recommendations: applyReasoning(results.recommendations),
+    }
+  }, [results, applyReasoning])
 
   // Fetch members on mount
   useEffect(() => {
@@ -122,6 +136,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
 
       const data = await res.json()
       setResults(data)
+      setReasoningChannel(data.reasoningChannel || null)
       setResultsPage(page)
       setStep("results")
     } catch (err) {
@@ -292,8 +307,8 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
           )}
 
           {/* STEP 3: RESULTS */}
-          {step === "results" && results && (
-            <ResultsStep results={results} />
+          {step === "results" && enrichedResults && (
+            <ResultsStep results={enrichedResults} reasoningLoading={reasoningLoading} />
           )}
         </div>
       </div>

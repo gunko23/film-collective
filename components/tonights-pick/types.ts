@@ -53,6 +53,7 @@ export type TonightPickResponse = {
     sharedGenres: GenrePreference[]
     totalRatings: number
   }
+  reasoningChannel?: string
 }
 
 export type Mood = "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | null

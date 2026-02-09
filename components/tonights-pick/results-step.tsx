@@ -24,7 +24,7 @@ function GenreTag({ label }: { label: string }) {
   )
 }
 
-export function ResultsStep({ results }: { results: TonightPickResponse }) {
+export function ResultsStep({ results, reasoningLoading }: { results: TonightPickResponse; reasoningLoading?: boolean }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {/* Recommendations header card */}
@@ -133,7 +133,7 @@ export function ResultsStep({ results }: { results: TonightPickResponse }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {results.recommendations.map((movie, index) => (
-            <RecommendationCard key={movie.tmdbId} movie={movie} index={index} />
+            <RecommendationCard key={movie.tmdbId} movie={movie} index={index} reasoningLoading={reasoningLoading} />
           ))}
         </div>
       )}

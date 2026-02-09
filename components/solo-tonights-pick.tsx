@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { TonightsPickLoading } from "@/components/tonights-pick-loading"
 import { C } from "@/components/tonights-pick/constants"
 import { IconChevronLeft, IconUsers, IconFilm } from "@/components/tonights-pick/icons"
 import { IconCheck } from "@/components/tonights-pick/icons"
 import { MoodFiltersStep } from "@/components/tonights-pick/mood-filters-step"
 import { RecommendationCard } from "@/components/tonights-pick/recommendation-card"
+import { useReasoningChannel } from "@/hooks/use-reasoning-channel"
 import type { GenrePreference, MovieRecommendation, Mood, ContentLevel } from "@/components/tonights-pick/types"
 
 // ── Solo-specific types ──
@@ -16,6 +17,7 @@ type SoloPickResponse = {
     sharedGenres: GenrePreference[]
     totalRatings: number
   }
+  reasoningChannel?: string
 }
 
 // ── Solo Step Indicator (2-step: Mood -> Results) ──
@@ -147,8 +149,18 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
   const [streamingProviders, setStreamingProviders] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<SoloPickResponse | null>(null)
+  const [reasoningChannel, setReasoningChannel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resultsPage, setResultsPage] = useState(1)
+
+  // Subscribe to reasoning channel for streaming LLM reasoning
+  const { applyReasoning, isLoading: reasoningLoading } = useReasoningChannel(reasoningChannel)
+
+  // Enrich results with streamed reasoning data
+  const enrichedRecommendations = useMemo(() => {
+    if (!results) return []
+    return applyReasoning(results.recommendations)
+  }, [results, applyReasoning])
 
   const [maxViolence, setMaxViolence] = useState<ContentLevel>(null)
   const [maxSexNudity, setMaxSexNudity] = useState<ContentLevel>(null)
@@ -210,6 +222,7 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
 
       const data = await res.json()
       setResults(data)
+      setReasoningChannel(data.reasoningChannel || null)
       setResultsPage(page)
       setStep("results")
     } catch (err) {
@@ -320,7 +333,7 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
           <UserProfileSummary userProfile={results.userProfile} />
 
           {/* Recommendations List */}
-          {results.recommendations.length === 0 ? (
+          {enrichedRecommendations.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px 0" }}>
               <div style={{ margin: "0 auto 16px", display: "flex", justifyContent: "center" }}>
                 <IconFilm size={24} color={C.creamMuted} />
@@ -332,8 +345,8 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {results.recommendations.map((movie, index) => (
-                <RecommendationCard key={movie.tmdbId} movie={movie} index={index} />
+              {enrichedRecommendations.map((movie, index) => (
+                <RecommendationCard key={movie.tmdbId} movie={movie} index={index} reasoningLoading={reasoningLoading} />
               ))}
             </div>
           )}
