@@ -1,8 +1,23 @@
 import Anthropic from "@anthropic-ai/sdk"
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db"
 import type { MovieRecommendation } from "./recommendation-service"
 
-const sql = neon(process.env.DATABASE_URL!)
+function timer(label: string) {
+  const start = Date.now()
+  return {
+    done: () => {
+      const ms = Date.now() - start
+      console.log(`[Perf] ${label}: ${ms}ms`)
+      return ms
+    }
+  }
+}
+
+function getAnthropicClient(): Anthropic | null {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return null
+  return new Anthropic({ apiKey })
+}
 
 // ============================================
 // Taste Context Queries
@@ -49,7 +64,7 @@ export async function getDislikedMovies(memberIds: string[]): Promise<TasteMovie
 }
 
 // ============================================
-// LLM Reasoning Generation
+// Types
 // ============================================
 
 type ReasoningInput = {
@@ -59,6 +74,7 @@ type ReasoningInput = {
   mood: string | null
   soloMode: boolean
   memberCount: number
+  collectiveInfluence?: Map<number, { avgScore: number; raterCount: number; raterNames: string[] }>
 }
 
 type ReasoningResult = {
@@ -71,136 +87,319 @@ type ReasoningResult = {
   parentalSummary?: string
 }
 
-export async function generateRecommendationReasoning(
-  input: ReasoningInput
-): Promise<Map<number, ReasoningResult>> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    console.warn("[LLM Reasoning] ANTHROPIC_API_KEY not set, using template reasoning")
+type SummaryContext = {
+  audienceLabel: string
+  lovedList: string
+  mood: string | null
+  soloMode: boolean
+  collectiveInfluence?: Map<number, { avgScore: number; raterCount: number; raterNames: string[] }>
+}
+
+// ============================================
+// Cached Enrichment (pairings + parental)
+// ============================================
+
+/**
+ * Load cached LLM-generated pairings and parental summaries from the movies table.
+ */
+async function getCachedEnrichment(
+  tmdbIds: number[]
+): Promise<Map<number, { pairings: any; parentalSummary: string }>> {
+  if (tmdbIds.length === 0) return new Map()
+  try {
+    const rows = await sql`
+      SELECT tmdb_id, llm_pairings, llm_parental_summary
+      FROM movies
+      WHERE tmdb_id = ANY(${tmdbIds}::int[])
+        AND llm_enriched_at IS NOT NULL
+        AND llm_pairings IS NOT NULL
+    `
+    const map = new Map<number, { pairings: any; parentalSummary: string }>()
+    for (const row of rows) {
+      map.set(Number(row.tmdb_id), {
+        pairings: row.llm_pairings,
+        parentalSummary: row.llm_parental_summary || "",
+      })
+    }
+    return map
+  } catch (e) {
+    console.error("[LLM Cache] Error loading cached enrichment:", e)
     return new Map()
   }
+}
 
-  const anthropic = new Anthropic({ apiKey })
-  const { recommendations, lovedMovies, dislikedMovies, mood, soloMode, memberCount } = input
+// ============================================
+// Summary Generation (personalized, batched)
+// ============================================
 
-  const audienceLabel = soloMode ? "this user" : `this group of ${memberCount}`
+/**
+ * Generate ONLY personalized 1-2 sentence summaries for a small batch of movies (2).
+ * This is the fast path — small prompt, small response.
+ */
+async function generateSummaryBatch(
+  client: Anthropic,
+  batch: MovieRecommendation[],
+  ctx: SummaryContext
+): Promise<Map<number, string>> {
+  const systemPrompt = `You are a passionate film curator for Film Collective writing personalized pitches for movies you are recommending tonight. Every movie in this list has ALREADY been selected as a top recommendation for this audience — your job is to sell each one enthusiastically.
 
-  const lovedList = lovedMovies
-    .slice(0, 15)
-    .map(m => `${m.title} (rated ${m.avgScore}/100)`)
-    .join(", ")
+CRITICAL RULES:
+- You MUST write a positive, enthusiastic 1-2 sentence pitch for EVERY movie. No exceptions.
+- NEVER dismiss, criticize, or discourage watching any movie on this list.
+- NEVER compare a movie unfavorably to the audience's favorites.
+- NEVER say things like "skip this", "not for you", "lacks", "falls short", "hollow", "generic", or any negative framing.
+- NEVER reference the audience's disliked movies.
+- Find the genuine appeal of each movie — exciting set pieces, fun performances, great pacing, visual spectacle, crowd-pleasing moments, a perfect popcorn movie, etc.
+- When friends from their collective loved a movie, lead with that social connection and name them.
+- Reference specific things that make the movie worth watching: standout performances, memorable scenes, unique tone, bold style.
+- Even for big blockbusters or genre films, find what makes them genuinely entertaining.
 
-  const dislikedList = dislikedMovies
-    .slice(0, 8)
-    .map(m => `${m.title} (rated ${m.avgScore}/100)`)
-    .join(", ")
+Respond with ONLY a JSON object, no markdown or backticks.`
 
-  const movieList = recommendations.map((m, i) => {
-    const year = m.releaseDate ? new Date(m.releaseDate).getFullYear() : "Unknown"
-    return [
-      `[${i + 1}] "${m.title}" (${year})`,
-      `   Genres: ${m.genres.map(g => g.name).join(", ")}`,
-      `   TMDB: ${m.voteAverage}/10 | Fit Score: ${m.groupFitScore}/100`,
-      `   Overview: ${m.overview.slice(0, 200)}`,
-      m.seenBy.length > 0 ? `   Already seen by some members` : null,
-      `   System reasoning: ${m.reasoning.join("; ")}`,
-    ].filter(Boolean).join("\n")
-  }).join("\n\n")
+  const movieLines = batch.map((m, i) => {
+    const year = m.releaseDate ? m.releaseDate.slice(0, 4) : "Unknown"
+    const genres = m.genres.map(g => g.name).join(", ")
+    const influence = ctx.collectiveInfluence?.get(m.tmdbId)
+    const friendLine = influence
+      ? `\n   Friends: ${influence.raterNames.slice(0, 3).join(", ")} loved this (avg ${influence.avgScore}/100)`
+      : ""
+    const seenLine = m.seenBy.length > 0
+      ? `\n   Some members have seen this`
+      : ""
+    return `${i + 1}. "${m.title}" (${year}) — ${genres}${friendLine}${seenLine}`
+  }).join("\n")
 
-  const systemPrompt = `You are a passionate film curator for Film Collective, a social movie app. Your job is to SELL each recommended movie — find the most compelling angle that would make this specific audience excited to watch it tonight. You are enthusiastic, specific, and persuasive. Never say a movie doesn't fit, doesn't align, or might not match their taste. Every movie on this list earned its spot — your job is to make them want to press play. Respond with ONLY a JSON object. No markdown, no backticks, no preamble.`
+  const userPrompt = `Audience: ${ctx.audienceLabel}
+Loves: ${ctx.lovedList || "Not enough ratings yet"}
+${ctx.mood ? `Mood: ${ctx.mood}` : "No specific mood"}
 
-  const userPrompt = `## Taste Profile for ${audienceLabel}
+Movies:
+${movieLines}
 
-**Movies they love:** ${lovedList || "Not enough ratings yet"}
+${ctx.soloMode ? 'Address the user as "you".' : 'Address the group as "your group" or "you all".'}
 
-**Movies they disliked:** ${dislikedList || "None recorded"}
-
-${mood ? `**Current mood:** ${mood}` : "**No specific mood selected**"}
-
-## Recommended Movies
-
-${movieList}
-
-## Instructions
-
-For each movie, provide:
-
-1. **Summary** (1-2 sentences): SELL it to this audience.
-   - Find the most exciting connection to movies they already love
-   - Reference specific qualities: a standout performance, a bold directorial choice, an unforgettable scene, a unique narrative structure, a tone that hooks you
-   - Be enthusiastic and specific, like a trusted friend who just watched it
-   - NEVER say a movie doesn't fit, doesn't align, might disappoint, or isn't a match
-   - NEVER use generic filler like "highly acclaimed", "well-regarded", "critically praised", or "a must-watch"
-   - If some group members have seen it, frame it as a positive
-   - Keep it to 1-2 punchy sentences
-   - ${soloMode ? 'Address the user as "you"' : 'Address the group as "your group" or "you all"'}
-
-2. **Tonight's Concession Stand** — three pairings:
-   - One signature **cocktail** inspired by the film's setting, mood, or themes
-   - One **zero-proof** (non-alcoholic) drink inspired by the film
-   - One themed **snack** that complements the viewing experience
-   For each pairing, give it a fun creative name and a one-line description (under 15 words) of why it fits the movie.
-
-3. **Parental summary** — a brief 1-2 sentence content advisory (e.g., "Stylized violence, mild language, brief frightening sequences. Suitable for teens 13+."). If the movie is suitable for all ages, say so.
-
-Respond in this exact JSON format:
-{
-  "1": {
-    "summary": "your recommendation summary text",
-    "pairings": {
-      "cocktail": { "name": "Drink Name", "desc": "one-line description" },
-      "zeroproof": { "name": "Drink Name", "desc": "one-line description" },
-      "snack": { "name": "Snack Name", "desc": "one-line description" }
-    },
-    "parentalSummary": "Brief content advisory"
-  },
-  "2": { ... }
-}`
+Respond: {"1": "summary text", "2": "summary text", ...}`
 
   try {
-    const response = await anthropic.messages.create({
+    const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 4000,
-      system: [
-        {
-          type: "text",
-          text: systemPrompt,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
+      max_tokens: Math.max(300, batch.length * 120),
+      system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     })
 
     const text = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === "text")
-      .map(block => block.text)
-      .join("")
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map(b => b.text).join("")
 
-    // Parse JSON — strip markdown fences if present
+    const cleaned = text.replace(/```json\s?|```/g, "").trim()
+    const parsed = JSON.parse(cleaned) as Record<string, string>
+
+    const result = new Map<number, string>()
+    for (const [indexStr, summary] of Object.entries(parsed)) {
+      const idx = parseInt(indexStr) - 1
+      if (idx >= 0 && idx < batch.length && typeof summary === "string") {
+        result.set(batch[idx].tmdbId, summary)
+      }
+    }
+    return result
+  } catch (error) {
+    console.error("[LLM Summary Batch] Error:", error)
+    return new Map()
+  }
+}
+
+// ============================================
+// Enrichment Generation (pairings + parental, cached to DB)
+// ============================================
+
+/**
+ * Generate pairings + parental for a batch of movies (1-5).
+ * Results are cached to the movies table via fire-and-forget.
+ */
+async function _generateEnrichmentBatch(
+  client: Anthropic,
+  batch: MovieRecommendation[]
+): Promise<Map<number, { pairings: any; parentalSummary: string }>> {
+
+  const systemPrompt = `You are a creative film curator. For each movie, provide themed food and drink pairings and a brief parental content advisory. Respond with ONLY a JSON object, no markdown or backticks.`
+
+  const movieLines = batch.map((m, i) => {
+    const year = m.releaseDate ? m.releaseDate.slice(0, 4) : "Unknown"
+    const genres = m.genres?.map((g: any) => g.name).join(", ") || "Unknown"
+    return `${i + 1}. "${m.title}" (${year}) — ${genres}`
+  }).join("\n")
+
+  const userPrompt = `Movies:
+${movieLines}
+
+For each movie provide:
+1. A signature cocktail inspired by the film (creative name + one-line description under 15 words)
+2. A zero-proof drink inspired by the film (creative name + one-line description under 15 words)
+3. A themed snack (creative name + one-line description under 15 words)
+4. A parental content advisory (1-2 sentences)
+
+Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": {"name": "", "desc": ""}, "snack": {"name": "", "desc": ""}}, "parentalSummary": "..."}, ...}`
+
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: Math.max(400, batch.length * 250),
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    })
+
+    const text = response.content
+      .filter((b: any) => b.type === "text")
+      .map((b: any) => b.text).join("")
+
     const cleaned = text.replace(/```json\s?|```/g, "").trim()
     const parsed = JSON.parse(cleaned) as Record<string, any>
 
-    const result = new Map<number, ReasoningResult>()
+    const result = new Map<number, { pairings: any; parentalSummary: string }>()
     for (const [indexStr, value] of Object.entries(parsed)) {
       const idx = parseInt(indexStr) - 1
-      if (idx >= 0 && idx < recommendations.length) {
-        if (typeof value === "string") {
-          // Backwards-compatible: plain string reasoning
-          result.set(recommendations[idx].tmdbId, { summary: value })
-        } else if (value && typeof value === "object" && typeof value.summary === "string") {
-          result.set(recommendations[idx].tmdbId, {
-            summary: value.summary,
-            pairings: value.pairings || undefined,
-            parentalSummary: value.parentalSummary || undefined,
-          })
-        }
+      if (idx >= 0 && idx < batch.length && value && typeof value === "object") {
+        const tmdbId = batch[idx].tmdbId
+        const pairings = value.pairings || null
+        const parentalSummary = value.parentalSummary || ""
+
+        result.set(tmdbId, { pairings, parentalSummary })
+
+        // Fire-and-forget DB cache write
+        sql`
+          UPDATE movies
+          SET llm_pairings = ${JSON.stringify(pairings)}::jsonb,
+              llm_parental_summary = ${parentalSummary},
+              llm_enriched_at = NOW()
+          WHERE tmdb_id = ${tmdbId}
+        `.catch((e: any) => console.error(`[LLM Cache] Error caching enrichment for ${tmdbId}:`, e))
       }
     }
-
-    console.log(`[LLM Reasoning] Generated reasoning for ${result.size}/${recommendations.length} movies`)
     return result
   } catch (error) {
-    console.error("[LLM Reasoning] Failed, falling back to template reasoning:", error)
+    console.error("[LLM Enrichment Batch] Error:", error)
     return new Map()
   }
+}
+
+// ============================================
+// Main Orchestrator
+// ============================================
+
+/**
+ * Generate LLM reasoning for recommendations.
+ *
+ * Architecture:
+ * - Summaries: 1 batch of 5 movies
+ * - Enrichment: 1 batch for uncached movies, cached to DB after first generation
+ * - Both fire in parallel: 2 total LLM calls max
+ */
+export async function generateRecommendationReasoning(
+  input: ReasoningInput
+): Promise<Map<number, ReasoningResult>> {
+  const totalTimer = timer("generateRecommendationReasoning TOTAL")
+  const client = getAnthropicClient()
+  if (!client) {
+    console.warn("[LLM Reasoning] ANTHROPIC_API_KEY not set")
+    totalTimer.done()
+    return new Map()
+  }
+
+  const { recommendations, lovedMovies, dislikedMovies, mood,
+          soloMode, memberCount, collectiveInfluence } = input
+
+  // Step 1: Load cached enrichment (pairings + parental) for all 10 movies
+  const tCache = timer("LLM: Load cached enrichment")
+  const cachedEnrichment = await getCachedEnrichment(
+    recommendations.map(r => r.tmdbId)
+  )
+  tCache.done()
+
+  // Step 2: Identify movies that need enrichment (no cached pairings)
+  const needsEnrichment = recommendations.filter(
+    r => !cachedEnrichment.has(r.tmdbId)
+  )
+  console.log(`[Perf] LLM: ${cachedEnrichment.size} cached, ${needsEnrichment.length} need enrichment`)
+
+  // Step 3: Build trimmed taste context for summary generation
+  const audienceLabel = soloMode ? "you" : `your group of ${memberCount}`
+  const lovedList = lovedMovies.slice(0, 8)
+    .map(m => `${m.title} (${m.avgScore})`).join(", ")
+  const summaryContext: SummaryContext = {
+    audienceLabel,
+    lovedList,
+    mood,
+    soloMode,
+    collectiveInfluence,
+  }
+
+  // Cap at 4 total parallel LLM calls to avoid API rate limits
+  // Split: 2 summary batches + 2 enrichment batches (or fewer if not needed)
+
+  // Summary batches: split 10 movies into 2 batches of 5
+  const SUMMARY_BATCH_SIZE = 5
+  const summaryBatches: MovieRecommendation[][] = []
+  for (let i = 0; i < recommendations.length; i += SUMMARY_BATCH_SIZE) {
+    summaryBatches.push(recommendations.slice(i, i + SUMMARY_BATCH_SIZE))
+  }
+
+  // Enrichment batches: split uncached movies into 2 batches (max)
+  const enrichmentBatches: MovieRecommendation[][] = []
+  if (needsEnrichment.length > 0) {
+    const ENRICH_BATCH_SIZE = Math.ceil(needsEnrichment.length / 2)
+    for (let i = 0; i < needsEnrichment.length; i += ENRICH_BATCH_SIZE) {
+      enrichmentBatches.push(needsEnrichment.slice(i, i + ENRICH_BATCH_SIZE))
+    }
+  }
+
+  console.log(`[Perf] LLM: Firing ${summaryBatches.length} summary batches + ${enrichmentBatches.length} enrichment batches (${summaryBatches.length + enrichmentBatches.length} total parallel calls)`)
+
+  // Fire all in parallel — max 4 calls (2 summary + 2 enrichment)
+  const allPromises: Promise<any>[] = [
+    ...summaryBatches.map(batch => generateSummaryBatch(client, batch, summaryContext)),
+    ...enrichmentBatches.map(batch => _generateEnrichmentBatch(client, batch)),
+  ]
+
+  const tLLM = timer("LLM: All parallel calls (summaries + enrichment)")
+  const results = await Promise.all(allPromises)
+  tLLM.done()
+
+  // Split results back: first N are summary results, rest are enrichment
+  const summaryBatchResults = results.slice(0, summaryBatches.length) as Map<number, string>[]
+  const enrichmentBatchResults = results.slice(summaryBatches.length) as Map<number, { pairings: any; parentalSummary: string }>[]
+
+  // Merge summary results
+  const summaryMap = new Map<number, string>()
+  for (const batchResult of summaryBatchResults) {
+    for (const [tmdbId, summary] of batchResult.entries()) {
+      summaryMap.set(tmdbId, summary)
+    }
+  }
+
+  // Merge enrichment results (cached + fresh)
+  const allEnrichment = new Map(cachedEnrichment)
+  for (const batchResult of enrichmentBatchResults) {
+    for (const [tmdbId, data] of batchResult.entries()) {
+      allEnrichment.set(tmdbId, data)
+    }
+  }
+
+  // Build final result map
+  const result = new Map<number, ReasoningResult>()
+  for (const rec of recommendations) {
+    const summary = summaryMap.get(rec.tmdbId)
+    const enrichment = allEnrichment.get(rec.tmdbId)
+
+    result.set(rec.tmdbId, {
+      summary: summary || rec.reasoning.join(". "),
+      pairings: enrichment?.pairings || undefined,
+      parentalSummary: enrichment?.parentalSummary || undefined,
+    })
+  }
+
+  const freshEnrichmentCount = enrichmentBatchResults.reduce((sum, m) => sum + m.size, 0)
+  console.log(`[LLM Reasoning] Generated ${summaryMap.size} summaries, ${freshEnrichmentCount} new enrichments, ${cachedEnrichment.size} cached enrichments`)
+  totalTimer.done()
+  return result
 }

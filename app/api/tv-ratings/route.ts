@@ -3,6 +3,7 @@ import { sql } from "@/lib/db"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { getOrFetchTVShow } from "@/lib/tmdb/tv-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
+import { rebuildUserCrewAffinities } from "@/lib/recommendations/crew-affinity-service"
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -96,6 +97,11 @@ export async function POST(request: NextRequest) {
         user_comment = ${comment || null},
         updated_at = NOW()
     `
+
+    // Fire-and-forget: rebuild crew affinities for this user
+    rebuildUserCrewAffinities(dbUser.id).catch(e =>
+      console.error("[TV Ratings] Error rebuilding crew affinities:", e)
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {

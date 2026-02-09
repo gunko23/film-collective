@@ -4,10 +4,8 @@
  * 7-day retry for failures. All data is internal-only for scoring.
  */
 
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db"
 import { fetchOmdbByImdbId } from "./omdb-service"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 export type CachedOmdbScores = {
   movieId: number  // TMDB ID (movies.id)
@@ -27,21 +25,21 @@ export async function batchGetCachedOmdbScores(tmdbIds: number[]): Promise<Map<n
   try {
     const result = await sql`
       SELECT
-        id,
+        tmdb_id,
         imdb_rating,
         imdb_votes,
         rotten_tomatoes_score,
         metacritic_score
       FROM movies
-      WHERE id = ANY(${tmdbIds}::int[])
+      WHERE tmdb_id = ANY(${tmdbIds}::int[])
         AND omdb_fetch_status = 'success'
         AND omdb_fetched_at > NOW() - INTERVAL '30 days'
     `
 
     const map = new Map<number, CachedOmdbScores>()
     for (const row of result) {
-      map.set(row.id, {
-        movieId: row.id,
+      map.set(row.tmdb_id, {
+        movieId: row.tmdb_id,
         imdbRating: row.imdb_rating != null ? Number(row.imdb_rating) : null,
         imdbVotes: row.imdb_votes != null ? Number(row.imdb_votes) : null,
         rottenTomatoesScore: row.rotten_tomatoes_score != null ? Number(row.rotten_tomatoes_score) : null,
@@ -65,9 +63,9 @@ export async function getMoviesNeedingOmdbFetch(tmdbIds: number[]): Promise<{ tm
 
   try {
     const result = await sql`
-      SELECT id, imdb_id
+      SELECT tmdb_id, imdb_id
       FROM movies
-      WHERE id = ANY(${tmdbIds}::int[])
+      WHERE tmdb_id = ANY(${tmdbIds}::int[])
         AND imdb_id IS NOT NULL
         AND imdb_id != ''
         AND (
@@ -79,7 +77,7 @@ export async function getMoviesNeedingOmdbFetch(tmdbIds: number[]): Promise<{ tm
         )
     `
     return result.map((row: any) => ({
-      tmdbId: row.id,
+      tmdbId: row.tmdb_id,
       imdbId: row.imdb_id,
     }))
   } catch (error) {
@@ -102,7 +100,7 @@ export async function fetchAndCacheOmdbScores(tmdbId: number, imdbId: string): P
         UPDATE movies
         SET omdb_fetch_status = 'error',
             omdb_fetched_at = NOW()
-        WHERE id = ${tmdbId}
+        WHERE tmdb_id = ${tmdbId}
       `
     } catch (e) {
       console.error(`[OMDb Cache] Error marking fetch failure for ${tmdbId}:`, e)
@@ -119,7 +117,7 @@ export async function fetchAndCacheOmdbScores(tmdbId: number, imdbId: string): P
           metacritic_score = ${ratings.metacriticScore},
           omdb_fetch_status = 'success',
           omdb_fetched_at = NOW()
-      WHERE id = ${tmdbId}
+      WHERE tmdb_id = ${tmdbId}
     `
 
     return {
