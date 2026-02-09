@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
 import { getSafeUser } from "@/lib/auth/auth-utils"
+import { getRatingPreferences, setRatingPreferences } from "@/lib/ratings/rating-service"
+
 // GET - Fetch user's rating preferences
 export async function GET() {
   try {
@@ -11,13 +12,10 @@ export async function GET() {
       return NextResponse.json({ skipBreakdown: false })
     }
 
-    const result = await sql`
-      SELECT skip_breakdown FROM user_rating_preferences
-      WHERE user_id = ${user.id}::uuid
-    `
+    const prefs = await getRatingPreferences(user.id)
 
     return NextResponse.json({
-      skipBreakdown: result.length > 0 ? result[0].skip_breakdown : false,
+      skipBreakdown: prefs.skipBreakdown,
     })
   } catch (error) {
     console.error("Error fetching preferences:", error)
@@ -41,12 +39,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { skipBreakdown } = body
 
-    await sql`
-      INSERT INTO user_rating_preferences (user_id, skip_breakdown, updated_at)
-      VALUES (${user.id}::uuid, ${skipBreakdown}, NOW())
-      ON CONFLICT (user_id) DO UPDATE
-      SET skip_breakdown = ${skipBreakdown}, updated_at = NOW()
-    `
+    await setRatingPreferences(user.id, skipBreakdown)
 
     return NextResponse.json({ success: true })
   } catch (error) {

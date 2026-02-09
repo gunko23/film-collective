@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getSafeUser } from "@/lib/auth/auth-utils"
-import { sql } from "@/lib/db"
 import { ensureUserExists } from "@/lib/db/user-service"
+import { markNotificationsRead } from "@/lib/notifications/notification-service"
 
 export async function POST(request: Request) {
   try {
@@ -19,17 +19,7 @@ export async function POST(request: Request) {
 
     const { notificationIds, markAll } = await request.json()
 
-    if (markAll) {
-      await sql`
-        UPDATE notifications SET is_read = TRUE
-        WHERE user_id = ${dbUser.id} AND is_read = FALSE
-      `
-    } else if (notificationIds && notificationIds.length > 0) {
-      await sql`
-        UPDATE notifications SET is_read = TRUE
-        WHERE user_id = ${dbUser.id} AND id = ANY(${notificationIds}::uuid[])
-      `
-    }
+    await markNotificationsRead(dbUser.id, notificationIds, markAll)
 
     return NextResponse.json({ success: true })
   } catch (error) {

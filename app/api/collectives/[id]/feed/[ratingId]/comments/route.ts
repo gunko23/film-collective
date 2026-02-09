@@ -1,50 +1,22 @@
 import { NextResponse } from "next/server"
-import { sql } from "@/lib/db"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { createNotification, getRatingOwner, getRatingMediaInfo } from "@/lib/notifications/notification-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 import { publishToChannel } from "@/lib/ably/server"
 import { getFeedChannelName } from "@/lib/ably/channel-names"
+import {
+  getFeedCommentsWithReactions,
+  createFeedComment,
+  addThreadParticipant,
+  getThreadParticipants,
+  verifyMembership,
+} from "@/lib/feed/feed-service"
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string; ratingId: string }> }) {
   try {
     const { id: collectiveId, ratingId } = await params
 
-    const comments = await sql`
-      WITH comment_data AS (
-        SELECT
-          fc.id,
-          fc.user_id,
-          COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
-          u.avatar_url as user_avatar,
-          fc.content,
-          fc.gif_url,
-          fc.created_at
-        FROM feed_comments fc
-        JOIN users u ON u.id = fc.user_id
-        WHERE fc.rating_id = ${ratingId}::uuid AND fc.collective_id = ${collectiveId}::uuid
-        ORDER BY fc.created_at ASC
-      ),
-      reaction_data AS (
-        SELECT
-          cr.comment_id,
-          json_agg(json_build_object(
-            'id', cr.id,
-            'user_id', cr.user_id,
-            'user_name', COALESCE(ru.name, SPLIT_PART(ru.email, '@', 1), 'User'),
-            'reaction_type', cr.reaction_type
-          )) as reactions
-        FROM comment_reactions cr
-        JOIN users ru ON ru.id = cr.user_id
-        WHERE cr.comment_id IN (SELECT id FROM comment_data)
-        GROUP BY cr.comment_id
-      )
-      SELECT
-        cd.*,
-        COALESCE(rd.reactions, '[]'::json) as reactions
-      FROM comment_data cd
-      LEFT JOIN reaction_data rd ON rd.comment_id = cd.id
-      ORDER BY cd.created_at ASC
-    `
+    const comments = await getFeedCommentsWithReactions(ratingId, collectiveId)
 
     return NextResponse.json({ comments })
   } catch (error) {
@@ -71,12 +43,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const dbUser = await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
 
     // Verify user is a member of the collective
-    const membership = await sql`
-      SELECT id FROM collective_memberships 
-      WHERE collective_id = ${collectiveId}::uuid AND user_id = ${dbUser.id}::uuid
-    `
+    const isMember = await verifyMembership(collectiveId, dbUser.id)
 
-    if (membership.length === 0) {
+    if (!isMember) {
       return NextResponse.json({ error: "Not a member of this collective" }, { status: 403 })
     }
 
@@ -95,13 +64,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     // Insert comment
-    const result = await sql`
-      INSERT INTO feed_comments (id, rating_id, collective_id, user_id, content, gif_url, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${ratingId}::uuid, ${collectiveId}::uuid, ${dbUser.id}::uuid, ${content?.trim() || ""}, ${gifUrl || null}, NOW(), NOW())
-      RETURNING id, user_id, content, gif_url, created_at
-    `
-
-    const newComment = result[0]
+    const newComment = await createFeedComment({
+      ratingId,
+      collectiveId,
+      userId: dbUser.id,
+      content,
+      gifUrl,
+    })
 
     // Build comment response
     const comment = {
@@ -116,12 +85,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     // Add to thread participants (non-blocking)
-    sql`
-      INSERT INTO thread_participants (id, rating_id, collective_id, user_id, joined_at, last_read_at)
-      VALUES (gen_random_uuid(), ${ratingId}::uuid, ${collectiveId}::uuid, ${dbUser.id}::uuid, NOW(), NOW())
-      ON CONFLICT (rating_id, collective_id, user_id)
-      DO UPDATE SET last_read_at = NOW()
-    `.catch(() => {})
+    addThreadParticipant(ratingId, collectiveId, dbUser.id)
 
     // Publish new comment via Ably (non-blocking)
     publishToChannel(getFeedChannelName(collectiveId, ratingId), "new_comment", comment).catch(() => {})
@@ -148,13 +112,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
               })
             }
 
-            const otherParticipants = await sql`
-              SELECT DISTINCT user_id FROM thread_participants
-              WHERE rating_id = ${ratingId}::uuid 
-                AND collective_id = ${collectiveId}::uuid
-                AND user_id != ${dbUser.id}::uuid
-                AND user_id != ${ratingOwnerId || "00000000-0000-0000-0000-000000000000"}::uuid
-            `.catch(() => [])
+            const excludeIds = [dbUser.id]
+            if (ratingOwnerId) excludeIds.push(ratingOwnerId)
+            const otherParticipants = await getThreadParticipants(ratingId, collectiveId, excludeIds)
 
             for (const participant of otherParticipants) {
               await createNotification({

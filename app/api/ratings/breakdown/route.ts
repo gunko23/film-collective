@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
 import { getSafeUser } from "@/lib/auth/auth-utils"
+import { saveRatingBreakdown, saveSkipBreakdownPreference } from "@/lib/ratings/rating-service"
+
 export async function POST(request: NextRequest) {
   try {
     const { user, isRateLimited } = await getSafeUser()
@@ -66,48 +67,22 @@ export async function POST(request: NextRequest) {
       finalDimensionTags.vibes = breakdownTags
     }
 
-    // Update the rating with breakdown data
-    if (mediaType === "movie") {
-      // Get the movie UUID from tmdb_id
-      const movieResult = await sql`
-        SELECT id FROM movies WHERE tmdb_id = ${tmdbId}
-      `
-      if (movieResult.length === 0) {
-        return NextResponse.json({ error: "Movie not found" }, { status: 404 })
-      }
+    const result = await saveRatingBreakdown({
+      userId: user.id,
+      mediaType,
+      tmdbId,
+      dimensionScores: finalDimensionScores,
+      dimensionTags: finalDimensionTags,
+      breakdownNotes,
+    })
 
-      const movieId = movieResult[0].id
-
-      await sql`
-        UPDATE user_movie_ratings
-        SET 
-          dimension_scores = COALESCE(dimension_scores, '{}'::jsonb) || ${JSON.stringify(finalDimensionScores)}::jsonb,
-          dimension_tags = COALESCE(dimension_tags, '{}'::jsonb) || ${JSON.stringify(finalDimensionTags)}::jsonb,
-          extra_notes = COALESCE(${breakdownNotes || null}, extra_notes),
-          updated_at = NOW()
-        WHERE user_id = ${user.id}::uuid AND movie_id = ${movieId}::uuid
-      `
-    } else {
-      // TV show
-      await sql`
-        UPDATE user_tv_show_ratings
-        SET 
-          dimension_scores = COALESCE(dimension_scores, '{}'::jsonb) || ${JSON.stringify(finalDimensionScores)}::jsonb,
-          dimension_tags = COALESCE(dimension_tags, '{}'::jsonb) || ${JSON.stringify(finalDimensionTags)}::jsonb,
-          extra_notes = COALESCE(${breakdownNotes || null}, extra_notes),
-          updated_at = NOW()
-        WHERE user_id = ${user.id}::uuid AND tv_show_id = ${tmdbId}
-      `
+    if (result.movieNotFound) {
+      return NextResponse.json({ error: "Movie not found" }, { status: 404 })
     }
 
     // Update skip_breakdown preference if requested
     if (skipBreakdownNextTime) {
-      await sql`
-        INSERT INTO user_rating_preferences (user_id, skip_breakdown, updated_at)
-        VALUES (${user.id}::uuid, true, NOW())
-        ON CONFLICT (user_id) DO UPDATE
-        SET skip_breakdown = true, updated_at = NOW()
-      `
+      await saveSkipBreakdownPreference(user.id)
     }
 
     return NextResponse.json({ success: true })

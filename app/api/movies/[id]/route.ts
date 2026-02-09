@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { getMovieByInternalId } from "@/lib/tmdb/movie-service"
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
@@ -9,24 +10,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Invalid movie ID" }, { status: 400 })
     }
 
-    // Fetch movie details
-    const movieResult = await sql`
-      SELECT * FROM movies WHERE id = ${movieId}
-    `
+    const result = await getMovieByInternalId(movieId)
 
-    if (movieResult.length === 0) {
+    if (!result) {
       return NextResponse.json({ error: "Movie not found" }, { status: 404 })
     }
 
-    const movie = movieResult[0]
-
-    // Fetch genres for this movie
-    const genresResult = await sql`
-      SELECT g.id, g.name 
-      FROM genres g
-      JOIN movie_genres mg ON g.id = mg.genre_id
-      WHERE mg.movie_id = ${movieId}
-    `
+    const { movie, genres } = result
 
     // Transform to camelCase
     const transformedMovie = {
@@ -49,7 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       revenue: movie.revenue,
       imdbId: movie.imdb_id,
       homepage: movie.homepage,
-      genres: genresResult.map((g: { id: number; name: string }) => ({ id: g.id, name: g.name })),
+      genres: genres.map((g: { id: number; name: string }) => ({ id: g.id, name: g.name })),
     }
 
     return NextResponse.json(transformedMovie)

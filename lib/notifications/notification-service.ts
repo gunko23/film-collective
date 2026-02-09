@@ -125,3 +125,72 @@ export async function getRatingMediaInfo(
     return null
   }
 }
+
+export async function getUserNotifications(
+  userId: string,
+  options: { limit: number; offset: number; unreadOnly: boolean }
+): Promise<{ notifications: any[]; unreadCount: number; totalCount: number }> {
+  const { limit, offset, unreadOnly } = options
+
+  const notifications = unreadOnly
+    ? await sql`
+        SELECT
+          n.*,
+          u.name as actor_name,
+          u.avatar_url as actor_avatar,
+          c.name as collective_name
+        FROM notifications n
+        JOIN users u ON u.id = n.actor_id
+        JOIN collectives c ON c.id = n.collective_id
+        WHERE n.user_id = ${userId} AND n.is_read = FALSE
+        ORDER BY n.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+    : await sql`
+        SELECT
+          n.*,
+          u.name as actor_name,
+          u.avatar_url as actor_avatar,
+          c.name as collective_name
+        FROM notifications n
+        JOIN users u ON u.id = n.actor_id
+        JOIN collectives c ON c.id = n.collective_id
+        WHERE n.user_id = ${userId}
+        ORDER BY n.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+
+  const unreadCountResult = await sql`
+    SELECT COUNT(*) as count FROM notifications
+    WHERE user_id = ${userId} AND is_read = FALSE
+  `
+
+  const totalCountResult = await sql`
+    SELECT COUNT(*) as count FROM notifications
+    WHERE user_id = ${userId}
+  `
+
+  return {
+    notifications,
+    unreadCount: Number.parseInt(unreadCountResult[0]?.count || "0"),
+    totalCount: Number.parseInt(totalCountResult[0]?.count || "0"),
+  }
+}
+
+export async function markNotificationsRead(
+  userId: string,
+  notificationIds?: string[],
+  markAll?: boolean
+): Promise<void> {
+  if (markAll) {
+    await sql`
+      UPDATE notifications SET is_read = TRUE
+      WHERE user_id = ${userId} AND is_read = FALSE
+    `
+  } else if (notificationIds && notificationIds.length > 0) {
+    await sql`
+      UPDATE notifications SET is_read = TRUE
+      WHERE user_id = ${userId} AND id = ANY(${notificationIds}::uuid[])
+    `
+  }
+}

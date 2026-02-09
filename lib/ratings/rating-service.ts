@@ -325,3 +325,104 @@ export async function getRatingInfo(ratingId: string) {
 
   return null
 }
+
+// Get all user movie ratings with media info (for user ratings page)
+export async function getUserRatingsWithMedia(userId: string) {
+  const ratings = await sql`
+    SELECT
+      r.id,
+      r.overall_score,
+      r.user_comment,
+      r.rated_at,
+      r.updated_at,
+      m.tmdb_id,
+      m.title,
+      m.poster_path,
+      m.release_date,
+      m.genres
+    FROM user_movie_ratings r
+    INNER JOIN movies m ON r.movie_id = m.id
+    WHERE r.user_id = ${userId}
+    ORDER BY r.rated_at DESC
+  `
+  return ratings
+}
+
+// Save rating breakdown (dimension scores/tags) for a movie or TV show
+export async function saveRatingBreakdown(params: {
+  userId: string
+  mediaType: string
+  tmdbId: number
+  dimensionScores: Record<string, number>
+  dimensionTags: Record<string, string[]>
+  breakdownNotes?: string | null
+}): Promise<{ success: boolean; movieNotFound?: boolean }> {
+  const { userId, mediaType, tmdbId, dimensionScores, dimensionTags, breakdownNotes } = params
+
+  if (mediaType === "movie") {
+    // Get the movie UUID from tmdb_id
+    const movieResult = await sql`
+      SELECT id FROM movies WHERE tmdb_id = ${tmdbId}
+    `
+    if (movieResult.length === 0) {
+      return { success: false, movieNotFound: true }
+    }
+
+    const movieId = movieResult[0].id
+
+    await sql`
+      UPDATE user_movie_ratings
+      SET
+        dimension_scores = COALESCE(dimension_scores, '{}'::jsonb) || ${JSON.stringify(dimensionScores)}::jsonb,
+        dimension_tags = COALESCE(dimension_tags, '{}'::jsonb) || ${JSON.stringify(dimensionTags)}::jsonb,
+        extra_notes = COALESCE(${breakdownNotes || null}, extra_notes),
+        updated_at = NOW()
+      WHERE user_id = ${userId}::uuid AND movie_id = ${movieId}::uuid
+    `
+  } else {
+    // TV show
+    await sql`
+      UPDATE user_tv_show_ratings
+      SET
+        dimension_scores = COALESCE(dimension_scores, '{}'::jsonb) || ${JSON.stringify(dimensionScores)}::jsonb,
+        dimension_tags = COALESCE(dimension_tags, '{}'::jsonb) || ${JSON.stringify(dimensionTags)}::jsonb,
+        extra_notes = COALESCE(${breakdownNotes || null}, extra_notes),
+        updated_at = NOW()
+      WHERE user_id = ${userId}::uuid AND tv_show_id = ${tmdbId}
+    `
+  }
+
+  return { success: true }
+}
+
+// Save skip breakdown preference (set to true)
+export async function saveSkipBreakdownPreference(userId: string) {
+  await sql`
+    INSERT INTO user_rating_preferences (user_id, skip_breakdown, updated_at)
+    VALUES (${userId}::uuid, true, NOW())
+    ON CONFLICT (user_id) DO UPDATE
+    SET skip_breakdown = true, updated_at = NOW()
+  `
+}
+
+// Get rating preferences for a user
+export async function getRatingPreferences(userId: string): Promise<{ skipBreakdown: boolean }> {
+  const result = await sql`
+    SELECT skip_breakdown FROM user_rating_preferences
+    WHERE user_id = ${userId}::uuid
+  `
+
+  return {
+    skipBreakdown: result.length > 0 ? result[0].skip_breakdown : false,
+  }
+}
+
+// Set rating preferences for a user
+export async function setRatingPreferences(userId: string, skipBreakdown: boolean) {
+  await sql`
+    INSERT INTO user_rating_preferences (user_id, skip_breakdown, updated_at)
+    VALUES (${userId}::uuid, ${skipBreakdown}, NOW())
+    ON CONFLICT (user_id) DO UPDATE
+    SET skip_breakdown = ${skipBreakdown}, updated_at = NOW()
+  `
+}

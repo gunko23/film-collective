@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import { sql } from "@/lib/db"
 import { getSafeUser } from "@/lib/auth/auth-utils"
+import { getUserRatingsWithMedia } from "@/lib/ratings/rating-service"
+
 export async function GET() {
   try {
     const { user, isRateLimited } = await getSafeUser()
@@ -13,24 +14,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get all ratings with movie info
-    const ratings = await sql`
-      SELECT 
-        r.id,
-        r.overall_score,
-        r.user_comment,
-        r.rated_at,
-        r.updated_at,
-        m.tmdb_id,
-        m.title,
-        m.poster_path,
-        m.release_date,
-        m.genres
-      FROM user_movie_ratings r
-      INNER JOIN movies m ON r.movie_id = m.id
-      WHERE r.user_id = ${user.id}
-      ORDER BY r.rated_at DESC
-    `
+    const ratings = await getUserRatingsWithMedia(user.id)
 
     const transformedRatings = ratings.map((row: any) => ({
       id: row.id,

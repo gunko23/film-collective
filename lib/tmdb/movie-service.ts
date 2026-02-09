@@ -255,6 +255,26 @@ export async function getCachedMovies(
   }
 }
 
+// Get movie by internal (numeric) ID with genres from movie_genres/genres tables
+export async function getMovieByInternalId(movieId: number): Promise<{ movie: any; genres: any[] } | null> {
+  const movieResult = await sql`
+    SELECT * FROM movies WHERE id = ${movieId}
+  `
+
+  if (movieResult.length === 0) {
+    return null
+  }
+
+  const genresResult = await sql`
+    SELECT g.id, g.name
+    FROM genres g
+    JOIN movie_genres mg ON g.id = mg.genre_id
+    WHERE mg.movie_id = ${movieId}
+  `
+
+  return { movie: movieResult[0], genres: genresResult }
+}
+
 // Get media info for movie or TV show by TMDB ID
 export async function getMediaInfo(tmdbId: number, mediaType: "movie" | "tv") {
   if (mediaType === "tv") {

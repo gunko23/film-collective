@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import { getSafeUser } from "@/lib/auth/auth-utils"
-import { sql } from "@/lib/db"
 import {
   getCollectiveActivityFeed,
   getCollectiveActivityCount,
+  getCollectiveName,
 } from "@/lib/feed/feed-service"
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -18,10 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const offset = page * limit
 
     // Fetch collective name for the activity feed
-    const nameResult = (await sql`
-      SELECT name FROM collectives WHERE id = ${collectiveId}
-    `) as { name: string }[]
-    const collectiveName = nameResult[0]?.name || "Collective"
+    const collectiveName = await getCollectiveName(collectiveId)
 
     const [activities, totalCount] = await Promise.all([
       getCollectiveActivityFeed(collectiveId, collectiveName, limit, offset),
