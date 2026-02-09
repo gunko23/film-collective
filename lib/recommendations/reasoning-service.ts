@@ -13,6 +13,12 @@ function timer(label: string) {
   }
 }
 
+function getAnthropicClient(): Anthropic | null {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return null
+  return new Anthropic({ apiKey })
+}
+
 // ============================================
 // Taste Context Queries
 // ============================================
@@ -128,15 +134,14 @@ async function getCachedEnrichment(
 // ============================================
 
 /**
- * Generate ONLY personalized 1-2 sentence summaries for a small batch of movies.
+ * Generate ONLY personalized 1-2 sentence summaries for a small batch of movies (2).
  * This is the fast path — small prompt, small response.
  */
 async function generateSummaryBatch(
+  client: Anthropic,
   batch: MovieRecommendation[],
   ctx: SummaryContext
 ): Promise<Map<number, string>> {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-
   const systemPrompt = `You are a passionate film curator for Film Collective. Write a 1-2 sentence personalized pitch for each movie that makes this audience excited to watch it tonight. Be enthusiastic, specific, and persuasive — reference standout performances, bold directorial choices, unique tones, or unforgettable scenes. When friends from their collective loved a movie, lead with that social connection and name them. Never say a movie doesn't fit or might not match. Never use generic filler like "critically acclaimed" or "a must-watch". Respond with ONLY a JSON object, no markdown or backticks.`
 
   const movieLines = batch.map((m, i) => {
@@ -165,9 +170,9 @@ ${ctx.soloMode ? 'Address the user as "you".' : 'Address the group as "your grou
 Respond: {"1": "summary text", "2": "summary text", ...}`
 
   try {
-    const response = await anthropic.messages.create({
+    const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1000,
+      max_tokens: 300,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     })
@@ -198,21 +203,20 @@ Respond: {"1": "summary text", "2": "summary text", ...}`
 // ============================================
 
 /**
- * Generate pairings + parental summary for movies missing cached data.
- * Results are saved to the movies table for future reuse.
+ * Generate pairings + parental for a single small batch (1-2 movies).
+ * Results are cached to the movies table via fire-and-forget.
  */
-async function generateAndCacheEnrichment(
-  movies: MovieRecommendation[]
+async function _generateEnrichmentBatch(
+  batch: MovieRecommendation[]
 ): Promise<Map<number, { pairings: any; parentalSummary: string }>> {
-  if (movies.length === 0) return new Map()
-
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+  const client = getAnthropicClient()
+  if (!client) return new Map()
 
   const systemPrompt = `You are a creative film curator. For each movie, provide themed food and drink pairings and a brief parental content advisory. Respond with ONLY a JSON object, no markdown or backticks.`
 
-  const movieLines = movies.map((m, i) => {
+  const movieLines = batch.map((m, i) => {
     const year = m.releaseDate ? m.releaseDate.slice(0, 4) : "Unknown"
-    const genres = m.genres.map(g => g.name).join(", ")
+    const genres = m.genres?.map((g: any) => g.name).join(", ") || "Unknown"
     return `${i + 1}. "${m.title}" (${year}) — ${genres}`
   }).join("\n")
 
@@ -223,32 +227,30 @@ For each movie provide:
 1. A signature cocktail inspired by the film (creative name + one-line description under 15 words)
 2. A zero-proof drink inspired by the film (creative name + one-line description under 15 words)
 3. A themed snack (creative name + one-line description under 15 words)
-4. A parental content advisory (1-2 sentences, e.g. "Stylized violence, mild language. Suitable for teens 13+.")
+4. A parental content advisory (1-2 sentences)
 
 Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": {"name": "", "desc": ""}, "snack": {"name": "", "desc": ""}}, "parentalSummary": "..."}, ...}`
 
   try {
-    const response = await anthropic.messages.create({
+    const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 2500,
+      max_tokens: 800,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     })
 
     const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map(b => b.text).join("")
+      .filter((b: any) => b.type === "text")
+      .map((b: any) => b.text).join("")
 
     const cleaned = text.replace(/```json\s?|```/g, "").trim()
     const parsed = JSON.parse(cleaned) as Record<string, any>
 
     const result = new Map<number, { pairings: any; parentalSummary: string }>()
-
-    // Save to DB and build result map
     for (const [indexStr, value] of Object.entries(parsed)) {
       const idx = parseInt(indexStr) - 1
-      if (idx >= 0 && idx < movies.length && value && typeof value === "object") {
-        const tmdbId = movies[idx].tmdbId
+      if (idx >= 0 && idx < batch.length && value && typeof value === "object") {
+        const tmdbId = batch[idx].tmdbId
         const pairings = value.pairings || null
         const parentalSummary = value.parentalSummary || ""
 
@@ -264,13 +266,42 @@ Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": 
         `.catch((e: any) => console.error(`[LLM Cache] Error caching enrichment for ${tmdbId}:`, e))
       }
     }
-
-    console.log(`[LLM Enrichment] Generated and cached pairings for ${result.size} movies`)
     return result
   } catch (error) {
-    console.error("[LLM Enrichment] Error:", error)
+    console.error("[LLM Enrichment Batch] Error:", error)
     return new Map()
   }
+}
+
+/**
+ * Generate pairings + parental summary for movies missing cached data.
+ * Splits into batches of 2 for maximum parallelism, then merges results.
+ */
+async function generateAndCacheEnrichment(
+  movies: MovieRecommendation[]
+): Promise<Map<number, { pairings: any; parentalSummary: string }>> {
+  if (movies.length === 0) return new Map()
+
+  // Split into batches of 2 for maximum parallelism
+  const ENRICH_BATCH_SIZE = 2
+  const enrichBatches: MovieRecommendation[][] = []
+  for (let i = 0; i < movies.length; i += ENRICH_BATCH_SIZE) {
+    enrichBatches.push(movies.slice(i, i + ENRICH_BATCH_SIZE))
+  }
+
+  console.log(`[Perf] LLM Enrichment: Firing ${enrichBatches.length} parallel batches of ≤${ENRICH_BATCH_SIZE}`)
+
+  const batchResults = await Promise.all(
+    enrichBatches.map(batch => _generateEnrichmentBatch(batch))
+  )
+
+  const result = new Map<number, { pairings: any; parentalSummary: string }>()
+  for (const batchResult of batchResults) {
+    for (const [tmdbId, data] of batchResult.entries()) {
+      result.set(tmdbId, data)
+    }
+  }
+  return result
 }
 
 // ============================================
@@ -281,16 +312,17 @@ Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": 
  * Generate LLM reasoning for recommendations.
  *
  * Architecture:
- * - Summaries are personalized per-audience and generated in 3 parallel batches
+ * - Summaries are personalized per-audience and generated in 5 parallel batches of 2
  * - Pairings + parental are per-movie and cached in the DB after first generation
- * - Everything fires in parallel: 3 summary batches + 1 enrichment call (if needed)
+ * - Enrichment splits into batches of 2 for maximum parallelism
+ * - Everything fires in parallel: 5 summary batches + N enrichment batches (if needed)
  */
 export async function generateRecommendationReasoning(
   input: ReasoningInput
 ): Promise<Map<number, ReasoningResult>> {
   const totalTimer = timer("generateRecommendationReasoning TOTAL")
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
+  const client = getAnthropicClient()
+  if (!client) {
     console.warn("[LLM Reasoning] ANTHROPIC_API_KEY not set")
     totalTimer.done()
     return new Map()
@@ -328,13 +360,12 @@ export async function generateRecommendationReasoning(
     collectiveInfluence,
   }
 
-  // Step 4: Split recommendations into 3 parallel batches for summaries
-  const batchSize = Math.ceil(recommendations.length / 3)
-  const batches = [
-    recommendations.slice(0, batchSize),
-    recommendations.slice(batchSize, batchSize * 2),
-    recommendations.slice(batchSize * 2),
-  ].filter(b => b.length > 0)
+  // Step 4: Split recommendations into batches of 2 for summaries
+  const SUMMARY_BATCH_SIZE = 2
+  const batches: MovieRecommendation[][] = []
+  for (let i = 0; i < recommendations.length; i += SUMMARY_BATCH_SIZE) {
+    batches.push(recommendations.slice(i, i + SUMMARY_BATCH_SIZE))
+  }
 
   // Step 5: Fire everything in parallel
   const enrichmentPromise = needsEnrichment.length > 0
@@ -342,10 +373,10 @@ export async function generateRecommendationReasoning(
     : Promise.resolve(new Map<number, { pairings: any; parentalSummary: string }>())
 
   const summaryPromises = batches.map(batch =>
-    generateSummaryBatch(batch, summaryContext)
+    generateSummaryBatch(client, batch, summaryContext)
   )
 
-  console.log(`[Perf] LLM: Firing ${batches.length} summary batches + ${needsEnrichment.length > 0 ? '1' : '0'} enrichment call`)
+  console.log(`[Perf] LLM: Firing ${batches.length} summary batches (${SUMMARY_BATCH_SIZE}/batch) + ${needsEnrichment.length > 0 ? Math.ceil(needsEnrichment.length / 2) + ' enrichment batches' : 'no enrichment (all cached)'}`)
 
   const tLLM = timer("LLM: All parallel calls (summaries + enrichment)")
   const [enrichmentResults, ...summaryBatchResults] = await Promise.all([
