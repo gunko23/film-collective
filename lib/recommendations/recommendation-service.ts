@@ -3,9 +3,8 @@ import { createTMDBClient } from "@/lib/tmdb/client"
 import { getParentalGuideBatch } from "@/lib/parental-guide/parental-guide-service"
 import { batchGetCachedOmdbScores, getMoviesNeedingOmdbFetch, backgroundFetchOmdbBatch, type CachedOmdbScores } from "@/lib/omdb/omdb-cache"
 import { calculateCompositeQualityScore, getQualityBonus, getAcclaimedMoodBonus } from "@/lib/recommendations/quality-score"
-import { getLovedMovies, getDislikedMovies } from "@/lib/recommendations/reasoning-service"
+import { generateRecommendationReasoning, getLovedMovies, getDislikedMovies } from "@/lib/recommendations/reasoning-service"
 import { getCachedCrewAffinities, getCachedCandidateCredits } from "@/lib/recommendations/crew-affinity-service"
-import { generateAndPublishReasoning } from "@/lib/recommendations/reasoning-publisher"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -115,7 +114,6 @@ export type TonightPickResponse = {
     sharedGenres: GenrePreference[]
     totalRatings: number
   }
-  reasoningChannel?: string
 }
 
 export type SoloTonightPickRequest = {
@@ -136,7 +134,6 @@ export type SoloTonightPickResponse = {
     sharedGenres: GenrePreference[]
     totalRatings: number
   }
-  reasoningChannel?: string
 }
 
 // ============================================
@@ -1315,17 +1312,24 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     streamingProviders,
   })
 
-  // Fire-and-forget: generate LLM reasoning asynchronously via Ably
-  const reasoningChannel = `reasoning-${validMemberIds[0]}-${Date.now()}`
-  generateAndPublishReasoning({
+  // Generate LLM reasoning synchronously before returning
+  const llmReasoning = await generateRecommendationReasoning({
     recommendations: result.recommendations,
     lovedMovies: result.lovedMovies,
     dislikedMovies: result.dislikedMovies,
     mood: mood || null,
     soloMode: false,
     memberCount: validMemberIds.length,
-    channelId: reasoningChannel,
-  }).catch(e => console.error("[Recommendations] Async reasoning error:", e))
+  })
+
+  for (const rec of result.recommendations) {
+    const llmData = llmReasoning.get(rec.tmdbId)
+    if (llmData) {
+      rec.reasoning = [llmData.summary]
+      if (llmData.pairings) rec.pairings = llmData.pairings
+      if (llmData.parentalSummary) rec.parentalSummary = llmData.parentalSummary
+    }
+  }
 
   return {
     recommendations: result.recommendations,
@@ -1334,7 +1338,6 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
       sharedGenres: result.genres,
       totalRatings: result.totalRatings,
     },
-    reasoningChannel,
   }
 }
 
@@ -1364,17 +1367,24 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
     streamingProviders,
   })
 
-  // Fire-and-forget: generate LLM reasoning asynchronously via Ably
-  const reasoningChannel = `reasoning-${userId}-${Date.now()}`
-  generateAndPublishReasoning({
+  // Generate LLM reasoning synchronously before returning
+  const llmReasoning = await generateRecommendationReasoning({
     recommendations: result.recommendations,
     lovedMovies: result.lovedMovies,
     dislikedMovies: result.dislikedMovies,
     mood: mood || null,
     soloMode: true,
     memberCount: 1,
-    channelId: reasoningChannel,
-  }).catch(e => console.error("[Recommendations] Async reasoning error:", e))
+  })
+
+  for (const rec of result.recommendations) {
+    const llmData = llmReasoning.get(rec.tmdbId)
+    if (llmData) {
+      rec.reasoning = [llmData.summary]
+      if (llmData.pairings) rec.pairings = llmData.pairings
+      if (llmData.parentalSummary) rec.parentalSummary = llmData.parentalSummary
+    }
+  }
 
   return {
     recommendations: result.recommendations,
@@ -1382,7 +1392,6 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
       sharedGenres: result.genres,
       totalRatings: result.totalRatings,
     },
-    reasoningChannel,
   }
 }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -9,7 +9,6 @@ import { useSafeUser } from "@/hooks/use-safe-user"
 import { getImageUrl } from "@/lib/tmdb/image"
 import { US_SUBSCRIPTION_PROVIDERS } from "@/lib/streaming/providers"
 import { TonightsPickLoading } from "@/components/tonights-pick-loading"
-import { useReasoningChannel } from "@/hooks/use-reasoning-channel"
 
 // ─── Soulframe Design Tokens ─────────────────────────────────
 const C = {
@@ -279,18 +278,9 @@ export default function CollectiveTonightsPickPage() {
 
   // Step 3: Results
   const [results, setResults] = useState<MovieRecommendation[]>([])
-  const [reasoningChannel, setReasoningChannel] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resultsPage, setResultsPage] = useState(1)
-
-  // Subscribe to reasoning channel for streaming LLM reasoning
-  const { applyReasoning, isLoading: reasoningLoading } = useReasoningChannel(reasoningChannel)
-
-  // Enrich results with streamed reasoning data
-  const enrichedResults = useMemo(() => {
-    return applyReasoning(results)
-  }, [results, applyReasoning])
 
   // Fetch collective data
   const { data: collectiveData } = useSWR(
@@ -390,7 +380,6 @@ export default function CollectiveTonightsPickPage() {
 
       const data = await res.json()
       setResults(data.recommendations || [])
-      setReasoningChannel(data.reasoningChannel || null)
       setResultsPage(page)
       setStep(3)
     } catch (err) {
@@ -497,10 +486,6 @@ export default function CollectiveTonightsPickPage() {
         }
         @keyframes spin {
           to { transform: rotate(360deg); }
-        }
-        @keyframes reasoningShimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
         }
         .tp-scrollbar::-webkit-scrollbar { width: 4px; }
         .tp-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -1142,7 +1127,7 @@ export default function CollectiveTonightsPickPage() {
                 fontSize: 13, color: C.creamMuted, marginBottom: 20, lineHeight: 1.5,
               }}>Based on your collective's taste and mood</div>
 
-              {enrichedResults.length === 0 ? (
+              {results.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "48px 20px" }}>
                   <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
                     <FilmIcon color={C.creamFaint} size={48} />
@@ -1153,7 +1138,7 @@ export default function CollectiveTonightsPickPage() {
                   </p>
                 </div>
               ) : (
-                enrichedResults.map((movie, i) => {
+                results.map((movie, i) => {
                   const accentColors = [C.teal, C.orange, C.blue, C.rose, C.purple]
                   const filmColor = accentColors[i % accentColors.length]
                   const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : ""
@@ -1259,7 +1244,7 @@ export default function CollectiveTonightsPickPage() {
                       )}
 
                       {/* Why we picked this */}
-                      {(movie.reasoning?.length > 0 || reasoningLoading) && (
+                      {movie.reasoning?.length > 0 && (
                         <div style={{ padding: "0 18px 16px" }}>
                           <div style={{
                             display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
@@ -1270,26 +1255,9 @@ export default function CollectiveTonightsPickPage() {
                               color: C.orange, fontWeight: 600,
                             }}>Why We Picked This</span>
                           </div>
-                          {reasoningLoading && !movie.reasoning?.[0] ? (
-                            <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
-                              <div style={{
-                                height: 13, width: "92%", borderRadius: 4,
-                                background: "linear-gradient(90deg, #1a1714 25%, #242018 50%, #1a1714 75%)",
-                                backgroundSize: "200% 100%",
-                                animation: "reasoningShimmer 1.5s ease-in-out infinite",
-                              }} />
-                              <div style={{
-                                height: 13, width: "78%", borderRadius: 4,
-                                background: "linear-gradient(90deg, #1a1714 25%, #242018 50%, #1a1714 75%)",
-                                backgroundSize: "200% 100%",
-                                animation: "reasoningShimmer 1.5s ease-in-out infinite 0.1s",
-                              }} />
-                            </div>
-                          ) : (
-                            <div style={{
-                              fontSize: 13.5, color: C.creamMuted, lineHeight: 1.65,
-                            }}>{movie.reasoning?.[0]}</div>
-                          )}
+                          <div style={{
+                            fontSize: 13.5, color: C.creamMuted, lineHeight: 1.65,
+                          }}>{movie.reasoning[0]}</div>
                         </div>
                       )}
 

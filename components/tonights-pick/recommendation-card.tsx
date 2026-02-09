@@ -227,42 +227,8 @@ function ParentalGuide({ text }: { text: string }) {
   )
 }
 
-// ─── REASONING SHIMMER ───
-function ReasoningShimmer() {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div
-        style={{
-          height: 13,
-          width: "92%",
-          borderRadius: 4,
-          background: "linear-gradient(90deg, #1a1714 25%, #242018 50%, #1a1714 75%)",
-          backgroundSize: "200% 100%",
-          animation: "reasoningShimmer 1.5s ease-in-out infinite",
-        }}
-      />
-      <div
-        style={{
-          height: 13,
-          width: "78%",
-          borderRadius: 4,
-          background: "linear-gradient(90deg, #1a1714 25%, #242018 50%, #1a1714 75%)",
-          backgroundSize: "200% 100%",
-          animation: "reasoningShimmer 1.5s ease-in-out infinite 0.1s",
-        }}
-      />
-      <style>{`
-        @keyframes reasoningShimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
-    </div>
-  )
-}
-
 // ─── MOVIE CARD ───
-export function RecommendationCard({ movie, index, reasoningLoading }: { movie: MovieRecommendation; index: number; reasoningLoading?: boolean }) {
+export function RecommendationCard({ movie, index }: { movie: MovieRecommendation; index: number }) {
   const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : ""
   const reasoningText = movie.reasoning?.[0] || ""
   const parentalText = movie.parentalSummary || null
@@ -410,21 +376,17 @@ export function RecommendationCard({ movie, index, reasoningLoading }: { movie: 
               Why we picked this
             </span>
           </div>
-          {reasoningLoading && !reasoningText ? (
-            <ReasoningShimmer />
-          ) : (
-            <p
-              style={{
-                fontSize: 13.5,
-                color: "#998e80",
-                lineHeight: 1.7,
-                margin: 0,
-                fontFamily: SERIF,
-              }}
-            >
-              {reasoningText}
-            </p>
-          )}
+          <p
+            style={{
+              fontSize: 13.5,
+              color: "#998e80",
+              lineHeight: 1.7,
+              margin: 0,
+              fontFamily: SERIF,
+            }}
+          >
+            {reasoningText}
+          </p>
         </div>
 
         {/* Chalkboard concession stand */}
