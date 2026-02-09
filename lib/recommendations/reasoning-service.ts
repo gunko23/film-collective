@@ -183,7 +183,7 @@ Respond: {"1": "summary text", "2": "summary text", ...}`
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
+      max_tokens: Math.max(300, batch.length * 120),
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     })
@@ -214,7 +214,7 @@ Respond: {"1": "summary text", "2": "summary text", ...}`
 // ============================================
 
 /**
- * Generate pairings + parental for a single small batch (1-2 movies).
+ * Generate pairings + parental for a batch of movies (1-5).
  * Results are cached to the movies table via fire-and-forget.
  */
 async function _generateEnrichmentBatch(
@@ -244,7 +244,7 @@ Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": 
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 800,
+      max_tokens: Math.max(400, batch.length * 250),
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     })
@@ -283,38 +283,6 @@ Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": 
   }
 }
 
-/**
- * Generate pairings + parental summary for movies missing cached data.
- * Splits into batches of 2 for maximum parallelism, then merges results.
- */
-async function generateAndCacheEnrichment(
-  client: Anthropic,
-  movies: MovieRecommendation[]
-): Promise<Map<number, { pairings: any; parentalSummary: string }>> {
-  if (movies.length === 0) return new Map()
-
-  // Split into batches of 2 for maximum parallelism
-  const ENRICH_BATCH_SIZE = 2
-  const enrichBatches: MovieRecommendation[][] = []
-  for (let i = 0; i < movies.length; i += ENRICH_BATCH_SIZE) {
-    enrichBatches.push(movies.slice(i, i + ENRICH_BATCH_SIZE))
-  }
-
-  console.log(`[Perf] LLM Enrichment: Firing ${enrichBatches.length} parallel batches of ≤${ENRICH_BATCH_SIZE}`)
-
-  const batchResults = await Promise.all(
-    enrichBatches.map(batch => _generateEnrichmentBatch(client, batch))
-  )
-
-  const result = new Map<number, { pairings: any; parentalSummary: string }>()
-  for (const batchResult of batchResults) {
-    for (const [tmdbId, data] of batchResult.entries()) {
-      result.set(tmdbId, data)
-    }
-  }
-  return result
-}
-
 // ============================================
 // Main Orchestrator
 // ============================================
@@ -323,10 +291,10 @@ async function generateAndCacheEnrichment(
  * Generate LLM reasoning for recommendations.
  *
  * Architecture:
- * - Summaries are personalized per-audience and generated in 5 parallel batches of 2
- * - Pairings + parental are per-movie and cached in the DB after first generation
- * - Enrichment splits into batches of 2 for maximum parallelism
- * - Everything fires in parallel: 5 summary batches + N enrichment batches (if needed)
+ * - Cap at 4 total parallel LLM calls to avoid API rate limits
+ * - Summaries: 2 batches of 5 movies each
+ * - Enrichment: up to 2 batches (split uncached movies in half), cached to DB
+ * - Everything fires in parallel: 2 summary + up to 2 enrichment = max 4 calls
  */
 export async function generateRecommendationReasoning(
   input: ReasoningInput
@@ -367,33 +335,42 @@ export async function generateRecommendationReasoning(
     collectiveInfluence,
   }
 
-  // Step 4: Split recommendations into batches of 2 for summaries
-  const SUMMARY_BATCH_SIZE = 2
-  const batches: MovieRecommendation[][] = []
+  // Cap at 4 total parallel LLM calls to avoid API rate limits
+  // Split: 2 summary batches + 2 enrichment batches (or fewer if not needed)
+
+  // Summary batches: split 10 movies into 2 batches of 5
+  const SUMMARY_BATCH_SIZE = 5
+  const summaryBatches: MovieRecommendation[][] = []
   for (let i = 0; i < recommendations.length; i += SUMMARY_BATCH_SIZE) {
-    batches.push(recommendations.slice(i, i + SUMMARY_BATCH_SIZE))
+    summaryBatches.push(recommendations.slice(i, i + SUMMARY_BATCH_SIZE))
   }
 
-  // Step 5: Fire everything in parallel
-  const enrichmentPromise = needsEnrichment.length > 0
-    ? generateAndCacheEnrichment(client, needsEnrichment)
-    : Promise.resolve(new Map<number, { pairings: any; parentalSummary: string }>())
+  // Enrichment batches: split uncached movies into 2 batches (max)
+  const enrichmentBatches: MovieRecommendation[][] = []
+  if (needsEnrichment.length > 0) {
+    const ENRICH_BATCH_SIZE = Math.ceil(needsEnrichment.length / 2)
+    for (let i = 0; i < needsEnrichment.length; i += ENRICH_BATCH_SIZE) {
+      enrichmentBatches.push(needsEnrichment.slice(i, i + ENRICH_BATCH_SIZE))
+    }
+  }
 
-  const summaryPromises = batches.map(batch =>
-    generateSummaryBatch(client, batch, summaryContext)
-  )
+  console.log(`[Perf] LLM: Firing ${summaryBatches.length} summary batches + ${enrichmentBatches.length} enrichment batches (${summaryBatches.length + enrichmentBatches.length} total parallel calls)`)
 
-  console.log(`[Perf] LLM: Firing ${batches.length} summary batches (${SUMMARY_BATCH_SIZE}/batch) + ${needsEnrichment.length > 0 ? Math.ceil(needsEnrichment.length / 2) + ' enrichment batches' : 'no enrichment (all cached)'}`)
+  // Fire all in parallel — max 4 calls (2 summary + 2 enrichment)
+  const allPromises: Promise<any>[] = [
+    ...summaryBatches.map(batch => generateSummaryBatch(client, batch, summaryContext)),
+    ...enrichmentBatches.map(batch => _generateEnrichmentBatch(client, batch)),
+  ]
 
   const tLLM = timer("LLM: All parallel calls (summaries + enrichment)")
-  const [enrichmentResults, ...summaryBatchResults] = await Promise.all([
-    enrichmentPromise,
-    ...summaryPromises,
-  ])
+  const results = await Promise.all(allPromises)
   tLLM.done()
 
-  // Step 6: Merge all results
-  // Combine summary batches into one map
+  // Split results back: first N are summary results, rest are enrichment
+  const summaryBatchResults = results.slice(0, summaryBatches.length) as Map<number, string>[]
+  const enrichmentBatchResults = results.slice(summaryBatches.length) as Map<number, { pairings: any; parentalSummary: string }>[]
+
+  // Merge summary results
   const summaryMap = new Map<number, string>()
   for (const batchResult of summaryBatchResults) {
     for (const [tmdbId, summary] of batchResult.entries()) {
@@ -401,10 +378,12 @@ export async function generateRecommendationReasoning(
     }
   }
 
-  // Merge cached enrichment with freshly generated enrichment
+  // Merge enrichment results (cached + fresh)
   const allEnrichment = new Map(cachedEnrichment)
-  for (const [tmdbId, data] of enrichmentResults.entries()) {
-    allEnrichment.set(tmdbId, data)
+  for (const batchResult of enrichmentBatchResults) {
+    for (const [tmdbId, data] of batchResult.entries()) {
+      allEnrichment.set(tmdbId, data)
+    }
   }
 
   // Build final result map
@@ -420,7 +399,8 @@ export async function generateRecommendationReasoning(
     })
   }
 
-  console.log(`[LLM Reasoning] Generated ${summaryMap.size} summaries, ${enrichmentResults.size} new enrichments, ${cachedEnrichment.size} cached enrichments`)
+  const freshEnrichmentCount = enrichmentBatchResults.reduce((sum, m) => sum + m.size, 0)
+  console.log(`[LLM Reasoning] Generated ${summaryMap.size} summaries, ${freshEnrichmentCount} new enrichments, ${cachedEnrichment.size} cached enrichments`)
   totalTimer.done()
   return result
 }
