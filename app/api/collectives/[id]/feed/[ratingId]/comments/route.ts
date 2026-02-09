@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { createNotification, getRatingOwner, getRatingMediaInfo } from "@/lib/notifications/notification-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 import { publishToChannel } from "@/lib/ably/server"
 import { getFeedChannelName } from "@/lib/ably/channel-names"
-
-const sql = neon(process.env.DATABASE_URL!)
-
 export async function GET(request: Request, { params }: { params: Promise<{ id: string; ratingId: string }> }) {
   try {
     const { id: collectiveId, ratingId } = await params

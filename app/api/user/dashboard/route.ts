@@ -1,9 +1,6 @@
-import { neon } from "@neondatabase/serverless"
 import { NextResponse } from "next/server"
+import { sql } from "@/lib/db"
 import { getSafeUser } from "@/lib/auth/auth-utils"
-
-const sql = neon(process.env.DATABASE_URL!)
-
 export async function GET() {
   try {
     const { user } = await getSafeUser()

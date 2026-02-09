@@ -1,9 +1,6 @@
-import { neon } from "@neondatabase/serverless"
 import { NextRequest, NextResponse } from "next/server"
+import { sql } from "@/lib/db"
 import { stackServerApp } from "@/stack"
-
-const sql = neon(process.env.DATABASE_URL!)
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db"
 import { createTMDBClient } from "@/lib/tmdb/client"
-
-const sql = neon(process.env.DATABASE_URL!)
-
 export async function POST() {
   try {
     console.log("[v0] Starting TMDB population process...")

@@ -1,8 +1,5 @@
-import { neon } from "@neondatabase/serverless"
 import { NextResponse } from "next/server"
-
-const sql = neon(process.env.DATABASE_URL!)
-
+import { sql } from "@/lib/db"
 export async function GET() {
   try {
     const nominations = await sql`

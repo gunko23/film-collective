@@ -1,10 +1,7 @@
-import { neon } from "@neondatabase/serverless"
 import { notFound } from "next/navigation"
+import { sql } from "@/lib/db"
 import Header from "@/components/header"
 import { PublicUserProfile } from "@/components/public-user-profile"
-
-const sql = neon(process.env.DATABASE_URL!)
-
 export default async function UserProfilePage({
   params,
 }: {

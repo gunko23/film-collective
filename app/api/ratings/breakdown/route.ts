@@ -1,9 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db"
 import { getSafeUser } from "@/lib/auth/auth-utils"
-
-const sql = neon(process.env.DATABASE_URL!)
-
 export async function POST(request: NextRequest) {
   try {
     const { user, isRateLimited } = await getSafeUser()
