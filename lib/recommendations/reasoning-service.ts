@@ -2,6 +2,17 @@ import Anthropic from "@anthropic-ai/sdk"
 import { sql } from "@/lib/db"
 import type { MovieRecommendation } from "./recommendation-service"
 
+function timer(label: string) {
+  const start = Date.now()
+  return {
+    done: () => {
+      const ms = Date.now() - start
+      console.log(`[Perf] ${label}: ${ms}ms`)
+      return ms
+    }
+  }
+}
+
 // ============================================
 // Taste Context Queries
 // ============================================
@@ -277,9 +288,11 @@ Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": 
 export async function generateRecommendationReasoning(
   input: ReasoningInput
 ): Promise<Map<number, ReasoningResult>> {
+  const totalTimer = timer("generateRecommendationReasoning TOTAL")
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     console.warn("[LLM Reasoning] ANTHROPIC_API_KEY not set")
+    totalTimer.done()
     return new Map()
   }
 
@@ -287,14 +300,17 @@ export async function generateRecommendationReasoning(
           soloMode, memberCount, collectiveInfluence } = input
 
   // Step 1: Load cached enrichment (pairings + parental) for all 10 movies
+  const tCache = timer("LLM: Load cached enrichment")
   const cachedEnrichment = await getCachedEnrichment(
     recommendations.map(r => r.tmdbId)
   )
+  tCache.done()
 
   // Step 2: Identify movies that need enrichment (no cached pairings)
   const needsEnrichment = recommendations.filter(
     r => !cachedEnrichment.has(r.tmdbId)
   )
+  console.log(`[Perf] LLM: ${cachedEnrichment.size} cached, ${needsEnrichment.length} need enrichment`)
 
   // Step 3: Build trimmed taste context for summary generation
   const audienceLabel = soloMode ? "you" : `your group of ${memberCount}`
@@ -329,12 +345,14 @@ export async function generateRecommendationReasoning(
     generateSummaryBatch(batch, summaryContext)
   )
 
-  const startTime = Date.now()
+  console.log(`[Perf] LLM: Firing ${batches.length} summary batches + ${needsEnrichment.length > 0 ? '1' : '0'} enrichment call`)
+
+  const tLLM = timer("LLM: All parallel calls (summaries + enrichment)")
   const [enrichmentResults, ...summaryBatchResults] = await Promise.all([
     enrichmentPromise,
     ...summaryPromises,
   ])
-  console.log(`[LLM Reasoning] All LLM calls completed in ${Date.now() - startTime}ms`)
+  tLLM.done()
 
   // Step 6: Merge all results
   // Combine summary batches into one map
@@ -365,5 +383,6 @@ export async function generateRecommendationReasoning(
   }
 
   console.log(`[LLM Reasoning] Generated ${summaryMap.size} summaries, ${enrichmentResults.size} new enrichments, ${cachedEnrichment.size} cached enrichments`)
+  totalTimer.done()
   return result
 }

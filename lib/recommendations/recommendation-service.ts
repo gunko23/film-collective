@@ -9,6 +9,17 @@ import { getSoloCollectiveInfluence, getGroupCollectiveInfluence, type Collectiv
 
 const sql = neon(process.env.DATABASE_URL!)
 
+function timer(label: string) {
+  const start = Date.now()
+  return {
+    done: () => {
+      const ms = Date.now() - start
+      console.log(`[Perf] ${label}: ${ms}ms`)
+      return ms
+    }
+  }
+}
+
 // Severity level order for comparison
 const SEVERITY_ORDER: Record<string, number> = {
   "None": 0,
@@ -704,9 +715,11 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 }> {
   const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, soloMode = false, era, startYear, streamingProviders, collectiveId } = options
 
+  const totalTimer = timer("_fetchAndScoreMovies TOTAL")
   const pageOffset = (page - 1) * 3
 
   // ── Phase 1: Parallel DB queries ──
+  const t1 = timer("Phase 1: DB queries (parallel)")
   const [groupGenres, seenMovies, dislikedGenreSet, eraPreferences, crewAffinitiesResult, peerIds] = await Promise.all([
     getGroupGenrePreferences(memberIds),
     getSeenMovieTmdbIds(memberIds),
@@ -715,6 +728,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     getCachedCrewAffinities(memberIds),
     getTasteSimilarPeers(memberIds),
   ])
+  t1.done()
 
   const moodFilters = getMoodFilters(mood)
 
@@ -877,6 +891,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   const crewAffinities = crewAffinitiesResult
   const seenTmdbIds = new Set(seenMovies.keys())
 
+  const t2 = timer("Phase 2: TMDB discovers")
   const tmdbDiscoverPromises: Promise<any>[] = [
     tmdb.discoverMovies({ ...discoverOptions, page: 1 + pageOffset }),
     tmdb.discoverMovies({ ...discoverOptions, page: 2 + pageOffset }),
@@ -927,6 +942,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     getCollaborativeRecommendations(memberIds, peerIds, seenTmdbIds),
     ...tmdbDiscoverPromises,
   ])
+  t2.done()
 
   const candidateMovies: any[] = []
   for (const result of tmdbResults) {
@@ -938,6 +954,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
                        : totalSeen > 200 ? 2
                        : 0
   if (extraPageDepth > 0) {
+    const t2a = timer("Phase 2a: Power user deep pages")
     const deepDiscoverOptions = {
       ...discoverOptions,
       voteCountGte: Math.max(voteCountFloor, 1500),
@@ -949,10 +966,12 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       )
     )
     deepPages.forEach(p => candidateMovies.push(...p.results))
+    t2a.done()
   }
 
   // ── Pressure-based extra fetches (parallelized) ──
   if (extraPressurePages > 0) {
+    const t2b = timer("Phase 2b: Pressure extra fetches")
     const broadOptions = {
       ...discoverOptions,
       voteCountGte: voteCountFloor,
@@ -990,9 +1009,11 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
     const pressureResults = await Promise.all(pressurePromises)
     pressureResults.forEach(p => candidateMovies.push(...p.results))
+    t2b.done()
   }
 
   // ── Phase 3: Inject collab candidates not already in pool ──
+  const t2d = timer("Phase 2d: Collaborative filtering candidates")
   const collabScoreMap = new Map<number, number>()
   for (const rec of collabRecs) {
     collabScoreMap.set(rec.tmdbId, rec.peerScore)
@@ -1013,6 +1034,8 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     }
   }
 
+  t2d.done()
+
   let uniqueMovies = Array.from(
     new Map(candidateMovies.map((m) => [m.id, m])).values()
   )
@@ -1029,6 +1052,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   }
 
   // ── Collective influence: friends' taste ──
+  const t2e = timer("Phase 2e: Collective influence query + injection")
   const collectiveInfluenceMap = soloMode
     ? await getSoloCollectiveInfluence(memberIds[0])
     : collectiveId
@@ -1054,6 +1078,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   }
 
   console.log(`[Recommendations] Collective influence: ${collectiveInfluenceMap.size} movies from friends`)
+  t2e.done()
 
   // ── Emergency fallback — pool size check ──
   // Count viable candidates (at least one member hasn't seen it)
@@ -1064,6 +1089,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
   const MIN_VIABLE_POOL = 15
   if (viableCandidates.length < MIN_VIABLE_POOL) {
+    const t2c = timer("Phase 2c: Emergency fallback")
     console.log(`[Recommendations] Low candidate pool: ${viableCandidates.length}. Running emergency fetch.`)
 
     const emergencyOptions: any = {
@@ -1097,8 +1123,10 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
         return true
       })
     }
+    t2c.done()
   }
 
+  console.log(`[Perf] Candidate pool size after dedup: ${uniqueMovies.length}`)
   console.log(`[Recommendations] Pool stats:`, {
     totalCandidatesFetched: candidateMovies.length,
     afterDedup: uniqueMovies.length,
@@ -1107,10 +1135,13 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   })
 
   // ── Phase 3.5: Batch load cached OMDb scores ──
+  const t3 = timer("Phase 3: OMDb batch load")
   const candidateTmdbIdsForOmdb = uniqueMovies.map((m: any) => m.id as number)
   const omdbScoresMap = await batchGetCachedOmdbScores(candidateTmdbIdsForOmdb)
+  t3.done()
 
   // ── Phase 4: First-pass scoring (without credits) ──
+  const t4 = timer("Phase 4: First-pass scoring")
   const firstPassScored: (MovieRecommendation & { _movie: any })[] = []
 
   for (const movie of uniqueMovies) {
@@ -1182,6 +1213,9 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   }
 
   firstPassScored.sort((a, b) => b.groupFitScore - a.groupFitScore)
+  t4.done()
+
+  console.log(`[Perf] Candidates scored: ${firstPassScored.length}, top score: ${firstPassScored[0]?.groupFitScore}, bottom of top 30: ${firstPassScored[29]?.groupFitScore}`)
 
   // ── Background OMDb pre-fetch for top 50 (fire-and-forget) ──
   // Moved here from after Phase 6 to pre-fetch for more candidates earlier
@@ -1198,6 +1232,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     .catch(e => console.error("[OMDb] Error checking for pre-fetch needs:", e))
 
   // ── Phase 5: Credit enrichment for top 30 ──
+  const t5 = timer("Phase 5: Credit enrichment + re-scoring")
   const top30 = firstPassScored.slice(0, 30)
   const hasAffinities = crewAffinities.directors.length > 0 || crewAffinities.actors.length > 0
 
@@ -1262,6 +1297,8 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     scoredMovies = top30.map(({ _movie, ...rest }) => rest)
   }
 
+  t5.done()
+
   // ── Post-scoring popularity floor ──
   // Prevents truly obscure films from making final results
   // Collab recommendations bypass this — if a taste-similar peer loved it, it's worth showing
@@ -1280,6 +1317,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   console.log(`[Recommendations] Post-dedup pool: ${scoredMovies.length} movies`)
 
   // ── Phase 6: Parental guide filtering + taste context (parallel) ──
+  const t6 = timer("Phase 6: Parental guide + taste context")
   let candidates = scoredMovies.slice(0, 50)
 
   const [parentalGuideData, lovedMovies, dislikedMovies] = await Promise.all([
@@ -1325,6 +1363,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   }
 
   const finalResults = filteredMovies.slice(0, 10)
+  t6.done()
 
   // Background OMDb fetch for final results (complements the top-50 pre-fetch after Phase 4)
   const finalTmdbIds = finalResults.map(m => m.tmdbId)
@@ -1338,6 +1377,8 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       }
     })
     .catch(e => console.error("[OMDb] Error checking final results for fetch:", e))
+
+  totalTimer.done()
 
   return {
     recommendations: finalResults,
@@ -1354,6 +1395,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 // ============================================
 
 export async function getTonightsPick(request: TonightPickRequest): Promise<TonightPickResponse> {
+  const tTotal = timer("getTonightsPick TOTAL")
   const { collectiveId, memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders } = request
 
   // Validate members belong to the collective
@@ -1371,6 +1413,7 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
 
   const validMemberIds = validMembers.map((m: any) => m.id)
 
+  const tFetch = timer("Pipeline: _fetchAndScoreMovies")
   const result = await _fetchAndScoreMovies({
     memberIds: validMemberIds,
     mood,
@@ -1383,8 +1426,10 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     streamingProviders,
     collectiveId,
   })
+  tFetch.done()
 
   // Generate LLM reasoning synchronously before returning
+  const tReasoning = timer("Pipeline: generateRecommendationReasoning")
   const llmReasoning = await generateRecommendationReasoning({
     recommendations: result.recommendations,
     lovedMovies: result.lovedMovies,
@@ -1394,6 +1439,7 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     memberCount: validMemberIds.length,
     collectiveInfluence: result.collectiveInfluenceMap,
   })
+  tReasoning.done()
 
   for (const rec of result.recommendations) {
     const llmData = llmReasoning.get(rec.tmdbId)
@@ -1403,6 +1449,8 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
       if (llmData.parentalSummary) rec.parentalSummary = llmData.parentalSummary
     }
   }
+
+  tTotal.done()
 
   return {
     recommendations: result.recommendations,
@@ -1419,6 +1467,7 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
 // ============================================
 
 export async function getSoloTonightsPick(request: SoloTonightPickRequest): Promise<SoloTonightPickResponse> {
+  const tTotal = timer("getSoloTonightsPick TOTAL")
   const { userId, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders } = request
 
   // Validate user exists
@@ -1427,6 +1476,7 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
     throw new Error("User not found")
   }
 
+  const tFetch = timer("Pipeline: _fetchAndScoreMovies")
   const result = await _fetchAndScoreMovies({
     memberIds: [userId],
     mood,
@@ -1440,8 +1490,10 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
     streamingProviders,
     collectiveId: null,
   })
+  tFetch.done()
 
   // Generate LLM reasoning synchronously before returning
+  const tReasoning = timer("Pipeline: generateRecommendationReasoning")
   const llmReasoning = await generateRecommendationReasoning({
     recommendations: result.recommendations,
     lovedMovies: result.lovedMovies,
@@ -1451,6 +1503,7 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
     memberCount: 1,
     collectiveInfluence: result.collectiveInfluenceMap,
   })
+  tReasoning.done()
 
   for (const rec of result.recommendations) {
     const llmData = llmReasoning.get(rec.tmdbId)
@@ -1460,6 +1513,8 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
       if (llmData.parentalSummary) rec.parentalSummary = llmData.parentalSummary
     }
   }
+
+  tTotal.done()
 
   return {
     recommendations: result.recommendations,
