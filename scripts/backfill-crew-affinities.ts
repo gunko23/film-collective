@@ -14,11 +14,14 @@ import dotenv from "dotenv"
 dotenv.config({ path: path.join(__dirname, "..", ".env.local") })
 
 import { neon } from "@neondatabase/serverless"
-import { rebuildUserCrewAffinities } from "../lib/recommendations/crew-affinity-service"
 
 const sql = neon(process.env.DATABASE_URL!)
 
 async function backfill() {
+  // Dynamic import: crew-affinity-service imports @/lib/db which calls neon()
+  // at module init time, so it must load AFTER dotenv.config() has run
+  const { rebuildUserCrewAffinities } = await import("../lib/recommendations/crew-affinity-service")
+
   console.log("[Crew Affinities Backfill] Starting...")
 
   // Get all distinct user IDs who have rated movies
