@@ -1267,7 +1267,18 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
   const finalResults = filteredMovies.slice(0, 10)
 
-  // Background OMDb fetch for final results moved to after Phase 4 (top 50 pre-fetch)
+  // Background OMDb fetch for final results (complements the top-50 pre-fetch after Phase 4)
+  const finalTmdbIds = finalResults.map(m => m.tmdbId)
+  getMoviesNeedingOmdbFetch(finalTmdbIds)
+    .then(needsFetch => {
+      if (needsFetch.length > 0) {
+        console.log(`[OMDb] Background fetching ${needsFetch.length} final result movies`)
+        backgroundFetchOmdbBatch(needsFetch, 20).catch(e =>
+          console.error("[OMDb] Background fetch error (final):", e)
+        )
+      }
+    })
+    .catch(e => console.error("[OMDb] Error checking final results for fetch:", e))
 
   return {
     recommendations: finalResults,

@@ -8,10 +8,8 @@
  * so candidate credit enrichment is a single DB query instead of TMDB API calls.
  */
 
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db"
 import { createTMDBClient } from "@/lib/tmdb/client"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 // ============================================
 // Types
