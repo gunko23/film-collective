@@ -5,6 +5,7 @@ import { batchGetCachedOmdbScores, getMoviesNeedingOmdbFetch, backgroundFetchOmd
 import { calculateCompositeQualityScore, getQualityBonus, getAcclaimedMoodBonus } from "@/lib/recommendations/quality-score"
 import { generateRecommendationReasoning, getLovedMovies, getDislikedMovies } from "@/lib/recommendations/reasoning-service"
 import { getCachedCrewAffinities, getCachedCandidateCredits } from "@/lib/recommendations/crew-affinity-service"
+import { getSoloCollectiveInfluence, getGroupCollectiveInfluence, type CollectiveInfluenceEntry } from "@/lib/recommendations/collective-influence-service"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -185,6 +186,7 @@ type ScoringContext = {
   mood: string | null
   moodPreferGenres: number[]
   moodSoftAvoidGenres: number[]
+  collectiveInfluence: CollectiveInfluenceEntry | null
 }
 
 function getDecade(releaseDate: string | null | undefined): string | null {
@@ -553,6 +555,32 @@ function calculateGroupFitScore(
     reasoning.push("Loved by people with similar taste")
   }
 
+  // --- Collective friend influence (max +30) ---
+  if (ctx.collectiveInfluence) {
+    const { avgScore, raterCount, raterNames } = ctx.collectiveInfluence
+
+    let influenceBonus = Math.round((avgScore / 100) * 30)
+
+    if (raterCount >= 3) influenceBonus = Math.min(30, influenceBonus + 7)
+    else if (raterCount >= 2) influenceBonus = Math.min(30, influenceBonus + 4)
+
+    score += influenceBonus
+
+    if (ctx.soloMode) {
+      if (raterCount === 1) {
+        reasoning.push(`${raterNames[0]} rated this ${avgScore}/100`)
+      } else {
+        reasoning.push(`${raterNames.slice(0, 3).join(", ")} loved this (avg ${avgScore}/100)`)
+      }
+    } else {
+      if (raterCount === 1) {
+        reasoning.push(`${raterNames[0]} in your collective rated this ${avgScore}/100`)
+      } else {
+        reasoning.push(`${raterNames.slice(0, 3).join(" & ")} in your collective loved this`)
+      }
+    }
+  }
+
   return {
     score: Math.max(0, Math.min(100, score)),
     reasoning,
@@ -663,6 +691,7 @@ type FetchAndScoreOptions = {
   era?: string | null
   startYear?: number | null
   streamingProviders?: number[] | null
+  collectiveId?: string | null
 }
 
 async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
@@ -671,8 +700,9 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   totalRatings: number
   lovedMovies: { title: string; avgScore: number }[]
   dislikedMovies: { title: string; avgScore: number }[]
+  collectiveInfluenceMap: Map<number, CollectiveInfluenceEntry>
 }> {
-  const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, soloMode = false, era, startYear, streamingProviders } = options
+  const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, soloMode = false, era, startYear, streamingProviders, collectiveId } = options
 
   const pageOffset = (page - 1) * 3
 
@@ -998,6 +1028,33 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     })
   }
 
+  // ── Collective influence: friends' taste ──
+  const collectiveInfluenceMap = soloMode
+    ? await getSoloCollectiveInfluence(memberIds[0])
+    : collectiveId
+      ? await getGroupCollectiveInfluence(collectiveId, memberIds)
+      : new Map<number, CollectiveInfluenceEntry>()
+
+  // Inject influence movies not already in candidate pool
+  const candidateTmdbIdsSet = new Set(uniqueMovies.map((m: any) => m.id))
+  const missingInfluenceIds = Array.from(collectiveInfluenceMap.keys())
+    .filter(tmdbId => !candidateTmdbIdsSet.has(tmdbId))
+    .slice(0, 25)
+
+  if (missingInfluenceIds.length > 0) {
+    const influenceDetails = await Promise.all(
+      missingInfluenceIds.map(id => tmdb.getMovieDetails(id).catch(() => null))
+    )
+    for (const movie of influenceDetails) {
+      if (movie) {
+        uniqueMovies.push(movie)
+        candidateTmdbIdsSet.add(movie.id)
+      }
+    }
+  }
+
+  console.log(`[Recommendations] Collective influence: ${collectiveInfluenceMap.size} movies from friends`)
+
   // ── Emergency fallback — pool size check ──
   // Count viable candidates (at least one member hasn't seen it)
   const viableCandidates = uniqueMovies.filter((m: any) => {
@@ -1094,6 +1151,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       mood: mood || null,
       moodPreferGenres: mood ? moodFilters.preferGenres : [],
       moodSoftAvoidGenres: mood ? moodFilters.softAvoidGenres : [],
+      collectiveInfluence: collectiveInfluenceMap.get(movie.id) || null,
     }
 
     const { score, reasoning } = calculateGroupFitScore(movie, ctx)
@@ -1173,6 +1231,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
         mood: mood || null,
         moodPreferGenres: mood ? moodFilters.preferGenres : [],
         moodSoftAvoidGenres: mood ? moodFilters.softAvoidGenres : [],
+        collectiveInfluence: collectiveInfluenceMap.get(entry.tmdbId) || null,
       }
 
       const { score, reasoning } = calculateGroupFitScore(entry._movie, ctx)
@@ -1286,6 +1345,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     totalRatings: groupGenres.reduce((sum, g) => sum + g.ratingCount, 0),
     lovedMovies,
     dislikedMovies,
+    collectiveInfluenceMap,
   }
 }
 
@@ -1321,6 +1381,7 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     era,
     startYear,
     streamingProviders,
+    collectiveId,
   })
 
   // Generate LLM reasoning synchronously before returning
@@ -1331,6 +1392,7 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     mood: mood || null,
     soloMode: false,
     memberCount: validMemberIds.length,
+    collectiveInfluence: result.collectiveInfluenceMap,
   })
 
   for (const rec of result.recommendations) {
@@ -1376,6 +1438,7 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
     era,
     startYear,
     streamingProviders,
+    collectiveId: null,
   })
 
   // Generate LLM reasoning synchronously before returning
@@ -1386,6 +1449,7 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
     mood: mood || null,
     soloMode: true,
     memberCount: 1,
+    collectiveInfluence: result.collectiveInfluenceMap,
   })
 
   for (const rec of result.recommendations) {

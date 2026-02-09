@@ -59,6 +59,7 @@ type ReasoningInput = {
   mood: string | null
   soloMode: boolean
   memberCount: number
+  collectiveInfluence?: Map<number, { avgScore: number; raterCount: number; raterNames: string[] }>
 }
 
 type ReasoningResult = {
@@ -97,6 +98,7 @@ export async function generateRecommendationReasoning(
 
   const movieList = recommendations.map((m, i) => {
     const year = m.releaseDate ? new Date(m.releaseDate).getFullYear() : "Unknown"
+    const influence = input.collectiveInfluence?.get(m.tmdbId)
     return [
       `[${i + 1}] "${m.title}" (${year})`,
       `   Genres: ${m.genres.map(g => g.name).join(", ")}`,
@@ -104,6 +106,7 @@ export async function generateRecommendationReasoning(
       `   Overview: ${m.overview.slice(0, 200)}`,
       m.seenBy.length > 0 ? `   Already seen by some members` : null,
       `   System reasoning: ${m.reasoning.join("; ")}`,
+      influence ? `   Collective friends: ${influence.raterNames.slice(0, 3).join(", ")} rated this highly (avg ${influence.avgScore}/100)` : null,
     ].filter(Boolean).join("\n")
   }).join("\n\n")
 
@@ -133,6 +136,7 @@ For each movie, provide:
    - NEVER use generic filler like "highly acclaimed", "well-regarded", "critically praised", or "a must-watch"
    - If some group members have seen it, frame it as a positive
    - Keep it to 1-2 punchy sentences
+   - When a movie has "Collective friends" data, LEAD with the social connection. Reference friends by name. A trusted friend's recommendation is the most compelling reason to watch something.
    - ${soloMode ? 'Address the user as "you"' : 'Address the group as "your group" or "you all"'}
 
 2. **Tonight's Concession Stand** — three pairings:
