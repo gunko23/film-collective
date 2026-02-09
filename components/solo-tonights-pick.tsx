@@ -102,32 +102,51 @@ function BackNav({ onBack }: { onBack: () => void }) {
 }
 
 // ── User Profile Summary ──
-function UserProfileSummary({ userProfile }: { userProfile: SoloPickResponse["userProfile"] }) {
+function UserProfileSummary() {
   return (
     <div style={{
-      borderRadius: 14, padding: 14, overflow: "hidden",
+      borderRadius: 14, overflow: "hidden",
       background: C.bgCard, border: "1px solid rgba(232,226,214,0.06)",
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.creamMuted, marginBottom: 10 }}>
-        <IconUsers size={16} color={C.creamMuted} />
-        <span>Based on your ratings</span>
-      </div>
-      {userProfile.sharedGenres.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: C.creamFaint }}>Your favorites:</span>
-          {userProfile.sharedGenres.map((genre) => (
-            <span
-              key={genre.genreId}
-              style={{
-                padding: "3px 10px", borderRadius: 12,
-                background: `${C.blue}18`, color: C.blueLight, fontSize: 11, fontWeight: 500,
-              }}
-            >
-              {genre.genreName}
-            </span>
-          ))}
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: "20px 18px 18px",
+        gap: 10,
+      }}>
+        {/* Solo avatar */}
+        <div style={{
+          width: 30,
+          height: 30,
+          borderRadius: "50%",
+          background: `linear-gradient(135deg, ${C.orange}cc, ${C.orangeMuted}88)`,
+          border: `2px solid ${C.bg}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <IconUsers size={14} color={C.bg} />
         </div>
-      )}
+
+        {/* Title */}
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.cream }}>
+            Tonight&apos;s Picks
+          </div>
+          <div style={{ fontSize: 12, color: C.creamFaint, marginTop: 3 }}>
+            based on your ratings
+          </div>
+        </div>
+
+        {/* Small gold accent divider */}
+        <div style={{
+          width: 32,
+          height: 1.5,
+          borderRadius: 1,
+          background: "linear-gradient(90deg, transparent, #d4a05088, transparent)",
+        }} />
+      </div>
     </div>
   )
 }
@@ -149,6 +168,7 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
   const [results, setResults] = useState<SoloPickResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resultsPage, setResultsPage] = useState(1)
+  const [shownTmdbIds, setShownTmdbIds] = useState<number[]>([])
 
   const [maxViolence, setMaxViolence] = useState<ContentLevel>(null)
   const [maxSexNudity, setMaxSexNudity] = useState<ContentLevel>(null)
@@ -177,7 +197,7 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
     )
   }
 
-  const getRecommendations = async (page: number = 1) => {
+  const getRecommendations = async (page: number = 1, excludeIds: number[] = []) => {
     setLoading(true)
     setError(null)
 
@@ -200,6 +220,7 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
             maxSubstances,
             maxFrightening,
           },
+          excludeTmdbIds: excludeIds.length > 0 ? excludeIds : null,
         }),
       })
 
@@ -209,6 +230,13 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
       }
 
       const data = await res.json()
+      // Track all shown movie IDs for future shuffles
+      const newIds = (data.recommendations || []).map((r: any) => r.tmdbId)
+      if (excludeIds.length > 0) {
+        setShownTmdbIds([...excludeIds, ...newIds])
+      } else {
+        setShownTmdbIds(newIds)
+      }
       setResults(data)
       setResultsPage(page)
       setStep("results")
@@ -220,7 +248,7 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
   }
 
   const shuffleResults = () => {
-    getRecommendations(resultsPage + 1)
+    getRecommendations(resultsPage + 1, shownTmdbIds)
   }
 
   // Show loading when fetching recommendations
@@ -317,7 +345,7 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
       {/* Step 2: Results */}
       {step === "results" && results && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <UserProfileSummary userProfile={results.userProfile} />
+          <UserProfileSummary />
 
           {/* Recommendations List */}
           {results.recommendations.length === 0 ? (
