@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSafeUser } from "@/lib/auth/auth-utils"
-import { getUserStreamingProviders, setUserStreamingProviders } from "@/lib/streaming/providers"
+import { getUserStreamingProviders, setUserStreamingProviders } from "@/lib/streaming/streaming-service"
 
 // GET — fetch user's saved streaming services
 export async function GET() {
