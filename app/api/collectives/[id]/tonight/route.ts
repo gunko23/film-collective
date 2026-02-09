@@ -54,7 +54,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const body = await request.json()
-    const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page, era, startYear, streamingProviders } = body
+    const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page, era, startYear, streamingProviders, excludeTmdbIds } = body
 
     if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
       return NextResponse.json({ error: "At least one member must be selected" }, { status: 400 })
@@ -72,6 +72,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       era: era || null,
       startYear: startYear || null,
       streamingProviders: streamingProviders || null,
+      excludeTmdbIds: excludeTmdbIds || null,
     })
 
     return NextResponse.json(result)

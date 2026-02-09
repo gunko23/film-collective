@@ -1,30 +1,10 @@
 import { RecommendationCard } from "./recommendation-card"
-import type { TonightPickResponse } from "./types"
+import { C, getAvatarGradient } from "./constants"
+import type { GroupMember, TonightPickResponse } from "./types"
 
-const SERIF = "'Playfair Display', Georgia, serif"
-const SANS = "'DM Sans', sans-serif"
+const memberColors = ["#d4753e", "#d4a050", "#6a9fd4", "#82b882", "#a088c0"]
 
-function GenreTag({ label }: { label: string }) {
-  return (
-    <span
-      style={{
-        fontSize: 11.5,
-        color: "#5aaa8a",
-        border: "1px solid #5aaa8a44",
-        borderRadius: 14,
-        padding: "4px 12px",
-        fontFamily: SANS,
-        fontWeight: 500,
-        background: "#5aaa8a0a",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {label}
-    </span>
-  )
-}
-
-export function ResultsStep({ results }: { results: TonightPickResponse }) {
+export function ResultsStep({ results, members }: { results: TonightPickResponse; members?: GroupMember[] }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {/* Recommendations header card */}
@@ -33,55 +13,70 @@ export function ResultsStep({ results }: { results: TonightPickResponse }) {
           background: "#141210",
           borderRadius: 10,
           border: "1px solid #2a2420",
-          padding: "16px 18px",
+          overflow: "hidden",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#8a7e70"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-          <span
-            style={{
-              fontSize: 14,
-              color: "#b5aa98",
-              fontFamily: SERIF,
-            }}
-          >
-            Recommendations for{" "}
-            <span style={{ color: "#ece6da" }}>
-              {results.groupProfile.memberCount} member
-              {results.groupProfile.memberCount !== 1 ? "s" : ""}
-            </span>
-          </span>
-        </div>
-        {results.groupProfile.sharedGenres.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <span
-              style={{
-                fontSize: 11,
-                color: "#5a554e",
-                fontFamily: SANS,
-                marginRight: 2,
-              }}
-            >
-              Shared favorites:
-            </span>
-            {results.groupProfile.sharedGenres.map((genre) => (
-              <GenreTag key={genre.genreId} label={genre.genreName} />
-            ))}
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          padding: "20px 18px 18px",
+          gap: 10,
+        }}>
+          {/* Avatar stack */}
+          {members && members.length > 0 && (
+            <div style={{ display: "flex" }}>
+              {members.map((member, i) => {
+                const [c1, c2] = getAvatarGradient(member.name)
+                return (
+                  <div
+                    key={member.userId}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: "50%",
+                      background: member.avatarUrl
+                        ? `url(${member.avatarUrl}) center/cover`
+                        : `linear-gradient(135deg, ${c1}cc, ${c2}88)`,
+                      border: `2px solid ${C.bg}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: C.bg,
+                      marginLeft: i === 0 ? 0 : -9,
+                      zIndex: members.length - i,
+                      position: "relative",
+                    }}
+                  >
+                    {!member.avatarUrl && (member.name?.[0] || "?")}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Title + member names */}
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.cream }}>
+              Tonight&apos;s Picks
+            </div>
+            {members && members.length > 0 && (
+              <div style={{ fontSize: 12, color: C.creamFaint, marginTop: 3 }}>
+                for {members.map(m => m.name).join(", ")}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Small gold accent divider */}
+          <div style={{
+            width: 32,
+            height: 1.5,
+            borderRadius: 1,
+            background: "linear-gradient(90deg, transparent, #d4a05088, transparent)",
+          }} />
+        </div>
       </div>
 
       {/* Recommendations List */}

@@ -34,6 +34,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
   const [results, setResults] = useState<TonightPickResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resultsPage, setResultsPage] = useState(1)
+  const [shownTmdbIds, setShownTmdbIds] = useState<number[]>([])
 
   const [maxViolence, setMaxViolence] = useState<ContentLevel>(null)
   const [maxSexNudity, setMaxSexNudity] = useState<ContentLevel>(null)
@@ -88,7 +89,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
     setSelectedMembers(members.map((m) => m.userId))
   }
 
-  const getRecommendations = async (page: number = 1) => {
+  const getRecommendations = async (page: number = 1, excludeIds: number[] = []) => {
     setLoading(true)
     setError(null)
 
@@ -112,6 +113,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
             maxSubstances,
             maxFrightening,
           },
+          excludeTmdbIds: excludeIds.length > 0 ? excludeIds : null,
         }),
       })
 
@@ -121,6 +123,13 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
       }
 
       const data = await res.json()
+      // Track all shown movie IDs for future shuffles
+      const newIds = (data.recommendations || []).map((r: any) => r.tmdbId)
+      if (excludeIds.length > 0) {
+        setShownTmdbIds([...excludeIds, ...newIds])
+      } else {
+        setShownTmdbIds(newIds)
+      }
       setResults(data)
       setResultsPage(page)
       setStep("results")
@@ -132,7 +141,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
   }
 
   const shuffleResults = () => {
-    getRecommendations(resultsPage + 1)
+    getRecommendations(resultsPage + 1, shownTmdbIds)
   }
 
   const isFullscreenMobile = !!onBack
@@ -293,7 +302,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
 
           {/* STEP 3: RESULTS */}
           {step === "results" && results && (
-            <ResultsStep results={results} />
+            <ResultsStep results={results} members={members.filter(m => selectedMembers.includes(m.userId))} />
           )}
         </div>
       </div>

@@ -116,6 +116,7 @@ export type TonightPickRequest = {
   era?: string | null // e.g. "1980s", "1990s" — filters to that decade
   startYear?: number | null // e.g. 2000 — only movies from this year onwards
   streamingProviders?: number[] | null // TMDB watch provider IDs to filter by
+  excludeTmdbIds?: number[] | null // Previously shown movies to exclude on shuffle
   includeTV?: boolean
 }
 
@@ -138,6 +139,7 @@ export type SoloTonightPickRequest = {
   era?: string | null
   startYear?: number | null
   streamingProviders?: number[] | null
+  excludeTmdbIds?: number[] | null
 }
 
 export type SoloTonightPickResponse = {
@@ -703,6 +705,7 @@ type FetchAndScoreOptions = {
   startYear?: number | null
   streamingProviders?: number[] | null
   collectiveId?: string | null
+  excludeTmdbIds?: number[] | null
 }
 
 async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
@@ -713,10 +716,11 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   dislikedMovies: { title: string; avgScore: number }[]
   collectiveInfluenceMap: Map<number, CollectiveInfluenceEntry>
 }> {
-  const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, soloMode = false, era, startYear, streamingProviders, collectiveId } = options
+  const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, soloMode = false, era, startYear, streamingProviders, collectiveId, excludeTmdbIds } = options
 
   const totalTimer = timer("_fetchAndScoreMovies TOTAL")
   const pageOffset = (page - 1) * 3
+  const excludeSet = new Set(excludeTmdbIds || [])
 
   // ── Phase 1: Parallel DB queries ──
   const t1 = timer("Phase 1: DB queries (parallel)")
@@ -1145,6 +1149,11 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   const firstPassScored: (MovieRecommendation & { _movie: any })[] = []
 
   for (const movie of uniqueMovies) {
+    // Skip previously shown movies (shuffle exclusion)
+    if (excludeSet.has(movie.id)) {
+      continue
+    }
+
     if (maxRuntime && movie.runtime && movie.runtime > maxRuntime) {
       continue
     }
@@ -1396,7 +1405,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
 export async function getTonightsPick(request: TonightPickRequest): Promise<TonightPickResponse> {
   const tTotal = timer("getTonightsPick TOTAL")
-  const { collectiveId, memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders } = request
+  const { collectiveId, memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders, excludeTmdbIds } = request
 
   // Validate members belong to the collective
   const validMembers = await sql`
@@ -1425,6 +1434,7 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     startYear,
     streamingProviders,
     collectiveId,
+    excludeTmdbIds,
   })
   tFetch.done()
 
@@ -1468,7 +1478,7 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
 
 export async function getSoloTonightsPick(request: SoloTonightPickRequest): Promise<SoloTonightPickResponse> {
   const tTotal = timer("getSoloTonightsPick TOTAL")
-  const { userId, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders } = request
+  const { userId, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders, excludeTmdbIds } = request
 
   // Validate user exists
   const userResult = await sql`SELECT id FROM users WHERE id = ${userId}::uuid`
@@ -1489,6 +1499,7 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
     startYear,
     streamingProviders,
     collectiveId: null,
+    excludeTmdbIds,
   })
   tFetch.done()
 
