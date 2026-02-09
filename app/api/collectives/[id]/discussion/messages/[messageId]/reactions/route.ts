@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 import { publishToChannel } from "@/lib/ably/server"
 import { getDiscussionChannelName } from "@/lib/ably/channel-names"
-
-const sql = neon(process.env.DATABASE_URL!)
+import { verifyCollectiveMembership, toggleMessageReaction } from "@/lib/chat/chat-service"
 
 // POST: Toggle reaction on a message
 export async function POST(request: Request, { params }: { params: Promise<{ id: string; messageId: string }> }) {
@@ -24,13 +22,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const dbUser = await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
 
-    // Verify membership
-    const membership = await sql`
-      SELECT id FROM collective_memberships 
-      WHERE collective_id = ${collectiveId}::uuid AND user_id = ${dbUser.id}::uuid
-    `
-
-    if (membership.length === 0) {
+    const isMember = await verifyCollectiveMembership(collectiveId, dbUser.id)
+    if (!isMember) {
       return NextResponse.json({ error: "Not a member" }, { status: 403 })
     }
 
@@ -41,31 +34,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Reaction type required" }, { status: 400 })
     }
 
-    // Check if reaction exists
-    const existing = await sql`
-      SELECT id FROM general_discussion_reactions
-      WHERE message_id = ${messageId}::uuid
-        AND user_id = ${dbUser.id}::uuid
-        AND reaction_type = ${reactionType}
-    `
-
-    let action: string
-
-    if (existing.length > 0) {
-      // Remove reaction
-      await sql`
-        DELETE FROM general_discussion_reactions
-        WHERE id = ${existing[0].id}::uuid
-      `
-      action = "removed"
-    } else {
-      // Add reaction
-      await sql`
-        INSERT INTO general_discussion_reactions (message_id, user_id, reaction_type)
-        VALUES (${messageId}::uuid, ${dbUser.id}::uuid, ${reactionType})
-      `
-      action = "added"
-    }
+    const { action } = await toggleMessageReaction(messageId, dbUser.id, reactionType)
 
     await publishToChannel(getDiscussionChannelName(collectiveId), "reaction", {
       messageId,

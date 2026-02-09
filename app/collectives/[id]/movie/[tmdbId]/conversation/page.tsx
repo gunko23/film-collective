@@ -3,10 +3,13 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { ArrowLeft, Film, Tv, Star } from "lucide-react"
 import Header from "@/components/header"
-import { sql } from "@/lib/db"
 import { getImageUrl } from "@/lib/tmdb/image"
 import Image from "next/image"
 import { MovieConversationThread } from "@/components/movie-conversation-thread"
+import { getCollective } from "@/lib/collectives/collective-service"
+import { getCollectiveMediaRatingStats } from "@/lib/collectives/collective-service"
+import { getMediaInfo } from "@/lib/tmdb/movie-service"
+import { getMovieConversationComments } from "@/lib/feed/feed-service"
 
 type Props = {
   params: Promise<{ id: string; tmdbId: string }>
@@ -29,126 +32,6 @@ type RatingStats = {
   raters: { user_name: string; user_avatar: string | null; score: number }[]
 }
 
-async function getMediaInfo(tmdbId: number, mediaType: "movie" | "tv"): Promise<MediaInfo | null> {
-  if (mediaType === "tv") {
-    const result = (await sql`
-      SELECT 
-        id::int as tmdb_id,
-        name as title,
-        poster_path,
-        first_air_date as release_date,
-        overview,
-        vote_average,
-        'tv' as media_type
-      FROM tv_shows
-      WHERE id = ${tmdbId}
-    `) as MediaInfo[]
-    return result[0] || null
-  }
-
-  const result = (await sql`
-    SELECT 
-      tmdb_id::int,
-      title,
-      poster_path,
-      release_date,
-      overview,
-      tmdb_vote_average as vote_average,
-      'movie' as media_type
-    FROM movies
-    WHERE tmdb_id = ${tmdbId}
-  `) as MediaInfo[]
-  return result[0] || null
-}
-
-async function getCollectiveRatingStats(
-  collectiveId: string,
-  tmdbId: number,
-  mediaType: "movie" | "tv",
-): Promise<RatingStats> {
-  if (mediaType === "tv") {
-    const result = await sql`
-      SELECT 
-        AVG(utr.overall_score)::float as avg_score,
-        COUNT(*)::int as rating_count,
-        json_agg(json_build_object(
-          'user_name', u.name,
-          'user_avatar', u.avatar_url,
-          'score', utr.overall_score
-        )) as raters
-      FROM user_tv_show_ratings utr
-      JOIN users u ON u.id = utr.user_id
-      JOIN collective_memberships cm ON cm.user_id = utr.user_id AND cm.collective_id = ${collectiveId}
-      WHERE utr.tv_show_id = ${tmdbId}
-    `
-    return {
-      avg_score: result[0]?.avg_score ? Number(result[0].avg_score) / 20 : null,
-      rating_count: result[0]?.rating_count || 0,
-      raters: result[0]?.raters?.filter((r: any) => r.user_name) || [],
-    }
-  }
-
-  const result = await sql`
-    SELECT 
-      AVG(umr.overall_score)::float as avg_score,
-      COUNT(*)::int as rating_count,
-      json_agg(json_build_object(
-        'user_name', u.name,
-        'user_avatar', u.avatar_url,
-        'score', umr.overall_score
-      )) as raters
-    FROM user_movie_ratings umr
-    JOIN movies m ON m.id = umr.movie_id
-    JOIN users u ON u.id = umr.user_id
-    JOIN collective_memberships cm ON cm.user_id = umr.user_id AND cm.collective_id = ${collectiveId}
-    WHERE m.tmdb_id = ${tmdbId}
-  `
-  return {
-    avg_score: result[0]?.avg_score ? Number(result[0].avg_score) / 20 : null,
-    rating_count: result[0]?.rating_count || 0,
-    raters: result[0]?.raters?.filter((r: any) => r.user_name) || [],
-  }
-}
-
-async function getCollectiveName(collectiveId: string): Promise<string | null> {
-  const result = (await sql`
-    SELECT name FROM collectives WHERE id = ${collectiveId}
-  `) as { name: string }[]
-  return result[0]?.name || null
-}
-
-async function getInitialComments(collectiveId: string, tmdbId: number, mediaType: "movie" | "tv") {
-  const comments = await sql`
-    SELECT 
-      mc.id,
-      mc.content,
-      mc.gif_url,
-      mc.created_at,
-      mc.user_id,
-      u.name as user_name,
-      u.avatar_url as user_avatar,
-      COALESCE(
-        (SELECT json_agg(json_build_object(
-          'id', mcr.id,
-          'reaction_type', mcr.reaction_type,
-          'user_id', mcr.user_id,
-          'user_name', ru.name
-        ))
-        FROM movie_comment_reactions mcr
-        JOIN users ru ON ru.id = mcr.user_id
-        WHERE mcr.comment_id = mc.id),
-        '[]'
-      ) as reactions
-    FROM movie_comments mc
-    JOIN users u ON u.id = mc.user_id
-    WHERE mc.collective_id = ${collectiveId}
-      AND mc.tmdb_id = ${tmdbId}
-      AND mc.media_type = ${mediaType}
-    ORDER BY mc.created_at ASC
-  `
-  return comments
-}
-
 export default async function MovieConversationPage({ params, searchParams }: Props) {
   const { id: collectiveId, tmdbId } = await params
   const { type } = await searchParams
@@ -160,12 +43,14 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
     redirect("/handler/sign-in")
   }
 
-  const [collectiveName, mediaInfo, ratingStats, initialComments] = await Promise.all([
-    getCollectiveName(collectiveId),
+  const [collective, mediaInfo, ratingStats, initialComments] = await Promise.all([
+    getCollective(collectiveId),
     getMediaInfo(Number.parseInt(tmdbId), mediaType),
-    getCollectiveRatingStats(collectiveId, Number.parseInt(tmdbId), mediaType),
-    getInitialComments(collectiveId, Number.parseInt(tmdbId), mediaType),
+    getCollectiveMediaRatingStats(collectiveId, Number.parseInt(tmdbId), mediaType),
+    getMovieConversationComments(collectiveId, Number.parseInt(tmdbId), mediaType),
   ])
+
+  const collectiveName = collective?.name || null
 
   if (!collectiveName || !mediaInfo) {
     return (
@@ -250,7 +135,7 @@ export default async function MovieConversationPage({ params, searchParams }: Pr
                       </span>
                     </div>
                     <div className="flex -space-x-1.5 mt-1.5">
-                      {ratingStats.raters.slice(0, 5).map((rater, i) => (
+                      {ratingStats.raters.slice(0, 5).map((rater: any, i: number) => (
                         <div
                           key={i}
                           className="h-5 w-5 rounded-full bg-accent/20 flex items-center justify-center overflow-hidden border-2 border-background"

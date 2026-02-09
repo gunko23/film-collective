@@ -1,9 +1,7 @@
-import { neon } from "@neondatabase/serverless"
 import { notFound } from "next/navigation"
+import { userExists } from "@/lib/db/user-service"
 import Header from "@/components/header"
 import { PublicUserProfile } from "@/components/public-user-profile"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 export default async function UserProfilePage({
   params,
@@ -12,12 +10,9 @@ export default async function UserProfilePage({
 }) {
   const { userId } = await params
 
-  // Check if user exists
-  const users = await sql`
-    SELECT id FROM users WHERE id = ${userId}::uuid
-  `.catch(() => [])
+  const exists = await userExists(userId).catch(() => false)
 
-  if (users.length === 0) {
+  if (!exists) {
     notFound()
   }
 

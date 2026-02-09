@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { stackServerApp } from "@/stack"
+import { getSafeUser } from "@/lib/auth/auth-utils"
 import { sql } from "@/lib/db"
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY
@@ -130,9 +130,14 @@ function convertRating(letterboxdRating: string): number {
  */
 export async function POST(request: Request) {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable" }, { status: 503 })
+    }
+
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
     const { type, data } = await request.json()

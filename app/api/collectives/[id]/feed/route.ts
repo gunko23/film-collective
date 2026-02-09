@@ -1,22 +1,16 @@
 import { NextResponse } from "next/server"
-import { stackServerApp } from "@/stack"
-import { sql } from "@/lib/db"
+import { getSafeUser } from "@/lib/auth/auth-utils"
 import {
   getCollectiveActivityFeed,
   getCollectiveActivityCount,
+  getCollectiveName,
 } from "@/lib/feed/feed-service"
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: collectiveId } = await params
 
-    let user
-    try {
-      user = await stackServerApp.getUser()
-    } catch (authError) {
-      console.error("[v0] Auth error:", authError)
-      user = null
-    }
+    const { user } = await getSafeUser()
 
     const { searchParams } = new URL(request.url)
     const page = Number.parseInt(searchParams.get("page") || "0")
@@ -24,13 +18,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const offset = page * limit
 
     // Fetch collective name for the activity feed
-    const nameResult = (await sql`
-      SELECT name FROM collectives WHERE id = ${collectiveId}
-    `) as { name: string }[]
-    const collectiveName = nameResult[0]?.name || "Collective"
+    const collectiveName = await getCollectiveName(collectiveId)
 
     const [activities, totalCount] = await Promise.all([
-      getCollectiveActivityFeed(collectiveId, collectiveName, limit, offset),
+      getCollectiveActivityFeed(collectiveId, collectiveName, limit, offset, user?.id),
       getCollectiveActivityCount(collectiveId),
     ])
 

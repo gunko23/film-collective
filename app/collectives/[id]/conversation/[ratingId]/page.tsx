@@ -3,11 +3,12 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { ArrowLeft, Film, Tv, PlayCircle } from "lucide-react"
 import Header from "@/components/header"
-import { sql } from "@/lib/db"
 import { getImageUrl } from "@/lib/tmdb/image"
 import Image from "next/image"
 import { StarRatingDisplay } from "@/components/star-rating-display"
 import { ConversationThread } from "@/components/conversation-thread"
+import { getCollective } from "@/lib/collectives/collective-service"
+import { getRatingInfo } from "@/lib/ratings/rating-service"
 
 type Props = {
   params: Promise<{ id: string; ratingId: string }>
@@ -32,99 +33,6 @@ type RatingInfo = {
   show_id?: number
 }
 
-async function getRatingInfo(ratingId: string): Promise<RatingInfo | null> {
-  // Try movie first
-  const movieResult = (await sql`
-    SELECT 
-      umr.id as rating_id,
-      umr.user_id,
-      u.name as user_name,
-      u.avatar_url as user_avatar,
-      m.tmdb_id::int as tmdb_id,
-      m.title,
-      m.poster_path,
-      m.release_date,
-      umr.overall_score,
-      umr.user_comment,
-      umr.rated_at,
-      'movie' as media_type,
-      NULL::int as episode_number,
-      NULL::int as season_number,
-      NULL as show_name,
-      NULL::int as show_id
-    FROM user_movie_ratings umr
-    INNER JOIN users u ON u.id = umr.user_id
-    INNER JOIN movies m ON m.id = umr.movie_id
-    WHERE umr.id = ${ratingId}
-  `) as RatingInfo[]
-
-  if (movieResult.length > 0) return movieResult[0]
-
-  // Try TV show
-  const tvResult = (await sql`
-    SELECT 
-      utr.id as rating_id,
-      utr.user_id,
-      u.name as user_name,
-      u.avatar_url as user_avatar,
-      ts.id::int as tmdb_id,
-      ts.name as title,
-      ts.poster_path,
-      ts.first_air_date as release_date,
-      utr.overall_score,
-      NULL as user_comment,
-      utr.rated_at,
-      'tv' as media_type,
-      NULL::int as episode_number,
-      NULL::int as season_number,
-      NULL as show_name,
-      NULL::int as show_id
-    FROM user_tv_show_ratings utr
-    INNER JOIN users u ON u.id = utr.user_id
-    INNER JOIN tv_shows ts ON ts.id = utr.tv_show_id
-    WHERE utr.id = ${ratingId}
-  `) as RatingInfo[]
-
-  if (tvResult.length > 0) return tvResult[0]
-
-  // Try episode
-  const episodeResult = (await sql`
-    SELECT 
-      uer.id as rating_id,
-      uer.user_id,
-      u.name as user_name,
-      u.avatar_url as user_avatar,
-      te.id::int as tmdb_id,
-      te.name as title,
-      te.still_path as poster_path,
-      te.air_date as release_date,
-      uer.overall_score,
-      NULL as user_comment,
-      uer.rated_at,
-      'episode' as media_type,
-      te.episode_number,
-      te.season_number,
-      ts.name as show_name,
-      ts.id::int as show_id
-    FROM user_episode_ratings uer
-    INNER JOIN users u ON u.id = uer.user_id
-    INNER JOIN tv_episodes te ON te.id = uer.episode_id
-    INNER JOIN tv_shows ts ON ts.id = te.tv_show_id
-    WHERE uer.id = ${ratingId}
-  `) as RatingInfo[]
-
-  if (episodeResult.length > 0) return episodeResult[0]
-
-  return null
-}
-
-async function getCollectiveName(collectiveId: string): Promise<string | null> {
-  const result = (await sql`
-    SELECT name FROM collectives WHERE id = ${collectiveId}
-  `) as { name: string }[]
-  return result[0]?.name || null
-}
-
 export default async function ConversationPage({ params }: Props) {
   const { id: collectiveId, ratingId } = await params
 
@@ -134,7 +42,12 @@ export default async function ConversationPage({ params }: Props) {
     redirect("/handler/sign-in")
   }
 
-  const [collectiveName, ratingInfo] = await Promise.all([getCollectiveName(collectiveId), getRatingInfo(ratingId)])
+  const [collective, ratingInfo] = await Promise.all([
+    getCollective(collectiveId),
+    getRatingInfo(ratingId),
+  ])
+
+  const collectiveName = collective?.name || null
 
   if (!collectiveName || !ratingInfo) {
     return (
@@ -152,24 +65,25 @@ export default async function ConversationPage({ params }: Props) {
     )
   }
 
-  const score = Number(ratingInfo.overall_score) / 20
+  const typedRatingInfo = ratingInfo as RatingInfo
+  const score = Number(typedRatingInfo.overall_score) / 20
   const posterUrl =
-    ratingInfo.media_type === "episode"
-      ? getImageUrl(ratingInfo.poster_path, "w300")
-      : getImageUrl(ratingInfo.poster_path, "w185")
+    typedRatingInfo.media_type === "episode"
+      ? getImageUrl(typedRatingInfo.poster_path, "w300")
+      : getImageUrl(typedRatingInfo.poster_path, "w185")
 
   function getMediaLink() {
-    if (ratingInfo.media_type === "movie") {
-      return `/movies/${ratingInfo.tmdb_id}`
-    } else if (ratingInfo.media_type === "tv") {
-      return `/tv/${ratingInfo.tmdb_id}`
+    if (typedRatingInfo.media_type === "movie") {
+      return `/movies/${typedRatingInfo.tmdb_id}`
+    } else if (typedRatingInfo.media_type === "tv") {
+      return `/tv/${typedRatingInfo.tmdb_id}`
     } else {
-      return `/tv/${ratingInfo.show_id}/season/${ratingInfo.season_number}`
+      return `/tv/${typedRatingInfo.show_id}/season/${typedRatingInfo.season_number}`
     }
   }
 
   function getMediaIcon() {
-    switch (ratingInfo.media_type) {
+    switch (typedRatingInfo.media_type) {
       case "movie":
         return <Film className="h-4 w-4" />
       case "tv":
@@ -199,10 +113,10 @@ export default async function ConversationPage({ params }: Props) {
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-semibold text-foreground truncate">{ratingInfo.title}</h1>
+              <h1 className="text-lg font-semibold text-foreground truncate">{typedRatingInfo.title}</h1>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 {getMediaIcon()}
-                <span>{ratingInfo.user_name}&apos;s rating</span>
+                <span>{typedRatingInfo.user_name}&apos;s rating</span>
               </div>
             </div>
           </div>
@@ -214,9 +128,9 @@ export default async function ConversationPage({ params }: Props) {
                 {posterUrl ? (
                   <Image
                     src={posterUrl || "/placeholder.svg"}
-                    alt={ratingInfo.title}
-                    width={ratingInfo.media_type === "episode" ? 100 : 60}
-                    height={ratingInfo.media_type === "episode" ? 56 : 90}
+                    alt={typedRatingInfo.title}
+                    width={typedRatingInfo.media_type === "episode" ? 100 : 60}
+                    height={typedRatingInfo.media_type === "episode" ? 56 : 90}
                     className="rounded-lg object-cover"
                   />
                 ) : (
@@ -227,28 +141,28 @@ export default async function ConversationPage({ params }: Props) {
               </Link>
               <div className="flex-1 min-w-0">
                 <Link href={getMediaLink()} className="hover:text-accent transition-colors">
-                  <h2 className="font-semibold text-foreground">{ratingInfo.title}</h2>
+                  <h2 className="font-semibold text-foreground">{typedRatingInfo.title}</h2>
                 </Link>
-                {ratingInfo.media_type === "episode" && (
+                {typedRatingInfo.media_type === "episode" && (
                   <p className="text-sm text-muted-foreground">
-                    {ratingInfo.show_name} - S{ratingInfo.season_number}E{ratingInfo.episode_number}
+                    {typedRatingInfo.show_name} - S{typedRatingInfo.season_number}E{typedRatingInfo.episode_number}
                   </p>
                 )}
                 <div className="flex items-center gap-2 mt-1">
                   <div className="h-8 w-8 rounded-full bg-accent/20 flex items-center justify-center overflow-hidden">
-                    {ratingInfo.user_avatar ? (
+                    {typedRatingInfo.user_avatar ? (
                       <Image
-                        src={ratingInfo.user_avatar || "/placeholder.svg"}
-                        alt={ratingInfo.user_name}
+                        src={typedRatingInfo.user_avatar || "/placeholder.svg"}
+                        alt={typedRatingInfo.user_name}
                         width={32}
                         height={32}
                         className="object-cover"
                       />
                     ) : (
-                      <span className="text-xs font-medium text-accent">{ratingInfo.user_name[0].toUpperCase()}</span>
+                      <span className="text-xs font-medium text-accent">{typedRatingInfo.user_name[0].toUpperCase()}</span>
                     )}
                   </div>
-                  <span className="text-sm text-muted-foreground">{ratingInfo.user_name}</span>
+                  <span className="text-sm text-muted-foreground">{typedRatingInfo.user_name}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <StarRatingDisplay rating={score} size="md" />

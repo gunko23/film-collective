@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server"
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 
 export const runtime = "nodejs"
@@ -12,7 +12,6 @@ export async function GET(request: NextRequest) {
     return new Response("Unauthorized", { status: 401 })
   }
 
-  const sql = neon(process.env.DATABASE_URL!)
   const userId = user.id
 
   // Create a readable stream for SSE

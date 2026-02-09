@@ -1,23 +1,21 @@
 import { NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
-import { stackServerApp } from "@/stack"
-
-const sql = neon(process.env.DATABASE_URL!)
+import { getSafeUser } from "@/lib/auth/auth-utils"
+import { getUserStreamingProviders, setUserStreamingProviders } from "@/lib/streaming/streaming-service"
 
 // GET — fetch user's saved streaming services
 export async function GET() {
   try {
-    const user = await stackServerApp.getUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable" }, { status: 503 })
     }
 
-    const rows = await sql`
-      SELECT provider_id, provider_name
-      FROM user_streaming_services
-      WHERE user_id = ${user.id}::uuid
-      ORDER BY provider_name ASC
-    `
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
+    }
+
+    const rows = await getUserStreamingProviders(user.id)
 
     return NextResponse.json({
       providers: rows.map((r: any) => ({
@@ -34,9 +32,14 @@ export async function GET() {
 // PUT — replace user's streaming services with a new set
 export async function PUT(request: Request) {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable" }, { status: 503 })
+    }
+
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
     const body = await request.json()
@@ -46,18 +49,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "providers must be an array" }, { status: 400 })
     }
 
-    // Delete existing and insert new in one transaction via multiple statements
-    await sql`DELETE FROM user_streaming_services WHERE user_id = ${user.id}::uuid`
-
-    if (providers.length > 0) {
-      for (const p of providers) {
-        await sql`
-          INSERT INTO user_streaming_services (user_id, provider_id, provider_name)
-          VALUES (${user.id}::uuid, ${p.providerId}, ${p.providerName})
-          ON CONFLICT (user_id, provider_id) DO NOTHING
-        `
-      }
-    }
+    await setUserStreamingProviders(user.id, providers)
 
     return NextResponse.json({ success: true })
   } catch (error) {

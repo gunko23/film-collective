@@ -1,8 +1,6 @@
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db"
 import { getOrFetchMovie } from "@/lib/tmdb/movie-service"
 import type { DimensionScores, DimensionTags } from "@/lib/ratings/dimensions-service"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 export type RatingDimension = {
   id: string
@@ -239,4 +237,192 @@ function transformRating(row: any): UserRating {
     breakdown_tags: row.breakdown_tags,
     breakdown_notes: row.breakdown_notes,
   }
+}
+
+// Get rating info by rating ID - searches across movie, TV show, and episode ratings
+export async function getRatingInfo(ratingId: string) {
+  // Try movie first
+  const movieResult = await sql`
+    SELECT 
+      umr.id as rating_id,
+      umr.user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      m.tmdb_id::int as tmdb_id,
+      m.title,
+      m.poster_path,
+      m.release_date,
+      umr.overall_score,
+      umr.user_comment,
+      umr.rated_at,
+      'movie' as media_type,
+      NULL::int as episode_number,
+      NULL::int as season_number,
+      NULL as show_name,
+      NULL::int as show_id
+    FROM user_movie_ratings umr
+    INNER JOIN users u ON u.id = umr.user_id
+    INNER JOIN movies m ON m.id = umr.movie_id
+    WHERE umr.id = ${ratingId}
+  `
+
+  if (movieResult.length > 0) return movieResult[0]
+
+  // Try TV show
+  const tvResult = await sql`
+    SELECT 
+      utr.id as rating_id,
+      utr.user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      ts.id::int as tmdb_id,
+      ts.name as title,
+      ts.poster_path,
+      ts.first_air_date as release_date,
+      utr.overall_score,
+      NULL as user_comment,
+      utr.rated_at,
+      'tv' as media_type,
+      NULL::int as episode_number,
+      NULL::int as season_number,
+      NULL as show_name,
+      NULL::int as show_id
+    FROM user_tv_show_ratings utr
+    INNER JOIN users u ON u.id = utr.user_id
+    INNER JOIN tv_shows ts ON ts.id = utr.tv_show_id
+    WHERE utr.id = ${ratingId}
+  `
+
+  if (tvResult.length > 0) return tvResult[0]
+
+  // Try episode
+  const episodeResult = await sql`
+    SELECT 
+      uer.id as rating_id,
+      uer.user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      te.id::int as tmdb_id,
+      te.name as title,
+      te.still_path as poster_path,
+      te.air_date as release_date,
+      uer.overall_score,
+      NULL as user_comment,
+      uer.rated_at,
+      'episode' as media_type,
+      te.episode_number,
+      te.season_number,
+      ts.name as show_name,
+      ts.id::int as show_id
+    FROM user_episode_ratings uer
+    INNER JOIN users u ON u.id = uer.user_id
+    INNER JOIN tv_episodes te ON te.id = uer.episode_id
+    INNER JOIN tv_shows ts ON ts.id = te.tv_show_id
+    WHERE uer.id = ${ratingId}
+  `
+
+  if (episodeResult.length > 0) return episodeResult[0]
+
+  return null
+}
+
+// Get all user movie ratings with media info (for user ratings page)
+export async function getUserRatingsWithMedia(userId: string) {
+  const ratings = await sql`
+    SELECT
+      r.id,
+      r.overall_score,
+      r.user_comment,
+      r.rated_at,
+      r.updated_at,
+      m.tmdb_id,
+      m.title,
+      m.poster_path,
+      m.release_date,
+      m.genres
+    FROM user_movie_ratings r
+    INNER JOIN movies m ON r.movie_id = m.id
+    WHERE r.user_id = ${userId}
+    ORDER BY r.rated_at DESC
+  `
+  return ratings
+}
+
+// Save rating breakdown (dimension scores/tags) for a movie or TV show
+export async function saveRatingBreakdown(params: {
+  userId: string
+  mediaType: string
+  tmdbId: number
+  dimensionScores: Record<string, number>
+  dimensionTags: Record<string, string[]>
+  breakdownNotes?: string | null
+}): Promise<{ success: boolean; movieNotFound?: boolean }> {
+  const { userId, mediaType, tmdbId, dimensionScores, dimensionTags, breakdownNotes } = params
+
+  if (mediaType === "movie") {
+    // Get the movie UUID from tmdb_id
+    const movieResult = await sql`
+      SELECT id FROM movies WHERE tmdb_id = ${tmdbId}
+    `
+    if (movieResult.length === 0) {
+      return { success: false, movieNotFound: true }
+    }
+
+    const movieId = movieResult[0].id
+
+    await sql`
+      UPDATE user_movie_ratings
+      SET
+        dimension_scores = COALESCE(dimension_scores, '{}'::jsonb) || ${JSON.stringify(dimensionScores)}::jsonb,
+        dimension_tags = COALESCE(dimension_tags, '{}'::jsonb) || ${JSON.stringify(dimensionTags)}::jsonb,
+        extra_notes = COALESCE(${breakdownNotes || null}, extra_notes),
+        updated_at = NOW()
+      WHERE user_id = ${userId}::uuid AND movie_id = ${movieId}::uuid
+    `
+  } else {
+    // TV show
+    await sql`
+      UPDATE user_tv_show_ratings
+      SET
+        dimension_scores = COALESCE(dimension_scores, '{}'::jsonb) || ${JSON.stringify(dimensionScores)}::jsonb,
+        dimension_tags = COALESCE(dimension_tags, '{}'::jsonb) || ${JSON.stringify(dimensionTags)}::jsonb,
+        extra_notes = COALESCE(${breakdownNotes || null}, extra_notes),
+        updated_at = NOW()
+      WHERE user_id = ${userId}::uuid AND tv_show_id = ${tmdbId}
+    `
+  }
+
+  return { success: true }
+}
+
+// Save skip breakdown preference (set to true)
+export async function saveSkipBreakdownPreference(userId: string) {
+  await sql`
+    INSERT INTO user_rating_preferences (user_id, skip_breakdown, updated_at)
+    VALUES (${userId}::uuid, true, NOW())
+    ON CONFLICT (user_id) DO UPDATE
+    SET skip_breakdown = true, updated_at = NOW()
+  `
+}
+
+// Get rating preferences for a user
+export async function getRatingPreferences(userId: string): Promise<{ skipBreakdown: boolean }> {
+  const result = await sql`
+    SELECT skip_breakdown FROM user_rating_preferences
+    WHERE user_id = ${userId}::uuid
+  `
+
+  return {
+    skipBreakdown: result.length > 0 ? result[0].skip_breakdown : false,
+  }
+}
+
+// Set rating preferences for a user
+export async function setRatingPreferences(userId: string, skipBreakdown: boolean) {
+  await sql`
+    INSERT INTO user_rating_preferences (user_id, skip_breakdown, updated_at)
+    VALUES (${userId}::uuid, ${skipBreakdown}, NOW())
+    ON CONFLICT (user_id) DO UPDATE
+    SET skip_breakdown = ${skipBreakdown}, updated_at = NOW()
+  `
 }

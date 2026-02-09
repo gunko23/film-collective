@@ -191,7 +191,7 @@ export async function getCollectiveFeedCount(collectiveId: string) {
 }
 
 // Returns all activity (ratings, comments, reactions) for a collective in the Activity shape
-export async function getCollectiveActivityFeed(collectiveId: string, collectiveName: string, limit = 10, offset = 0) {
+export async function getCollectiveActivityFeed(collectiveId: string, collectiveName: string, limit = 10, offset = 0, currentUserId?: string) {
   try {
     const result = await sql`
       SELECT * FROM (
@@ -332,6 +332,7 @@ export async function getCollectiveActivityFeed(collectiveId: string, collective
         LEFT JOIN tv_shows ts ON mc.tmdb_id = ts.id AND mc.media_type = 'tv'
         WHERE mc.collective_id = ${collectiveId}::uuid
       ) combined
+      WHERE (${currentUserId || null}::text IS NULL OR actor_id != ${currentUserId || null}::uuid)
       ORDER BY created_at DESC
       LIMIT ${limit}
       OFFSET ${offset}
@@ -360,4 +361,179 @@ export async function getCollectiveActivityCount(collectiveId: string) {
     ) as count
   `
   return result[0]?.count || 0
+}
+
+// Get initial comments for a movie/TV conversation thread
+export async function getMovieConversationComments(collectiveId: string, tmdbId: number, mediaType: "movie" | "tv") {
+  const comments = await sql`
+    SELECT
+      mc.id,
+      mc.content,
+      mc.gif_url,
+      mc.created_at,
+      mc.user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      COALESCE(
+        (SELECT json_agg(json_build_object(
+          'id', mcr.id,
+          'reaction_type', mcr.reaction_type,
+          'user_id', mcr.user_id,
+          'user_name', ru.name
+        ))
+        FROM movie_comment_reactions mcr
+        JOIN users ru ON ru.id = mcr.user_id
+        WHERE mcr.comment_id = mc.id),
+        '[]'
+      ) as reactions
+    FROM movie_comments mc
+    JOIN users u ON u.id = mc.user_id
+    WHERE mc.collective_id = ${collectiveId}
+      AND mc.tmdb_id = ${tmdbId}
+      AND mc.media_type = ${mediaType}
+    ORDER BY mc.created_at ASC
+  `
+  return comments
+}
+
+export async function getCollectiveName(collectiveId: string): Promise<string> {
+  const result = await sql`
+    SELECT name FROM collectives WHERE id = ${collectiveId}::uuid
+  `
+  return result[0]?.name || "Collective"
+}
+
+export async function getFeedCommentsWithReactions(ratingId: string, collectiveId: string) {
+  const comments = await sql`
+    WITH comment_data AS (
+      SELECT
+        fc.id,
+        fc.user_id,
+        COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as user_name,
+        u.avatar_url as user_avatar,
+        fc.content,
+        fc.gif_url,
+        fc.created_at
+      FROM feed_comments fc
+      JOIN users u ON u.id = fc.user_id
+      WHERE fc.rating_id = ${ratingId}::uuid AND fc.collective_id = ${collectiveId}::uuid
+      ORDER BY fc.created_at ASC
+    ),
+    reaction_data AS (
+      SELECT
+        cr.comment_id,
+        json_agg(json_build_object(
+          'id', cr.id,
+          'user_id', cr.user_id,
+          'user_name', COALESCE(ru.name, SPLIT_PART(ru.email, '@', 1), 'User'),
+          'reaction_type', cr.reaction_type
+        )) as reactions
+      FROM comment_reactions cr
+      JOIN users ru ON ru.id = cr.user_id
+      WHERE cr.comment_id IN (SELECT id FROM comment_data)
+      GROUP BY cr.comment_id
+    )
+    SELECT
+      cd.*,
+      COALESCE(rd.reactions, '[]'::json) as reactions
+    FROM comment_data cd
+    LEFT JOIN reaction_data rd ON rd.comment_id = cd.id
+    ORDER BY cd.created_at ASC
+  `
+  return comments
+}
+
+export async function createFeedComment(params: {
+  ratingId: string
+  collectiveId: string
+  userId: string
+  content?: string
+  gifUrl?: string | null
+}) {
+  const { ratingId, collectiveId, userId, content, gifUrl } = params
+  const result = await sql`
+    INSERT INTO feed_comments (id, rating_id, collective_id, user_id, content, gif_url, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${ratingId}::uuid, ${collectiveId}::uuid, ${userId}::uuid, ${content?.trim() || ""}, ${gifUrl || null}, NOW(), NOW())
+    RETURNING id, user_id, content, gif_url, created_at
+  `
+  return result[0]
+}
+
+export async function addThreadParticipant(ratingId: string, collectiveId: string, userId: string) {
+  try {
+    await sql`
+      INSERT INTO thread_participants (id, rating_id, collective_id, user_id, joined_at, last_read_at)
+      VALUES (gen_random_uuid(), ${ratingId}::uuid, ${collectiveId}::uuid, ${userId}::uuid, NOW(), NOW())
+      ON CONFLICT (rating_id, collective_id, user_id)
+      DO UPDATE SET last_read_at = NOW()
+    `
+  } catch {
+    // Fire-and-forget: silently ignore errors
+  }
+}
+
+export async function getThreadParticipants(ratingId: string, collectiveId: string, excludeUserIds: string[]) {
+  try {
+    const result = await sql`
+      SELECT DISTINCT user_id FROM thread_participants
+      WHERE rating_id = ${ratingId}::uuid
+        AND collective_id = ${collectiveId}::uuid
+        AND user_id != ALL(${excludeUserIds}::uuid[])
+    `
+    return result
+  } catch {
+    return []
+  }
+}
+
+export async function getFeedReactions(ratingId: string, collectiveId: string) {
+  const reactions = await sql`
+    SELECT id, user_id, reaction_type, created_at
+    FROM feed_reactions
+    WHERE rating_id = ${ratingId} AND collective_id = ${collectiveId}
+  `
+  return reactions
+}
+
+export async function toggleFeedReaction(params: {
+  ratingId: string
+  collectiveId: string
+  userId: string
+  reactionType: string
+}) {
+  const { ratingId, collectiveId, userId, reactionType } = params
+
+  const existing = await sql`
+    SELECT id FROM feed_reactions
+    WHERE rating_id = ${ratingId}
+      AND collective_id = ${collectiveId}
+      AND user_id = ${userId}
+      AND reaction_type = ${reactionType}
+  `
+
+  if (existing.length > 0) {
+    await sql`
+      DELETE FROM feed_reactions
+      WHERE rating_id = ${ratingId}
+        AND collective_id = ${collectiveId}
+        AND user_id = ${userId}
+        AND reaction_type = ${reactionType}
+    `
+    return { action: "removed" as const }
+  } else {
+    const result = await sql`
+      INSERT INTO feed_reactions (id, rating_id, collective_id, user_id, reaction_type, created_at)
+      VALUES (gen_random_uuid(), ${ratingId}, ${collectiveId}, ${userId}, ${reactionType}, NOW())
+      RETURNING id
+    `
+    return { action: "added" as const, id: result[0]?.id }
+  }
+}
+
+export async function verifyMembership(collectiveId: string, userId: string): Promise<boolean> {
+  const result = await sql`
+    SELECT id FROM collective_memberships
+    WHERE collective_id = ${collectiveId}::uuid AND user_id = ${userId}::uuid
+  `
+  return result.length > 0
 }
