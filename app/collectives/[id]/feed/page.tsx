@@ -46,7 +46,7 @@ export default async function CollectiveFeedPage({ params, searchParams }: Props
   const offset = page * limit
 
   const [activities, totalCount] = await Promise.all([
-    getCollectiveActivityFeed(collectiveId, collectiveName, limit, offset),
+    getCollectiveActivityFeed(collectiveId, collectiveName, limit, offset, user.id),
     getCollectiveActivityCount(collectiveId),
   ])
 

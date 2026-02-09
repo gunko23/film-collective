@@ -191,7 +191,7 @@ export async function getCollectiveFeedCount(collectiveId: string) {
 }
 
 // Returns all activity (ratings, comments, reactions) for a collective in the Activity shape
-export async function getCollectiveActivityFeed(collectiveId: string, collectiveName: string, limit = 10, offset = 0) {
+export async function getCollectiveActivityFeed(collectiveId: string, collectiveName: string, limit = 10, offset = 0, currentUserId?: string) {
   try {
     const result = await sql`
       SELECT * FROM (
@@ -332,6 +332,7 @@ export async function getCollectiveActivityFeed(collectiveId: string, collective
         LEFT JOIN tv_shows ts ON mc.tmdb_id = ts.id AND mc.media_type = 'tv'
         WHERE mc.collective_id = ${collectiveId}::uuid
       ) combined
+      WHERE (${currentUserId || null}::text IS NULL OR actor_id != ${currentUserId || null}::uuid)
       ORDER BY created_at DESC
       LIMIT ${limit}
       OFFSET ${offset}

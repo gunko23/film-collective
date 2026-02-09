@@ -21,7 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const collectiveName = await getCollectiveName(collectiveId)
 
     const [activities, totalCount] = await Promise.all([
-      getCollectiveActivityFeed(collectiveId, collectiveName, limit, offset),
+      getCollectiveActivityFeed(collectiveId, collectiveName, limit, offset, user?.id),
       getCollectiveActivityCount(collectiveId),
     ])
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { getSafeUser } from "@/lib/auth/auth-utils"
 import { getCollective } from "@/lib/collectives/collective-service"
 import { getCollectiveActivityFeed, getCollectiveActivityCount } from "@/lib/feed/feed-service"
 
@@ -10,11 +11,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const limit = Number.parseInt(searchParams.get("limit") || "20")
     const offset = page * limit
 
+    const { user } = await getSafeUser()
+
     const collective = await getCollective(collectiveId)
     const collectiveName = collective?.name || "Collective"
 
     const [activities, totalCount] = await Promise.all([
-      getCollectiveActivityFeed(collectiveId, collectiveName, limit, offset),
+      getCollectiveActivityFeed(collectiveId, collectiveName, limit, offset, user?.id),
       getCollectiveActivityCount(collectiveId),
     ])
 
