@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     ])
 
     return NextResponse.json({
-      activities,
+      activity: activities,
       total: totalCount,
       totalPages: Math.ceil(totalCount / limit),
     })
