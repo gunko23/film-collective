@@ -1,15 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { stackServerApp } from "@/stack"
+import { getSafeUser } from "@/lib/auth/auth-utils"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { getUserCollectives, createCollective } from "@/lib/collectives/collective-service"
 
 // GET /api/collectives - Get all collectives for the current user
 export async function GET() {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable" }, { status: 503 })
+    }
 
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
     const collectives = await getUserCollectives(user.id)
@@ -23,10 +27,14 @@ export async function GET() {
 // POST /api/collectives - Create a new collective
 export async function POST(request: NextRequest) {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable" }, { status: 503 })
+    }
 
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
     await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)

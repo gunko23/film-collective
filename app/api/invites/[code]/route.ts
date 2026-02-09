@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { stackServerApp } from "@/stack"
+import { getSafeUser } from "@/lib/auth/auth-utils"
 import { ensureUserExists } from "@/lib/db/user-service"
 import { getInviteByCode, joinCollectiveViaInvite } from "@/lib/collectives/collective-service"
 
@@ -37,11 +37,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 // POST /api/invites/[code] - Join collective via invite
 export async function POST(request: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
     const { code } = await params
 
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable" }, { status: 503 })
+    }
+
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
     await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)

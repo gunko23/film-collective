@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { stackServerApp } from "@/stack"
+import { getSafeUser } from "@/lib/auth/auth-utils"
 import {
   getCollectiveById,
   getCollectiveMembers,
@@ -9,9 +9,14 @@ import {
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable" }, { status: 503 })
+    }
+
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
     const { id } = await params

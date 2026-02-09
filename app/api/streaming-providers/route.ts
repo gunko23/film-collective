@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server"
 import { sql } from "@/lib/db"
-import { stackServerApp } from "@/stack"
+import { getSafeUser } from "@/lib/auth/auth-utils"
 // GET — fetch user's saved streaming services
 export async function GET() {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable" }, { status: 503 })
+    }
+
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
     const rows = await sql`
@@ -31,9 +36,14 @@ export async function GET() {
 // PUT — replace user's streaming services with a new set
 export async function PUT(request: Request) {
   try {
-    const user = await stackServerApp.getUser()
+    const { user, isRateLimited } = await getSafeUser()
+
+    if (isRateLimited) {
+      return NextResponse.json({ error: "Auth temporarily unavailable" }, { status: 503 })
+    }
+
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
     const body = await request.json()

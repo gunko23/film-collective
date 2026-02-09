@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { stackServerApp } from "@/stack"
+import { getSafeUser } from "@/lib/auth/auth-utils"
 import { sql } from "@/lib/db"
 import {
   getCollectiveActivityFeed,
@@ -10,13 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const { id: collectiveId } = await params
 
-    let user
-    try {
-      user = await stackServerApp.getUser()
-    } catch (authError) {
-      console.error("[v0] Auth error:", authError)
-      user = null
-    }
+    const { user } = await getSafeUser()
 
     const { searchParams } = new URL(request.url)
     const page = Number.parseInt(searchParams.get("page") || "0")
