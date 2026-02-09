@@ -218,10 +218,9 @@ Respond: {"1": "summary text", "2": "summary text", ...}`
  * Results are cached to the movies table via fire-and-forget.
  */
 async function _generateEnrichmentBatch(
+  client: Anthropic,
   batch: MovieRecommendation[]
 ): Promise<Map<number, { pairings: any; parentalSummary: string }>> {
-  const client = getAnthropicClient()
-  if (!client) return new Map()
 
   const systemPrompt = `You are a creative film curator. For each movie, provide themed food and drink pairings and a brief parental content advisory. Respond with ONLY a JSON object, no markdown or backticks.`
 
@@ -289,6 +288,7 @@ Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": 
  * Splits into batches of 2 for maximum parallelism, then merges results.
  */
 async function generateAndCacheEnrichment(
+  client: Anthropic,
   movies: MovieRecommendation[]
 ): Promise<Map<number, { pairings: any; parentalSummary: string }>> {
   if (movies.length === 0) return new Map()
@@ -303,7 +303,7 @@ async function generateAndCacheEnrichment(
   console.log(`[Perf] LLM Enrichment: Firing ${enrichBatches.length} parallel batches of ≤${ENRICH_BATCH_SIZE}`)
 
   const batchResults = await Promise.all(
-    enrichBatches.map(batch => _generateEnrichmentBatch(batch))
+    enrichBatches.map(batch => _generateEnrichmentBatch(client, batch))
   )
 
   const result = new Map<number, { pairings: any; parentalSummary: string }>()
@@ -376,7 +376,7 @@ export async function generateRecommendationReasoning(
 
   // Step 5: Fire everything in parallel
   const enrichmentPromise = needsEnrichment.length > 0
-    ? generateAndCacheEnrichment(needsEnrichment)
+    ? generateAndCacheEnrichment(client, needsEnrichment)
     : Promise.resolve(new Map<number, { pairings: any; parentalSummary: string }>())
 
   const summaryPromises = batches.map(batch =>
