@@ -361,3 +361,36 @@ export async function getCollectiveActivityCount(collectiveId: string) {
   `
   return result[0]?.count || 0
 }
+
+// Get initial comments for a movie/TV conversation thread
+export async function getMovieConversationComments(collectiveId: string, tmdbId: number, mediaType: "movie" | "tv") {
+  const comments = await sql`
+    SELECT 
+      mc.id,
+      mc.content,
+      mc.gif_url,
+      mc.created_at,
+      mc.user_id,
+      u.name as user_name,
+      u.avatar_url as user_avatar,
+      COALESCE(
+        (SELECT json_agg(json_build_object(
+          'id', mcr.id,
+          'reaction_type', mcr.reaction_type,
+          'user_id', mcr.user_id,
+          'user_name', ru.name
+        ))
+        FROM movie_comment_reactions mcr
+        JOIN users ru ON ru.id = mcr.user_id
+        WHERE mcr.comment_id = mc.id),
+        '[]'
+      ) as reactions
+    FROM movie_comments mc
+    JOIN users u ON u.id = mc.user_id
+    WHERE mc.collective_id = ${collectiveId}
+      AND mc.tmdb_id = ${tmdbId}
+      AND mc.media_type = ${mediaType}
+    ORDER BY mc.created_at ASC
+  `
+  return comments
+}

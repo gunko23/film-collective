@@ -1,6 +1,4 @@
-import { neon } from "@neondatabase/serverless"
-
-const sql = neon(process.env.DATABASE_URL!)
+import { sql } from "@/lib/db"
 
 // Generate a random invite code
 function generateInviteCode(): string {
@@ -730,6 +728,77 @@ export async function getCollectiveRecentActivityWithEngagement(collectiveId: st
     .slice(0, limit)
 
   return allRatings
+}
+
+// Get all movies rated by collective members with average scores
+export async function getCollectiveRatedMovies(collectiveId: string) {
+  const result = await sql`
+    SELECT
+      m.tmdb_id,
+      m.title,
+      m.poster_path,
+      m.release_date,
+      AVG(umr.overall_score) as avg_score,
+      COUNT(umr.id) as rating_count
+    FROM user_movie_ratings umr
+    JOIN movies m ON m.id = umr.movie_id
+    JOIN collective_memberships cm ON cm.user_id = umr.user_id
+    WHERE cm.collective_id = ${collectiveId}::uuid
+    GROUP BY m.tmdb_id, m.title, m.poster_path, m.release_date
+    ORDER BY avg_score DESC, rating_count DESC
+  `
+  return result
+}
+
+
+// Get collective rating stats for a specific movie/TV show
+export async function getCollectiveMediaRatingStats(
+  collectiveId: string,
+  tmdbId: number,
+  mediaType: "movie" | "tv",
+) {
+  if (mediaType === "tv") {
+    const result = await sql`
+      SELECT 
+        AVG(utr.overall_score)::float as avg_score,
+        COUNT(*)::int as rating_count,
+        json_agg(json_build_object(
+          'user_name', u.name,
+          'user_avatar', u.avatar_url,
+          'score', utr.overall_score
+        )) as raters
+      FROM user_tv_show_ratings utr
+      JOIN users u ON u.id = utr.user_id
+      JOIN collective_memberships cm ON cm.user_id = utr.user_id AND cm.collective_id = ${collectiveId}
+      WHERE utr.tv_show_id = ${tmdbId}
+    `
+    return {
+      avg_score: result[0]?.avg_score ? Number(result[0].avg_score) / 20 : null,
+      rating_count: result[0]?.rating_count || 0,
+      raters: result[0]?.raters?.filter((r: any) => r.user_name) || [],
+    }
+  }
+
+  const result = await sql`
+    SELECT 
+      AVG(umr.overall_score)::float as avg_score,
+      COUNT(*)::int as rating_count,
+      json_agg(json_build_object(
+        'user_name', u.name,
+        'user_avatar', u.avatar_url,
+        'score', umr.overall_score
+      )) as raters
+    FROM user_movie_ratings umr
+    JOIN movies m ON m.id = umr.movie_id
+    JOIN users u ON u.id = umr.user_id
+    JOIN collective_memberships cm ON cm.user_id = umr.user_id AND cm.collective_id = ${collectiveId}
+    WHERE m.tmdb_id = ${tmdbId}
+  `
+  return {
+    avg_score: result[0]?.avg_score ? Number(result[0].avg_score) / 20 : null,
+    rating_count: result[0]?.rating_count || 0,
+    raters: result[0]?.raters?.filter((r: any) => r.user_name) || [],
+  }
 }
 
 export const getCollectiveById = getCollectiveForUser

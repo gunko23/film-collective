@@ -1,7 +1,5 @@
-import { neon } from "@neondatabase/serverless"
+import { sql } from "@/lib/db"
 import { createTMDBClient, type TMDBMovie } from "./client"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 export type LocalMovie = {
   id: string // UUID
@@ -255,4 +253,37 @@ export async function getCachedMovies(
     movies: results.map(transformMovie),
     total: Number(countResult[0]?.count || 0),
   }
+}
+
+// Get media info for movie or TV show by TMDB ID
+export async function getMediaInfo(tmdbId: number, mediaType: "movie" | "tv") {
+  if (mediaType === "tv") {
+    const result = await sql`
+      SELECT 
+        id::int as tmdb_id,
+        name as title,
+        poster_path,
+        first_air_date as release_date,
+        overview,
+        vote_average,
+        'tv' as media_type
+      FROM tv_shows
+      WHERE id = ${tmdbId}
+    `
+    return result[0] || null
+  }
+
+  const result = await sql`
+    SELECT 
+      tmdb_id::int,
+      title,
+      poster_path,
+      release_date,
+      overview,
+      tmdb_vote_average as vote_average,
+      'movie' as media_type
+    FROM movies
+    WHERE tmdb_id = ${tmdbId}
+  `
+  return result[0] || null
 }

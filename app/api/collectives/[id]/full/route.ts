@@ -5,6 +5,8 @@ import {
   getCollectiveMembers,
   getCollectiveRatings,
   getCollectiveMovieStats,
+  getCollectiveTVShowStats,
+  getCollectiveEpisodeStats,
 } from "@/lib/collectives/collective-service"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -22,11 +24,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params
 
     // Fetch all data in parallel from the database (no external API calls)
-    const [collective, members, movieStats, recentRatings] = await Promise.all([
+    const [collective, members, movieStats, recentRatings, tvShowStats, episodeStats] = await Promise.all([
       getCollectiveById(id, user.id),
       getCollectiveMembers(id),
       getCollectiveMovieStats(id),
       getCollectiveRatings(id),
+      getCollectiveTVShowStats(id),
+      getCollectiveEpisodeStats(id),
     ])
 
     if (!collective) {
@@ -37,6 +41,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       collective,
       members,
       movieStats,
+      tvShowStats,
+      episodeStats,
       recentRatings: recentRatings.slice(0, 10),
     })
   } catch (error) {

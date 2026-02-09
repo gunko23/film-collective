@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation"
-import { sql } from "@/lib/db"
+import { userExists } from "@/lib/db/user-service"
 import Header from "@/components/header"
 import { PublicUserProfile } from "@/components/public-user-profile"
+
 export default async function UserProfilePage({
   params,
 }: {
@@ -9,12 +10,9 @@ export default async function UserProfilePage({
 }) {
   const { userId } = await params
 
-  // Check if user exists
-  const users = await sql`
-    SELECT id FROM users WHERE id = ${userId}::uuid
-  `.catch(() => [])
+  const exists = await userExists(userId).catch(() => false)
 
-  if (users.length === 0) {
+  if (!exists) {
     notFound()
   }
 

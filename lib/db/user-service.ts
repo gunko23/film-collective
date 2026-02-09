@@ -1,6 +1,4 @@
-import { neon } from "@neondatabase/serverless"
-
-const sql = neon(process.env.DATABASE_URL!)
+import { sql } from "@/lib/db"
 
 export async function ensureUserExists(
   id: string,
@@ -29,4 +27,9 @@ export async function ensureUserExists(
   `
 
   return result[0]
+}
+
+export async function userExists(userId: string): Promise<boolean> {
+  const result = await sql`SELECT id FROM users WHERE id = ${userId}::uuid`
+  return result.length > 0
 }
