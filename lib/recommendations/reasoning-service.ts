@@ -90,7 +90,6 @@ type ReasoningResult = {
 type SummaryContext = {
   audienceLabel: string
   lovedList: string
-  dislikedList: string
   mood: string | null
   soloMode: boolean
   collectiveInfluence?: Map<number, { avgScore: number; raterCount: number; raterNames: string[] }>
@@ -142,7 +141,20 @@ async function generateSummaryBatch(
   batch: MovieRecommendation[],
   ctx: SummaryContext
 ): Promise<Map<number, string>> {
-  const systemPrompt = `You are a passionate film curator for Film Collective. Write a 1-2 sentence personalized pitch for each movie that makes this audience excited to watch it tonight. Be enthusiastic, specific, and persuasive — reference standout performances, bold directorial choices, unique tones, or unforgettable scenes. When friends from their collective loved a movie, lead with that social connection and name them. Never say a movie doesn't fit or might not match. Never use generic filler like "critically acclaimed" or "a must-watch". Respond with ONLY a JSON object, no markdown or backticks.`
+  const systemPrompt = `You are a passionate film curator for Film Collective writing personalized pitches for movies you are recommending tonight. Every movie in this list has ALREADY been selected as a top recommendation for this audience — your job is to sell each one enthusiastically.
+
+CRITICAL RULES:
+- You MUST write a positive, enthusiastic 1-2 sentence pitch for EVERY movie. No exceptions.
+- NEVER dismiss, criticize, or discourage watching any movie on this list.
+- NEVER compare a movie unfavorably to the audience's favorites.
+- NEVER say things like "skip this", "not for you", "lacks", "falls short", "hollow", "generic", or any negative framing.
+- NEVER reference the audience's disliked movies.
+- Find the genuine appeal of each movie — exciting set pieces, fun performances, great pacing, visual spectacle, crowd-pleasing moments, a perfect popcorn movie, etc.
+- When friends from their collective loved a movie, lead with that social connection and name them.
+- Reference specific things that make the movie worth watching: standout performances, memorable scenes, unique tone, bold style.
+- Even for big blockbusters or genre films, find what makes them genuinely entertaining.
+
+Respond with ONLY a JSON object, no markdown or backticks.`
 
   const movieLines = batch.map((m, i) => {
     const year = m.releaseDate ? m.releaseDate.slice(0, 4) : "Unknown"
@@ -159,7 +171,6 @@ async function generateSummaryBatch(
 
   const userPrompt = `Audience: ${ctx.audienceLabel}
 Loves: ${ctx.lovedList || "Not enough ratings yet"}
-Dislikes: ${ctx.dislikedList || "None"}
 ${ctx.mood ? `Mood: ${ctx.mood}` : "No specific mood"}
 
 Movies:
@@ -348,13 +359,9 @@ export async function generateRecommendationReasoning(
   const audienceLabel = soloMode ? "you" : `your group of ${memberCount}`
   const lovedList = lovedMovies.slice(0, 8)
     .map(m => `${m.title} (${m.avgScore})`).join(", ")
-  const dislikedList = dislikedMovies.slice(0, 5)
-    .map(m => `${m.title} (${m.avgScore})`).join(", ")
-
   const summaryContext: SummaryContext = {
     audienceLabel,
     lovedList,
-    dislikedList,
     mood,
     soloMode,
     collectiveInfluence,
