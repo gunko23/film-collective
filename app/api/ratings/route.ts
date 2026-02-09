@@ -9,6 +9,7 @@ import {
   type DimensionScores,
   type DimensionTags,
 } from "@/lib/ratings/dimensions-service"
+import { rebuildUserCrewAffinities } from "@/lib/recommendations/crew-affinity-service"
 
 // GET - Fetch user's rating for a movie
 export async function GET(request: NextRequest) {
@@ -124,6 +125,11 @@ export async function POST(request: NextRequest) {
       extraNotes: extraNotes || explanationText,
       userComment: comment,
     })
+
+    // Fire-and-forget: rebuild crew affinities for this user
+    rebuildUserCrewAffinities(user.id).catch(e =>
+      console.error("[Ratings] Error rebuilding crew affinities:", e)
+    )
 
     return NextResponse.json({
       success: true,
