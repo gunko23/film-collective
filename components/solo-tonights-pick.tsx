@@ -11,6 +11,8 @@ import { BottomActionBar } from "@/components/tonights-pick/bottom-action-bar"
 import { MoodFiltersStep } from "@/components/tonights-pick/mood-filters-step"
 import { FiltersStep } from "@/components/tonights-pick/filters-step"
 import { RecommendationCard } from "@/components/tonights-pick/recommendation-card"
+import { LockInModal } from "@/components/tonights-pick/lock-in-modal"
+import { LockInSuccess } from "@/components/tonights-pick/lock-in-success"
 import type { GenrePreference, MovieRecommendation, MoodValue, Audience, ContentLevel } from "@/components/tonights-pick/types"
 
 // ── Solo-specific types ──
@@ -54,6 +56,12 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
   const [maxSubstances, setMaxSubstances] = useState<ContentLevel>(null)
   const [maxFrightening, setMaxFrightening] = useState<ContentLevel>(null)
   const [showContentFilters, setShowContentFilters] = useState(true)
+
+  // Lock-in state
+  const [lockedTmdbId, setLockedTmdbId] = useState<number | null>(null)
+  const [pendingMovie, setPendingMovie] = useState<MovieRecommendation | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [successTitle, setSuccessTitle] = useState("")
 
   // Dismissal state
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set())
@@ -102,6 +110,53 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
     fetch(`/api/dismissed-movies/${movieId}`, { method: "DELETE" })
       .catch(err => console.error("Failed to undo dismissal:", err))
   }, [undoMovie])
+
+  const handleLockIn = useCallback((movie: MovieRecommendation) => {
+    setPendingMovie(movie)
+  }, [])
+
+  const handleConfirm = useCallback(async (scheduledFor: string) => {
+    if (!pendingMovie) return
+    const movie = pendingMovie
+    setPendingMovie(null)
+    setSuccessTitle(movie.title)
+    setShowSuccess(true)
+    setLockedTmdbId(movie.tmdbId)
+
+    try {
+      const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : null
+      await fetch("/api/planned-watches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          movieId: movie.tmdbId,
+          movieTitle: movie.title,
+          movieYear: year,
+          moviePoster: movie.posterPath,
+          scheduledFor,
+          participantIds: [],
+          moodTags: null,
+        }),
+      })
+    } catch (err) {
+      console.error("Failed to save planned watch:", err)
+    }
+  }, [pendingMovie])
+
+  const handleCancel = useCallback(() => {
+    setPendingMovie(null)
+  }, [])
+
+  const handleSuccessComplete = useCallback(() => {
+    setShowSuccess(false)
+    if (onBack) {
+      onBack()
+    }
+  }, [onBack])
+
+  const pendingYear = pendingMovie?.releaseDate
+    ? new Date(pendingMovie.releaseDate).getFullYear()
+    : ""
 
   // Load user's saved streaming providers on mount
   useEffect(() => {
@@ -427,6 +482,9 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
                           <RecommendationCard
                             movie={movie}
                             index={visibleIndex >= 0 ? visibleIndex : 0}
+                            isLocked={lockedTmdbId === movie.tmdbId}
+                            isFaded={lockedTmdbId !== null && lockedTmdbId !== movie.tmdbId}
+                            onLockIn={() => handleLockIn(movie)}
                             onNotInterested={() => handleNotInterested(movie)}
                           />
                         </div>
@@ -494,6 +552,25 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
         onShuffle={shuffleResults}
         hasResults={!!results}
       />
+
+      {/* Lock In Confirmation Modal */}
+      {pendingMovie && (
+        <LockInModal
+          movieTitle={pendingMovie.title}
+          movieYear={pendingYear}
+          participants={[]}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
+      )}
+
+      {/* Lock In Success Animation */}
+      {showSuccess && (
+        <LockInSuccess
+          movieTitle={successTitle}
+          onComplete={handleSuccessComplete}
+        />
+      )}
     </div>
   )
 }

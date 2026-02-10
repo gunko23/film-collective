@@ -22,6 +22,7 @@ import {
 import { BellIcon, ChevronRightIcon, PlayIcon, ArrowIcon, PlusIcon } from "@/components/dashboard/dashboard-icons"
 import { DashboardActivityItem, getUserGradient, type Activity } from "@/components/dashboard/dashboard-activity-item"
 import { PlannedWatchesSection } from "@/components/dashboard/planned-watches-section"
+import { AddPlannedWatchModal } from "@/components/dashboard/add-planned-watch-modal"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
@@ -81,6 +82,7 @@ export function UserDashboard() {
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all")
   const [showAllActivity, setShowAllActivity] = useState(false)
   const [showLogModal, setShowLogModal] = useState(false)
+  const [showAddPlannedWatch, setShowAddPlannedWatch] = useState(false)
 
   if (isLoading) {
     return (
@@ -255,7 +257,7 @@ export function UserDashboard() {
 
           {/* Planned Watches */}
           <div className="mb-7 sf-reveal sf-delay-2">
-            <PlannedWatchesSection />
+            <PlannedWatchesSection onAddClick={() => setShowAddPlannedWatch(true)} />
           </div>
 
           {/* Activity header + filters */}
@@ -497,7 +499,7 @@ export function UserDashboard() {
 
         {/* Mobile Planned Watches */}
         <div className="px-6 pb-6 sf-reveal sf-delay-3">
-          <PlannedWatchesSection />
+          <PlannedWatchesSection onAddClick={() => setShowAddPlannedWatch(true)} />
         </div>
 
         {/* Mobile Collectives */}
@@ -637,6 +639,12 @@ export function UserDashboard() {
       <LogFilmModal
         isOpen={showLogModal}
         onClose={() => setShowLogModal(false)}
+        onSuccess={() => mutate()}
+      />
+
+      <AddPlannedWatchModal
+        isOpen={showAddPlannedWatch}
+        onClose={() => setShowAddPlannedWatch(false)}
         onSuccess={() => mutate()}
       />
     </div>

@@ -248,7 +248,7 @@ export const plannedWatches = pgTable("planned_watches", {
     .references(() => users.id, { onDelete: "cascade" }),
   collectiveId: uuid("collective_id").references(() => collectives.id, { onDelete: "set null" }),
   status: text("status").notNull().default("planned"), // 'planned', 'watching', 'watched', 'cancelled'
-  scheduledFor: date("scheduled_for"),
+  scheduledFor: text("scheduled_for"),
   lockedInAt: timestamp("locked_in_at", { withTimezone: true }).defaultNow(),
   watchedAt: timestamp("watched_at", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),

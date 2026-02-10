@@ -19,6 +19,7 @@ import { PillTabBar, EASING, type CollectiveTab } from "@/components/collective/
 import { InviteModal } from "@/components/collective/invite-modal"
 import { DashboardActivityItem, type Activity as FeedActivity } from "@/components/dashboard/dashboard-activity-item"
 import { LogFilmModal } from "@/components/modals/log-film-modal"
+import { CollectivePlannedWatchesSection } from "@/components/collective/collective-planned-watches"
 
 // ─── Color helpers ──────────────────────────────────────────
 
@@ -315,6 +316,11 @@ export function MobileCollectiveView({
                 ))}
               </div>
 
+              {/* Planned Watches */}
+              <div style={{ marginBottom: 32 }}>
+                <CollectivePlannedWatchesSection collectiveId={collectiveId} />
+              </div>
+
               {/* Recent Activity */}
               <SectionLabel className="mb-4 block">Recent Activity</SectionLabel>
               {activityLoading ? (
@@ -608,6 +614,11 @@ export function MobileCollectiveView({
                   <div style={{ fontSize: 12, color: "#a69e90", marginTop: 4, lineHeight: 1.5 }}>{action.sub}</div>
                 </button>
               ))}
+            </div>
+
+            {/* Planned Watches */}
+            <div style={{ padding: "24px 24px 0" }}>
+              <CollectivePlannedWatchesSection collectiveId={collectiveId} />
             </div>
 
             {/* Recent Activity */}

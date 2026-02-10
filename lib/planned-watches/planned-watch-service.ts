@@ -23,8 +23,16 @@ export type PlannedWatchParticipant = {
   id: string
   plannedWatchId: string
   userId: string
-  rsvpStatus: "confirmed" | "maybe" | "declined"
+  rsvpStatus: "confirmed" | "maybe" | "declined" | "pending"
   addedAt: string
+}
+
+export type CollectivePlannedWatch = PlannedWatch & {
+  createdByName: string | null
+  createdByAvatar: string | null
+  isParticipant: boolean
+  myRsvpStatus: string | null
+  participants: { userId: string; name: string | null; avatarUrl: string | null; rsvpStatus: string }[]
 }
 
 export type CreatePlannedWatchInput = {
@@ -63,12 +71,13 @@ export async function createPlannedWatch(input: CreatePlannedWatchInput): Promis
 
   const plannedWatch = mapRow(rows[0])
 
-  // Insert participants
+  // Insert participants — creator is auto-confirmed, others start as 'pending'
   if (participantIds.length > 0) {
     for (const userId of participantIds) {
+      const status = userId === createdBy ? "confirmed" : "pending"
       await sql`
         INSERT INTO planned_watch_participants (planned_watch_id, user_id, rsvp_status)
-        VALUES (${plannedWatch.id}, ${userId}, 'confirmed')
+        VALUES (${plannedWatch.id}, ${userId}, ${status})
         ON CONFLICT (planned_watch_id, user_id) DO NOTHING
       `
     }
@@ -121,17 +130,41 @@ export async function updatePlannedWatchStatus(
   return rows.length > 0 ? mapRow(rows[0]) : null
 }
 
-export async function getUpcomingPlannedWatches(userId: string): Promise<(PlannedWatch & { participants: { userId: string; name: string | null; avatarUrl: string | null; rsvpStatus: string }[] })[]> {
+export async function updateParticipantRsvp(
+  plannedWatchId: string,
+  userId: string,
+  rsvpStatus: "confirmed" | "declined",
+): Promise<boolean> {
   const rows = await sql`
-    SELECT pw.*
+    UPDATE planned_watch_participants
+    SET rsvp_status = ${rsvpStatus}
+    WHERE planned_watch_id = ${plannedWatchId} AND user_id = ${userId}
+    RETURNING id
+  `
+  return rows.length > 0
+}
+
+export async function getUpcomingPlannedWatches(userId: string): Promise<(PlannedWatch & {
+  myRsvpStatus: string
+  createdByName: string | null
+  participants: { userId: string; name: string | null; avatarUrl: string | null; rsvpStatus: string }[]
+})[]> {
+  const rows = await sql`
+    SELECT pw.*, my_pwp.rsvp_status AS my_rsvp_status, creator.name AS created_by_name
     FROM planned_watches pw
-    LEFT JOIN planned_watch_participants pwp ON pwp.planned_watch_id = pw.id AND pwp.user_id = ${userId}
-    WHERE (pw.created_by = ${userId} OR pwp.user_id IS NOT NULL)
+    LEFT JOIN planned_watch_participants my_pwp ON my_pwp.planned_watch_id = pw.id AND my_pwp.user_id = ${userId}
+    LEFT JOIN users creator ON creator.id = pw.created_by
+    WHERE (pw.created_by = ${userId} OR my_pwp.user_id IS NOT NULL)
       AND pw.status IN ('planned', 'watching')
+      AND (my_pwp.rsvp_status IS NULL OR my_pwp.rsvp_status != 'declined')
     ORDER BY pw.locked_in_at DESC
   `
 
-  const watches = rows.map(mapRow)
+  const watches = rows.map((row: any) => ({
+    ...mapRow(row),
+    myRsvpStatus: row.my_rsvp_status ?? "confirmed",
+    createdByName: row.created_by_name ?? null,
+  }))
 
   // Fetch participants for each watch
   const result = []
@@ -156,12 +189,71 @@ export async function getUpcomingPlannedWatches(userId: string): Promise<(Planne
   return result
 }
 
+export async function getCollectivePlannedWatches(
+  collectiveId: string,
+  currentUserId: string,
+): Promise<CollectivePlannedWatch[]> {
+  const rows = await sql`
+    SELECT pw.*, creator.name AS created_by_name, creator.avatar_url AS created_by_avatar,
+      my_pwp.rsvp_status AS my_rsvp_status, my_pwp.user_id AS my_participant_id
+    FROM planned_watches pw
+    JOIN users creator ON creator.id = pw.created_by
+    LEFT JOIN planned_watch_participants my_pwp ON my_pwp.planned_watch_id = pw.id AND my_pwp.user_id = ${currentUserId}
+    WHERE pw.collective_id = ${collectiveId}
+      AND pw.status IN ('planned', 'watching')
+    ORDER BY pw.locked_in_at DESC
+  `
+
+  const result: CollectivePlannedWatch[] = []
+  for (const row of rows) {
+    const participants = await sql`
+      SELECT pwp.user_id, pwp.rsvp_status, u.name, u.avatar_url
+      FROM planned_watch_participants pwp
+      JOIN users u ON u.id = pwp.user_id
+      WHERE pwp.planned_watch_id = ${row.id}
+        AND pwp.rsvp_status != 'declined'
+    `
+
+    const myRsvpStatus = (row as any).my_rsvp_status ?? null
+    const isParticipant = (row as any).my_participant_id != null && myRsvpStatus !== "declined"
+
+    result.push({
+      ...mapRow(row),
+      createdByName: (row as any).created_by_name ?? null,
+      createdByAvatar: (row as any).created_by_avatar ?? null,
+      isParticipant,
+      myRsvpStatus,
+      participants: participants.map((p: any) => ({
+        userId: p.user_id,
+        name: p.name,
+        avatarUrl: p.avatar_url,
+        rsvpStatus: p.rsvp_status,
+      })),
+    })
+  }
+
+  return result
+}
+
+export async function joinPlannedWatch(
+  plannedWatchId: string,
+  userId: string,
+): Promise<boolean> {
+  const rows = await sql`
+    INSERT INTO planned_watch_participants (planned_watch_id, user_id, rsvp_status)
+    VALUES (${plannedWatchId}, ${userId}, 'confirmed')
+    ON CONFLICT (planned_watch_id, user_id) DO UPDATE SET rsvp_status = 'confirmed'
+    RETURNING id
+  `
+  return rows.length > 0
+}
+
 export async function getUserActivityStatus(userId: string): Promise<{ status: string; movieTitle?: string } | null> {
   const rows = await sql`
     SELECT pw.status, pw.movie_title
     FROM planned_watches pw
     LEFT JOIN planned_watch_participants pwp ON pwp.planned_watch_id = pw.id AND pwp.user_id = ${userId}
-    WHERE (pw.created_by = ${userId} OR pwp.user_id IS NOT NULL)
+    WHERE (pw.created_by = ${userId} OR (pwp.user_id IS NOT NULL AND pwp.rsvp_status = 'confirmed'))
       AND pw.status IN ('planned', 'watching')
     ORDER BY
       CASE WHEN pw.status = 'watching' THEN 0 ELSE 1 END,
