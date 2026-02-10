@@ -363,6 +363,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
               results={results}
               members={members.filter(m => selectedMembers.includes(m.userId))}
               collectiveId={collectiveId}
+              onShuffle={shuffleResults}
               onLockInComplete={() => {
                 if (onBack) {
                   onBack()

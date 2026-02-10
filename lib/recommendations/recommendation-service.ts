@@ -283,6 +283,21 @@ async function getSeenMovieTmdbIds(memberIds: string[]): Promise<Map<number, str
 }
 
 /**
+ * Get TMDB IDs of movies dismissed ("Not Interested") by ANY of the given members.
+ * Returns a Set for O(1) lookup — we skip if any member dismissed.
+ */
+async function getDismissedMovieTmdbIds(memberIds: string[]): Promise<Set<number>> {
+  if (memberIds.length === 0) return new Set()
+
+  const result = await sql`
+    SELECT DISTINCT movie_id FROM user_dismissed_movies
+    WHERE user_id = ANY(${memberIds}::uuid[])
+  `
+
+  return new Set(result.map((r: any) => Number(r.movie_id)))
+}
+
+/**
  * Get movies that members have rated poorly (to avoid similar content)
  */
 async function getDislikedGenres(memberIds: string[]): Promise<Set<number>> {
@@ -838,9 +853,10 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
   // ── Phase 1: Parallel DB queries ──
   const t1 = timer("Phase 1: DB queries (parallel)")
-  const [groupGenres, seenMovies, dislikedGenreSet, eraPreferences, crewAffinitiesResult, peerIds] = await Promise.all([
+  const [groupGenres, seenMovies, dismissedTmdbIds, dislikedGenreSet, eraPreferences, crewAffinitiesResult, peerIds] = await Promise.all([
     getGroupGenrePreferences(memberIds),
     getSeenMovieTmdbIds(memberIds),
+    getDismissedMovieTmdbIds(memberIds),
     getDislikedGenres(memberIds),
     getEraPreferences(memberIds),
     getCachedCrewAffinities(memberIds),
@@ -1291,6 +1307,11 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   for (const movie of uniqueMovies) {
     // Skip previously shown movies (shuffle exclusion)
     if (excludeSet.has(movie.id)) {
+      continue
+    }
+
+    // Skip movies dismissed ("Not Interested") by any participant
+    if (dismissedTmdbIds.has(movie.id)) {
       continue
     }
 
