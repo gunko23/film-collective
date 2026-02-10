@@ -7,9 +7,10 @@ import {
   IconShield, IconChevronDown, IconChevronUp,
 } from "./icons"
 import { FilterPill, FilterCard, SectionLabel } from "./filter-primitives"
-import type { Mood, ContentLevel } from "./types"
+import { IconCheck } from "./icons"
+import type { MoodValue, Audience, ContentLevel } from "./types"
 
-const MOOD_OPTIONS: { value: Mood; label: string; icon: (c: string) => React.ReactNode; description: string; color: string }[] = [
+const MOOD_OPTIONS: { value: MoodValue | null; label: string; icon: (c: string) => React.ReactNode; description: string; color: string }[] = [
   {
     value: null,
     label: "Any Mood",
@@ -54,8 +55,15 @@ const MOOD_OPTIONS: { value: Mood; label: string; icon: (c: string) => React.Rea
   },
 ]
 
+const AUDIENCE_OPTIONS: { value: Audience; label: string }[] = [
+  { value: "anyone", label: "Anyone" },
+  { value: "teens", label: "Teens & Up" },
+  { value: "adults", label: "Adults" },
+]
+
 export function MoodFiltersStep({
-  selectedMood, setSelectedMood,
+  selectedMoods, setSelectedMoods,
+  audience, setAudience,
   maxRuntime, setMaxRuntime,
   contentRating, setContentRating,
   era, setEra,
@@ -69,8 +77,10 @@ export function MoodFiltersStep({
   maxFrightening, setMaxFrightening,
   showContentFilters, setShowContentFilters,
 }: {
-  selectedMood: Mood
-  setSelectedMood: (m: Mood) => void
+  selectedMoods: MoodValue[]
+  setSelectedMoods: (m: MoodValue[]) => void
+  audience: Audience
+  setAudience: (v: Audience) => void
   maxRuntime: number | null
   setMaxRuntime: (v: number | null) => void
   contentRating: string | null
@@ -97,18 +107,50 @@ export function MoodFiltersStep({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Mood grid */}
+      {/* Mood grid — multi-select */}
       <div>
-        <SectionLabel>What are you in the mood for?</SectionLabel>
+        <div className="flex items-center" style={{ gap: 8, marginBottom: 2 }}>
+          <SectionLabel>What are you in the mood for?</SectionLabel>
+          {selectedMoods.length > 1 && (
+            <span style={{
+              padding: "2px 8px",
+              borderRadius: 12,
+              background: `${C.orange}20`,
+              color: C.orange,
+              fontSize: 11,
+              fontWeight: 500,
+              fontFamily: FONT_STACK,
+            }}>
+              {selectedMoods.length} selected
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-2" style={{ gap: 10 }}>
           {MOOD_OPTIONS.map((option) => {
-            const isSelected = selectedMood === option.value
+            // "Any Mood" (value=null) is selected when no moods are chosen
+            const isSelected = option.value === null
+              ? selectedMoods.length === 0
+              : selectedMoods.includes(option.value)
             const moodColor = option.color
+
+            const handleClick = () => {
+              if (option.value === null) {
+                // "Any Mood" clears all selections
+                setSelectedMoods([])
+              } else {
+                // Toggle specific mood on/off
+                if (selectedMoods.includes(option.value)) {
+                  setSelectedMoods(selectedMoods.filter(m => m !== option.value))
+                } else {
+                  setSelectedMoods([...selectedMoods, option.value])
+                }
+              }
+            }
 
             return (
               <button
                 key={option.value || "any"}
-                onClick={() => setSelectedMood(option.value)}
+                onClick={handleClick}
                 style={{
                   display: "flex",
                   flexDirection: "column",
@@ -141,6 +183,23 @@ export function MoodFiltersStep({
                     }}
                   />
                 )}
+                {/* Checkmark badge for multi-select */}
+                {isSelected && option.value !== null && (
+                  <div style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    width: 18,
+                    height: 18,
+                    borderRadius: "50%",
+                    background: moodColor,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}>
+                    <IconCheck size={11} color={C.warmBlack} />
+                  </div>
+                )}
                 <div
                   style={{
                     width: 36,
@@ -166,6 +225,11 @@ export function MoodFiltersStep({
             )
           })}
         </div>
+        {selectedMoods.length > 1 && (
+          <p style={{ margin: "8px 0 0", fontSize: 11, color: C.creamFaint, fontFamily: FONT_STACK }}>
+            Movies matching any selected mood will be included
+          </p>
+        )}
       </div>
 
       {/* Runtime Filter Card */}
@@ -179,6 +243,22 @@ export function MoodFiltersStep({
               selected={maxRuntime === time}
               onClick={() => setMaxRuntime(time)}
               accentColor={C.blue}
+            />
+          ))}
+        </div>
+      </FilterCard>
+
+      {/* Audience Filter Card */}
+      <FilterCard accentGradient={`linear-gradient(90deg, ${C.purple}, ${C.purple}88, transparent)`}>
+        <SectionLabel>Audience (optional)</SectionLabel>
+        <div className="grid grid-cols-3" style={{ gap: 8 }}>
+          {AUDIENCE_OPTIONS.map((option) => (
+            <FilterPill
+              key={option.value}
+              label={option.label}
+              selected={audience === option.value}
+              onClick={() => setAudience(option.value)}
+              accentColor={C.purple}
             />
           ))}
         </div>
@@ -215,6 +295,9 @@ export function MoodFiltersStep({
         <div className="grid grid-cols-4" style={{ gap: 8 }}>
           {[
             { value: null, label: "Any" },
+            { value: "Pre-40s", label: "Pre-40s" },
+            { value: "1940s", label: "40s" },
+            { value: "1950s", label: "50s" },
             { value: "1960s", label: "60s" },
             { value: "1970s", label: "70s" },
             { value: "1980s", label: "80s" },

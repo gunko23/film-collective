@@ -15,11 +15,15 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { mood, maxRuntime, contentRating, parentalFilters, page, era, startYear, streamingProviders, excludeTmdbIds } = body
+    const { mood, moods, audience, maxRuntime, contentRating, parentalFilters, page, era, startYear, streamingProviders, excludeTmdbIds } = body
+
+    // Normalize: support both single mood (backward compat) and multi-mood array
+    const resolvedMoods = moods || (mood ? [mood] : [])
 
     const result = await getSoloTonightsPick({
       userId: user.id,
-      mood: mood || null,
+      moods: resolvedMoods,
+      audience: audience || "anyone",
       maxRuntime: maxRuntime || null,
       contentRating: contentRating || null,
       parentalFilters: parentalFilters || null,

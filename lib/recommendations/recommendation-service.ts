@@ -109,6 +109,8 @@ export type TonightPickRequest = {
   collectiveId: string
   memberIds: string[] // Who's watching tonight
   mood?: "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | null
+  moods?: string[] // Multi-mood selection (union of mood filters)
+  audience?: "anyone" | "teens" | "adults"
   maxRuntime?: number | null // In minutes
   contentRating?: string | null // "G", "PG", "PG-13", "R" - will include this and lower
   parentalFilters?: ParentalFilters | null
@@ -132,6 +134,8 @@ export type TonightPickResponse = {
 export type SoloTonightPickRequest = {
   userId: string
   mood?: "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | null
+  moods?: string[] // Multi-mood selection (union of mood filters)
+  audience?: "anyone" | "teens" | "adults"
   maxRuntime?: number | null
   contentRating?: string | null
   parentalFilters?: ParentalFilters | null
@@ -196,7 +200,8 @@ type ScoringContext = {
   candidateTopActorIds: Set<number>
   candidateReleaseDecade: string | null
   omdbScores: CachedOmdbScores | null
-  mood: string | null
+  moods: string[]
+  audience: string
   moodPreferGenres: number[]
   moodSoftAvoidGenres: number[]
   collectiveInfluence: CollectiveInfluenceEntry | null
@@ -489,12 +494,42 @@ function calculateGroupFitScore(
   score += qualityBonus
   if (qualityReasoning) reasoning.push(qualityReasoning)
 
-  // --- Acclaimed mood bonus (critic-score-based, only when mood = "acclaimed") ---
-  if (ctx.mood === "acclaimed") {
+  // --- Acclaimed mood bonus (critic-score-based, only when mood includes "acclaimed") ---
+  if (ctx.moods.includes("acclaimed")) {
     const { bonus: acclaimedBonus, reasoning: acclaimedReasoning } = getAcclaimedMoodBonus(ctx.omdbScores)
     score += acclaimedBonus
     if (acclaimedReasoning.length > 0) {
       reasoning.push(acclaimedReasoning.join(", "))
+    }
+  }
+
+  // --- Multi-mood crossover bonus (+5 when movie matches genres from 2+ selected moods) ---
+  if (ctx.moods.length > 1) {
+    // Check how many distinct mood filter sets this movie's genres satisfy
+    let moodHitCount = 0
+    for (const m of ctx.moods) {
+      const singleMoodFilters = getMoodFilters(m as any)
+      if (singleMoodFilters.preferGenres.some(g => movieGenreIds.has(g))) {
+        moodHitCount++
+      }
+    }
+    if (moodHitCount >= 2) {
+      score += 5
+      reasoning.push("Hits multiple moods you're after")
+    }
+  }
+
+  // --- Audience scoring penalty ---
+  if (ctx.audience === "teens") {
+    // If movie has BOTH Animation (16) AND Family (10751), penalize for teen audience
+    if (movieGenreIds.has(16) && movieGenreIds.has(10751)) {
+      score -= 8
+    }
+  } else if (ctx.audience === "adults") {
+    // Penalize Family genre content for adult audience
+    if (movieGenreIds.has(10751)) {
+      score -= 15
+      reasoning.push("May be too family-oriented for your audience")
     }
   }
 
@@ -689,13 +724,72 @@ function getMoodFilters(mood: TonightPickRequest["mood"]): {
   }
 }
 
+/**
+ * Merge mood filters for multiple selected moods.
+ * preferGenres: union of all moods' preferred genres
+ * avoidGenres: intersection — only exclude genres ALL moods avoid
+ * softAvoidGenres: union, minus anything in preferGenres
+ * sortBy: "acclaimed" in moods → vote_average.desc, else popularity.desc
+ */
+function getMultiMoodFilters(moods: string[]): {
+  preferGenres: number[]
+  avoidGenres: number[]
+  softAvoidGenres: number[]
+  sortBy: string
+} {
+  if (moods.length === 0) {
+    return { preferGenres: [], avoidGenres: [], softAvoidGenres: [], sortBy: "popularity.desc" }
+  }
+  if (moods.length === 1) {
+    return getMoodFilters(moods[0] as any)
+  }
+
+  const allFilters = moods.map(m => getMoodFilters(m as any))
+
+  // Union of preferred genres
+  const preferSet = new Set<number>()
+  for (const f of allFilters) {
+    for (const g of f.preferGenres) preferSet.add(g)
+  }
+
+  // Intersection of avoid genres — only hard-exclude if ALL moods avoid it
+  const avoidSets = allFilters.map(f => new Set(f.avoidGenres))
+  const avoidGenres: number[] = []
+  if (avoidSets.length > 0) {
+    for (const g of avoidSets[0]) {
+      if (avoidSets.every(s => s.has(g))) {
+        avoidGenres.push(g)
+      }
+    }
+  }
+
+  // Union of soft avoid, minus anything in prefer
+  const softAvoidSet = new Set<number>()
+  for (const f of allFilters) {
+    for (const g of f.softAvoidGenres) {
+      if (!preferSet.has(g)) softAvoidSet.add(g)
+    }
+  }
+
+  // Sort: acclaimed in moods → vote_average, else popularity
+  const sortBy = moods.includes("acclaimed") ? "vote_average.desc" : "popularity.desc"
+
+  return {
+    preferGenres: Array.from(preferSet),
+    avoidGenres,
+    softAvoidGenres: Array.from(softAvoidSet),
+    sortBy,
+  }
+}
+
 // ============================================
 // Shared Recommendation Logic
 // ============================================
 
 type FetchAndScoreOptions = {
   memberIds: string[]
-  mood?: "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | null
+  moods?: string[]
+  audience?: "anyone" | "teens" | "adults"
   maxRuntime?: number | null
   contentRating?: string | null
   parentalFilters?: ParentalFilters | null
@@ -716,7 +810,8 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   dislikedMovies: { title: string; avgScore: number }[]
   collectiveInfluenceMap: Map<number, CollectiveInfluenceEntry>
 }> {
-  const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, soloMode = false, era, startYear, streamingProviders, collectiveId, excludeTmdbIds } = options
+  const { memberIds, moods: rawMoods, audience = "anyone", maxRuntime, contentRating, parentalFilters, page = 1, soloMode = false, era, startYear, streamingProviders, collectiveId, excludeTmdbIds } = options
+  const moods = rawMoods || []
 
   const totalTimer = timer("_fetchAndScoreMovies TOTAL")
   const pageOffset = (page - 1) * 3
@@ -734,7 +829,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   ])
   t1.done()
 
-  const moodFilters = getMoodFilters(mood)
+  const moodFilters = getMultiMoodFilters(moods)
 
   const tmdb = createTMDBClient()
   if (!tmdb) {
@@ -746,9 +841,11 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   const totalSeen = seenMovies.size
   let filterPressure = 0
 
-  if (mood === "acclaimed") filterPressure += 3
-  else if (mood === "emotional" || mood === "intense") filterPressure += 1
-  else if (mood) filterPressure += 0.5
+  if (moods.includes("acclaimed")) filterPressure += 3
+  else if (moods.includes("emotional") || moods.includes("intense")) filterPressure += 1
+  else if (moods.length > 0) filterPressure += 0.5
+  // Multi-mood is less restrictive: reduce pressure
+  if (moods.length > 1) filterPressure = Math.max(0, filterPressure - 0.3)
 
   if (era) filterPressure += 3
   else if (startYear) filterPressure += 1
@@ -814,7 +911,8 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
                            : 0
 
   console.log(`[Recommendations] Filter pressure: ${filterPressure} (${pressureTier})`, {
-    mood: mood || "none",
+    moods: moods.length > 0 ? moods.join("+") : "none",
+    audience,
     era: era || startYear || "none",
     maxRuntime: maxRuntime || "none",
     contentRating: contentRating || "none",
@@ -836,7 +934,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     voteCountGte: voteCountFloor,
   }
 
-  if (mood === "acclaimed") {
+  if (moods.includes("acclaimed")) {
     if (contentRating) {
       discoverOptions.voteAverageGte = pressureTier === "high" ? 6.5
                                      : pressureTier === "medium" ? 7.0
@@ -866,10 +964,15 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   // Date range filters: era (specific decade) takes precedence over startYear (minimum year)
   const eraDateRange: { primaryReleaseDateGte?: string; primaryReleaseDateLte?: string } = {}
   if (era) {
-    const decadeStart = parseInt(era) // "1980s" → 1980
-    if (!isNaN(decadeStart)) {
-      eraDateRange.primaryReleaseDateGte = `${decadeStart}-01-01`
-      eraDateRange.primaryReleaseDateLte = `${decadeStart + 9}-12-31`
+    if (era === "Pre-40s") {
+      // No lower bound — everything up to 1939
+      eraDateRange.primaryReleaseDateLte = "1939-12-31"
+    } else {
+      const decadeStart = parseInt(era) // "1980s" → 1980
+      if (!isNaN(decadeStart)) {
+        eraDateRange.primaryReleaseDateGte = `${decadeStart}-01-01`
+        eraDateRange.primaryReleaseDateLte = `${decadeStart + 9}-12-31`
+      }
     }
   } else if (startYear) {
     eraDateRange.primaryReleaseDateGte = `${startYear}-01-01`
@@ -888,6 +991,21 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     streamingParams.watchRegion = "US"
     streamingParams.withWatchMonetizationTypes = "flatrate"
     Object.assign(discoverOptions, streamingParams)
+  }
+
+  // Audience filter — applied to discover options
+  if (audience === "teens") {
+    if (!contentRating) {
+      discoverOptions.certificationCountry = "US"
+      discoverOptions.certificationGte = "PG"
+    }
+  } else if (audience === "adults") {
+    // Exclude Animation (16) + Family (10751) genres
+    discoverOptions.withoutGenres = "16,10751"
+    if (!contentRating) {
+      discoverOptions.certificationCountry = "US"
+      discoverOptions.certificationGte = "PG-13"
+    }
   }
 
   // ── Phase 2: Collab recs + TMDB discovers in parallel ──
@@ -1168,7 +1286,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       ? (movie.genres).map((g: any) => g.id)
       : (movie.genre_ids || [])
     const hasAvoidedGenre = moodFilters.avoidGenres.some((g: number) => movieGenreIds.includes(g))
-    if (hasAvoidedGenre && mood) {
+    if (hasAvoidedGenre && moods.length > 0) {
       continue
     }
 
@@ -1188,9 +1306,10 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       candidateTopActorIds: new Set(),
       candidateReleaseDecade: getDecade(movie.release_date),
       omdbScores: omdbScoresMap.get(movie.id) || null,
-      mood: mood || null,
-      moodPreferGenres: mood ? moodFilters.preferGenres : [],
-      moodSoftAvoidGenres: mood ? moodFilters.softAvoidGenres : [],
+      moods,
+      audience,
+      moodPreferGenres: moods.length > 0 ? moodFilters.preferGenres : [],
+      moodSoftAvoidGenres: moods.length > 0 ? moodFilters.softAvoidGenres : [],
       collectiveInfluence: collectiveInfluenceMap.get(movie.id) || null,
     }
 
@@ -1272,9 +1391,10 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
         candidateTopActorIds: creds?.topActorIds || new Set(),
         candidateReleaseDecade: getDecade(entry.releaseDate),
         omdbScores: omdbScoresMap.get(entry.tmdbId) || null,
-        mood: mood || null,
-        moodPreferGenres: mood ? moodFilters.preferGenres : [],
-        moodSoftAvoidGenres: mood ? moodFilters.softAvoidGenres : [],
+        moods,
+        audience,
+        moodPreferGenres: moods.length > 0 ? moodFilters.preferGenres : [],
+        moodSoftAvoidGenres: moods.length > 0 ? moodFilters.softAvoidGenres : [],
         collectiveInfluence: collectiveInfluenceMap.get(entry.tmdbId) || null,
       }
 
@@ -1405,7 +1525,9 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
 export async function getTonightsPick(request: TonightPickRequest): Promise<TonightPickResponse> {
   const tTotal = timer("getTonightsPick TOTAL")
-  const { collectiveId, memberIds, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders, excludeTmdbIds } = request
+  const { collectiveId, memberIds, mood, moods: rawMoods, audience, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders, excludeTmdbIds } = request
+  // Normalize: support both single mood (backward compat) and multi-mood
+  const moods = rawMoods || (mood ? [mood] : [])
 
   // Validate members belong to the collective
   const validMembers = await sql`
@@ -1425,7 +1547,8 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
   const tFetch = timer("Pipeline: _fetchAndScoreMovies")
   const result = await _fetchAndScoreMovies({
     memberIds: validMemberIds,
-    mood,
+    moods,
+    audience: audience || "anyone",
     maxRuntime,
     contentRating,
     parentalFilters,
@@ -1444,7 +1567,7 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
     recommendations: result.recommendations,
     lovedMovies: result.lovedMovies,
     dislikedMovies: result.dislikedMovies,
-    mood: mood || null,
+    moods,
     soloMode: false,
     memberCount: validMemberIds.length,
     collectiveInfluence: result.collectiveInfluenceMap,
@@ -1478,7 +1601,8 @@ export async function getTonightsPick(request: TonightPickRequest): Promise<Toni
 
 export async function getSoloTonightsPick(request: SoloTonightPickRequest): Promise<SoloTonightPickResponse> {
   const tTotal = timer("getSoloTonightsPick TOTAL")
-  const { userId, mood, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders, excludeTmdbIds } = request
+  const { userId, mood, moods: rawMoods, audience, maxRuntime, contentRating, parentalFilters, page = 1, era, startYear, streamingProviders, excludeTmdbIds } = request
+  const moods = rawMoods || (mood ? [mood] : [])
 
   // Validate user exists
   const userResult = await sql`SELECT id FROM users WHERE id = ${userId}::uuid`
@@ -1489,7 +1613,8 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
   const tFetch = timer("Pipeline: _fetchAndScoreMovies")
   const result = await _fetchAndScoreMovies({
     memberIds: [userId],
-    mood,
+    moods,
+    audience: audience || "anyone",
     maxRuntime,
     contentRating,
     parentalFilters,
@@ -1509,7 +1634,7 @@ export async function getSoloTonightsPick(request: SoloTonightPickRequest): Prom
     recommendations: result.recommendations,
     lovedMovies: result.lovedMovies,
     dislikedMovies: result.dislikedMovies,
-    mood: mood || null,
+    moods,
     soloMode: true,
     memberCount: 1,
     collectiveInfluence: result.collectiveInfluenceMap,

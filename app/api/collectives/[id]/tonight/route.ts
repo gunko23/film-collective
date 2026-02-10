@@ -54,17 +54,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const body = await request.json()
-    const { memberIds, mood, maxRuntime, contentRating, parentalFilters, page, era, startYear, streamingProviders, excludeTmdbIds } = body
+    const { memberIds, mood, moods, audience, maxRuntime, contentRating, parentalFilters, page, era, startYear, streamingProviders, excludeTmdbIds } = body
 
     if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
       return NextResponse.json({ error: "At least one member must be selected" }, { status: 400 })
     }
 
+    // Normalize: support both single mood (backward compat) and multi-mood array
+    const resolvedMoods = moods || (mood ? [mood] : [])
+
     // Get recommendations
     const result = await getTonightsPick({
       collectiveId,
       memberIds,
-      mood: mood || null,
+      moods: resolvedMoods,
+      audience: audience || "anyone",
       maxRuntime: maxRuntime || null,
       contentRating: contentRating || null,
       parentalFilters: parentalFilters || null,

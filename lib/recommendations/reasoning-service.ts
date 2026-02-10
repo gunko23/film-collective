@@ -71,7 +71,7 @@ type ReasoningInput = {
   recommendations: MovieRecommendation[]
   lovedMovies: TasteMovie[]
   dislikedMovies: TasteMovie[]
-  mood: string | null
+  moods: string[]
   soloMode: boolean
   memberCount: number
   collectiveInfluence?: Map<number, { avgScore: number; raterCount: number; raterNames: string[] }>
@@ -90,7 +90,7 @@ type ReasoningResult = {
 type SummaryContext = {
   audienceLabel: string
   lovedList: string
-  mood: string | null
+  moods: string[]
   soloMode: boolean
   collectiveInfluence?: Map<number, { avgScore: number; raterCount: number; raterNames: string[] }>
 }
@@ -171,7 +171,7 @@ Respond with ONLY a JSON object, no markdown or backticks.`
 
   const userPrompt = `Audience: ${ctx.audienceLabel}
 Loves: ${ctx.lovedList || "Not enough ratings yet"}
-${ctx.mood ? `Mood: ${ctx.mood}` : "No specific mood"}
+${ctx.moods.length > 0 ? `Mood: ${ctx.moods.join(" + ")}` : "No specific mood"}
 
 Movies:
 ${movieLines}
@@ -306,7 +306,7 @@ export async function generateRecommendationReasoning(
     return new Map()
   }
 
-  const { recommendations, lovedMovies, dislikedMovies, mood,
+  const { recommendations, lovedMovies, dislikedMovies, moods,
           soloMode, memberCount, collectiveInfluence } = input
 
   // Step 1: Load cached enrichment (pairings + parental) for all 10 movies
@@ -329,7 +329,7 @@ export async function generateRecommendationReasoning(
   const summaryContext: SummaryContext = {
     audienceLabel,
     lovedList,
-    mood,
+    moods,
     soloMode,
     collectiveInfluence,
   }
