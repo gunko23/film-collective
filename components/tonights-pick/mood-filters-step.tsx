@@ -4,6 +4,7 @@ import { US_SUBSCRIPTION_PROVIDERS } from "@/lib/streaming/providers"
 import { C, FONT_STACK, CONTENT_FILTER_COLORS } from "./constants"
 import {
   IconSparkle, IconCoffee, IconZap, IconHeart, IconFilm, IconAward,
+  IconGhost, IconLightbulb,
   IconShield, IconChevronDown, IconChevronUp,
 } from "./icons"
 import { FilterPill, FilterCard, SectionLabel } from "./filter-primitives"
@@ -52,6 +53,20 @@ const MOOD_OPTIONS: { value: MoodValue | null; label: string; icon: (c: string) 
     icon: (c) => <IconAward size={20} color={c} />,
     description: "Critics' favorites",
     color: C.orange,
+  },
+  {
+    value: "scary",
+    label: "Scary",
+    icon: (c) => <IconGhost size={20} color={c} />,
+    description: "Thrills and chills",
+    color: C.rose,
+  },
+  {
+    value: "thoughtProvoking",
+    label: "Thought-Provoking",
+    icon: (c) => <IconLightbulb size={20} color={c} />,
+    description: "Makes you think",
+    color: C.blue,
   },
 ]
 

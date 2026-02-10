@@ -23,14 +23,16 @@ const MOOD_PROMPT = `You are a film analysis assistant. For each movie, rate how
 Moods:
 - fun: Light-hearted, entertaining, makes you laugh or smile. Comedy, adventure, feel-good vibes.
 - intense: Gripping, edge-of-your-seat, adrenaline. Action, thriller, horror, suspense.
-- emotional: Moving, touching, thought-provoking. Drama, romance, stories about the human condition.
+- emotional: Moving, touching, deeply felt. Drama, romance, stories about the human condition.
 - mindless: Easy to watch without deep thinking. Popcorn entertainment, spectacle, simple plots.
 - acclaimed: Critical darling, award-worthy, artistically significant. High ratings, prestige cinema.
+- scary: Frightening, creepy, unsettling. Horror, supernatural, psychological terror, jump scares.
+- thoughtProvoking: Intellectually stimulating, makes you think and reflect. Complex themes, philosophical questions, social commentary, mind-bending narratives.
 
 IMPORTANT:
 - A movie can score high on MULTIPLE moods (e.g., "Inside Out" might be fun: 0.85, emotional: 0.80)
 - A movie can also score low on all moods if none particularly apply
-- Be nuanced: "The Dark Knight" is intense (0.90) but also acclaimed (0.85), somewhat fun (0.55), not very emotional (0.35), not mindless (0.25)
+- Be nuanced: "The Dark Knight" is intense (0.90) but also acclaimed (0.85), somewhat fun (0.55), not very emotional (0.35), not mindless (0.25), a bit scary (0.40), thought-provoking (0.65)
 - Consider the OVERALL viewing experience, not just genre labels
 - Scores should reflect how strongly a viewer seeking that mood would enjoy the film
 
@@ -99,7 +101,7 @@ async function backfill() {
         return `${idx + 1}. "${m.title}" (${year}) — ${genres}${ratings ? ` [${ratings}]` : ""}\n   ${overview}`
       }).join("\n\n")
 
-      const userPrompt = `Score these movies:\n\n${movieLines}\n\nRespond with JSON: {"1": {"fun": 0.0, "intense": 0.0, "emotional": 0.0, "mindless": 0.0, "acclaimed": 0.0}, "2": {...}, ...}`
+      const userPrompt = `Score these movies:\n\n${movieLines}\n\nRespond with JSON: {"1": {"fun": 0.0, "intense": 0.0, "emotional": 0.0, "mindless": 0.0, "acclaimed": 0.0, "scary": 0.0, "thoughtProvoking": 0.0}, "2": {...}, ...}`
 
       const response = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
@@ -134,6 +136,8 @@ async function backfill() {
           emotional: clamp(Number(value.emotional) || 0),
           mindless: clamp(Number(value.mindless) || 0),
           acclaimed: clamp(Number(value.acclaimed) || 0),
+          scary: clamp(Number(value.scary) || 0),
+          thoughtProvoking: clamp(Number(value.thoughtProvoking) || 0),
         }
 
         try {

@@ -17,9 +17,11 @@ export type MoodScores = {
   emotional: number
   mindless: number
   acclaimed: number
+  scary: number
+  thoughtProvoking: number
 }
 
-export const MOOD_KEYS = ["fun", "intense", "emotional", "mindless", "acclaimed"] as const
+export const MOOD_KEYS = ["fun", "intense", "emotional", "mindless", "acclaimed", "scary", "thoughtProvoking"] as const
 export type MoodKey = typeof MOOD_KEYS[number]
 
 // ============================================
@@ -53,6 +55,8 @@ export async function batchGetCachedMoodScores(tmdbIds: number[]): Promise<Map<n
           emotional: Number(scores.emotional) || 0,
           mindless: Number(scores.mindless) || 0,
           acclaimed: Number(scores.acclaimed) || 0,
+          scary: Number(scores.scary) || 0,
+          thoughtProvoking: Number(scores.thoughtProvoking) || 0,
         })
       }
     }
@@ -71,7 +75,7 @@ export async function batchGetCachedMoodScores(tmdbIds: number[]): Promise<Map<n
 const COMEDY = 35, ANIMATION = 16, FAMILY = 10751, ADVENTURE = 12
 const ACTION = 28, THRILLER = 53, CRIME = 80, HORROR = 27, WAR = 10752
 const DRAMA = 18, ROMANCE = 10749
-const DOCUMENTARY = 99, HISTORY = 36
+const DOCUMENTARY = 99, HISTORY = 36, MYSTERY = 9648, SCIFI = 878
 
 function clamp(v: number): number {
   return Math.max(0, Math.min(1, Math.round(v * 100) / 100))
@@ -156,12 +160,39 @@ export function calculateRuleBasedMoodScores(movie: {
   if (voteAvg < 6.0) acclaimed -= 0.2
   if (rt > 0 && rt < 50) acclaimed -= 0.15
 
+  // --- Scary ---
+  let scary = 0.2
+  if (genreIds.has(HORROR)) scary += 0.4
+  if (genreIds.has(THRILLER)) scary += 0.15
+  if (genreIds.has(MYSTERY)) scary += 0.1
+  if (genreIds.has(CRIME)) scary += 0.05
+  if (genreIds.has(COMEDY)) scary -= 0.1
+  if (genreIds.has(FAMILY)) scary -= 0.2
+  if (genreIds.has(ANIMATION)) scary -= 0.15
+  if (genreIds.has(ROMANCE) && !genreIds.has(THRILLER)) scary -= 0.1
+  if (overview.includes("terror") || overview.includes("haunted") || overview.includes("nightmare") || overview.includes("horror")) scary += 0.05
+
+  // --- Thought-Provoking ---
+  let thoughtProvoking = 0.3
+  if (genreIds.has(DOCUMENTARY)) thoughtProvoking += 0.25
+  if (genreIds.has(DRAMA)) thoughtProvoking += 0.15
+  if (genreIds.has(SCIFI)) thoughtProvoking += 0.1
+  if (genreIds.has(HISTORY)) thoughtProvoking += 0.1
+  if (genreIds.has(MYSTERY)) thoughtProvoking += 0.1
+  if (genreIds.has(ACTION) && !genreIds.has(DRAMA)) thoughtProvoking -= 0.1
+  if (genreIds.has(COMEDY) && !genreIds.has(DRAMA)) thoughtProvoking -= 0.1
+  if (genreIds.has(ANIMATION) && genreIds.has(FAMILY)) thoughtProvoking -= 0.15
+  if (voteAvg >= 7.5) thoughtProvoking += 0.1
+  if (overview.includes("moral") || overview.includes("philosophical") || overview.includes("existential") || overview.includes("question") || overview.includes("society")) thoughtProvoking += 0.05
+
   return {
     fun: clamp(fun),
     intense: clamp(intense),
     emotional: clamp(emotional),
     mindless: clamp(mindless),
     acclaimed: clamp(acclaimed),
+    scary: clamp(scary),
+    thoughtProvoking: clamp(thoughtProvoking),
   }
 }
 
