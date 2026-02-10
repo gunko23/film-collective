@@ -260,7 +260,7 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, minHeight: "100dvh" }}>
       {/* Back navigation */}
       {onBack && <BackNav onBack={onBack} />}
 
@@ -293,12 +293,15 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
         />
       )}
 
-      {/* Sticky Continue Button (Mood step) */}
+      {/* Spacer to push mood button to bottom when content is short */}
+      {step === "mood" && <div style={{ flexGrow: 1 }} />}
+
+      {/* Continue Button (Mood step) */}
       {step === "mood" && !loading && (
         <div
-          className="sticky bottom-20 lg:bottom-0 z-10"
+          className="sticky bottom-0 z-10"
           style={{
-            paddingTop: 12, paddingBottom: 8,
+            paddingTop: 12, paddingBottom: 20,
             marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16,
             background: `linear-gradient(to top, ${C.bg}, ${C.bg}ee, transparent)`,
           }}
