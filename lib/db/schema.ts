@@ -233,6 +233,46 @@ export const feedReactions = pgTable(
 )
 
 // ============================================
+// PLANNED WATCHES
+// ============================================
+export const plannedWatches = pgTable("planned_watches", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  movieId: integer("movie_id").notNull(),
+  movieTitle: text("movie_title").notNull(),
+  movieYear: integer("movie_year"),
+  moviePoster: text("movie_poster"),
+  createdBy: uuid("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  collectiveId: uuid("collective_id").references(() => collectives.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("planned"), // 'planned', 'watching', 'watched', 'cancelled'
+  scheduledFor: date("scheduled_for"),
+  lockedInAt: timestamp("locked_in_at", { withTimezone: true }).defaultNow(),
+  watchedAt: timestamp("watched_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  source: text("source").default("tonights_pick"), // 'tonights_pick', 'manual', 'recommendation'
+  moodTags: text("mood_tags").array(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+export const plannedWatchParticipants = pgTable(
+  "planned_watch_participants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    plannedWatchId: uuid("planned_watch_id")
+      .notNull()
+      .references(() => plannedWatches.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    rsvpStatus: text("rsvp_status").notNull().default("confirmed"), // 'confirmed', 'maybe', 'declined'
+    addedAt: timestamp("added_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [unique().on(table.plannedWatchId, table.userId)],
+)
+
+// ============================================
 // TYPES
 // ============================================
 export type User = typeof users.$inferSelect
@@ -254,6 +294,10 @@ export type FeedComment = typeof feedComments.$inferSelect
 export type NewFeedComment = typeof feedComments.$inferInsert
 export type FeedReaction = typeof feedReactions.$inferSelect
 export type NewFeedReaction = typeof feedReactions.$inferInsert
+export type PlannedWatch = typeof plannedWatches.$inferSelect
+export type NewPlannedWatch = typeof plannedWatches.$inferInsert
+export type PlannedWatchParticipant = typeof plannedWatchParticipants.$inferSelect
+export type NewPlannedWatchParticipant = typeof plannedWatchParticipants.$inferInsert
 
 // ============================================
 // PARENTAL GUIDE TYPES

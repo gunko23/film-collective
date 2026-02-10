@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { BellIcon, ChevronRightIcon, PlayIcon, ArrowIcon, PlusIcon } from "@/components/dashboard/dashboard-icons"
 import { DashboardActivityItem, getUserGradient, type Activity } from "@/components/dashboard/dashboard-activity-item"
+import { PlannedWatchesSection } from "@/components/dashboard/planned-watches-section"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
@@ -250,6 +251,11 @@ export function UserDashboard() {
                 </div>
               </div>
             </Link>
+          </div>
+
+          {/* Planned Watches */}
+          <div className="mb-7 sf-reveal sf-delay-2">
+            <PlannedWatchesSection />
           </div>
 
           {/* Activity header + filters */}
@@ -487,6 +493,11 @@ export function UserDashboard() {
               </div>
             </div>
           </Link>
+        </div>
+
+        {/* Mobile Planned Watches */}
+        <div className="px-6 pb-6 sf-reveal sf-delay-3">
+          <PlannedWatchesSection />
         </div>
 
         {/* Mobile Collectives */}

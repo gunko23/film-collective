@@ -8,6 +8,86 @@ import type { MovieRecommendation, ConcessionPairings } from "./types"
 const SERIF = "'Playfair Display', Georgia, serif"
 const SANS = "'DM Sans', sans-serif"
 
+// ─── LOCK IT IN BUTTON (full-width footer) ───
+function LockItInFooter({
+  isLocked,
+  onLockIn,
+}: {
+  isLocked: boolean
+  onLockIn: () => void
+}) {
+  if (isLocked) {
+    return (
+      <div
+        style={{
+          borderTop: "1px solid #2ecc7122",
+          padding: "12px 0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          background: "#2ecc7108",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: "#2ecc71",
+            fontFamily: SANS,
+            letterSpacing: 0.3,
+          }}
+        >
+          &#x2713; Locked In
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={onLockIn}
+      style={{
+        width: "100%",
+        borderTop: "1px solid #2a241f",
+        background: "transparent",
+        border: "none",
+        borderTopWidth: 1,
+        borderTopStyle: "solid",
+        borderTopColor: "#2a241f",
+        padding: "13px 0",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 7,
+        transition: "all 0.2s",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "#c97b3a0a"
+        e.currentTarget.style.borderTopColor = "#c97b3a33"
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent"
+        e.currentTarget.style.borderTopColor = "#2a241f"
+      }}
+    >
+      <span style={{ fontSize: 10, color: "#c97b3a" }}>&#x25B6;</span>
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: "#c97b3a",
+          fontFamily: SANS,
+          letterSpacing: 0.3,
+        }}
+      >
+        Lock It In
+      </span>
+    </button>
+  )
+}
+
 // ─── METASCORE-STYLE FIT BADGE ───
 function FitScoreBadge({ score }: { score: number }) {
   const color = score >= 80 ? "#6c3" : score >= 60 ? "#fc3" : "#f33"
@@ -228,7 +308,19 @@ function ParentalGuide({ text }: { text: string }) {
 }
 
 // ─── MOVIE CARD ───
-export function RecommendationCard({ movie, index }: { movie: MovieRecommendation; index: number }) {
+export function RecommendationCard({
+  movie,
+  index,
+  isLocked = false,
+  isFaded = false,
+  onLockIn,
+}: {
+  movie: MovieRecommendation
+  index: number
+  isLocked?: boolean
+  isFaded?: boolean
+  onLockIn?: () => void
+}) {
   const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : ""
   const reasoningText = movie.reasoning?.[0] || ""
   const parentalText = movie.parentalSummary || null
@@ -240,8 +332,10 @@ export function RecommendationCard({ movie, index }: { movie: MovieRecommendatio
         borderRadius: 10,
         overflow: "hidden",
         position: "relative",
-        border: "1px solid #2a2420",
+        border: isLocked ? "1px solid #2ecc7144" : "1px solid #2a2420",
         animation: `sfFadeSlideIn 0.4s ease ${index * 0.08}s both`,
+        opacity: isFaded ? 0.35 : 1,
+        transition: "opacity 0.4s ease, border-color 0.3s ease",
       }}
     >
       {/* Left accent stripe */}
@@ -451,7 +545,13 @@ export function RecommendationCard({ movie, index }: { movie: MovieRecommendatio
             </span>
           </button>
         </div>
+
       </div>
+
+      {/* Lock It In footer — full width, outside padding */}
+      {onLockIn && (
+        <LockItInFooter isLocked={isLocked} onLockIn={onLockIn} />
+      )}
     </div>
   )
 }
