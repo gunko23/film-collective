@@ -46,6 +46,21 @@ function exceedsSeverityLimit(
 }
 
 // ============================================
+// Quality & Recommendation History Config
+// ============================================
+
+const QUALITY_GATES = {
+  MIN_VOTE_COUNT: 50,
+  MIN_VOTE_AVERAGE: 5.0,
+  ACCLAIMED_MIN_VOTE_COUNT: 200,
+  ACCLAIMED_MIN_VOTE_AVERAGE: 7.0,
+}
+
+const RECENT_RECOMMENDATION_WINDOW_DAYS = 30
+const REPEAT_PENALTY = 15 // Score penalty for movies recommended in last 30 days
+const PREVIOUSLY_SHOWN_PENALTY = 25 // Score penalty for movies shown earlier in current session
+
+// ============================================
 // Types
 // ============================================
 
@@ -208,6 +223,8 @@ type ScoringContext = {
   moodScores: MoodScores | null
   collectiveInfluence: CollectiveInfluenceEntry | null
   selectedMemberRating: { avgScore: number; raterCount: number } | null
+  previouslyShownTmdbIds: Set<number>
+  recentlyRecommendedTmdbIds: Set<number>
 }
 
 function getDecade(releaseDate: string | null | undefined): string | null {
@@ -322,6 +339,64 @@ async function getSelectedMemberRatings(
   }
 
   return resultMap
+}
+
+/**
+ * Get TMDB IDs of movies recently recommended to any of the given members.
+ * Used for cross-session deprioritization to prevent repeat recommendations.
+ * Gracefully returns empty set if the recommendation_history table doesn't exist yet.
+ */
+async function getRecentRecommendationHistory(
+  memberIds: string[],
+  windowDays: number = RECENT_RECOMMENDATION_WINDOW_DAYS
+): Promise<Set<number>> {
+  if (memberIds.length === 0) return new Set()
+  try {
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - windowDays)
+    const result = await sql`
+      SELECT DISTINCT tmdb_id
+      FROM recommendation_history
+      WHERE user_id = ANY(${memberIds}::uuid[])
+        AND shown_at > ${cutoffDate.toISOString()}::timestamptz
+    `
+    return new Set(result.map((r: any) => Number(r.tmdb_id)))
+  } catch {
+    // Table may not exist yet — graceful fallback
+    return new Set()
+  }
+}
+
+/**
+ * Log recommended movies for cross-session deduplication.
+ * Fire-and-forget — errors are logged but not thrown.
+ */
+export async function logRecommendationHistory(
+  userId: string,
+  tmdbIds: number[],
+  context: string = "tonights_pick"
+): Promise<void> {
+  if (tmdbIds.length === 0) return
+  try {
+    await sql`
+      INSERT INTO recommendation_history (user_id, tmdb_id, context, shown_at)
+      SELECT ${userId}::uuid, unnest(${tmdbIds}::int[]), ${context}, NOW()
+    `
+  } catch (e) {
+    console.error("[RecommendationHistory] Error logging:", e)
+  }
+}
+
+/**
+ * Clean up recommendation_history rows older than 90 days.
+ * Should be called periodically (e.g., fire-and-forget after recommendations).
+ */
+async function cleanupOldRecommendationHistory(): Promise<void> {
+  try {
+    await sql`DELETE FROM recommendation_history WHERE shown_at < NOW() - INTERVAL '90 days'`
+  } catch {
+    // Table may not exist yet — ignore
+  }
 }
 
 /**
@@ -558,6 +633,16 @@ function calculateGroupFitScore(
     }
   }
 
+  // --- Previously shown penalty (shuffle deprioritization) ---
+  if (ctx.previouslyShownTmdbIds.has(movie.id)) {
+    score -= PREVIOUSLY_SHOWN_PENALTY
+  }
+
+  // --- Recently recommended penalty (cross-session deprioritization) ---
+  if (ctx.recentlyRecommendedTmdbIds.has(movie.id)) {
+    score -= REPEAT_PENALTY
+  }
+
   // --- Mood affinity scoring (per-movie mood scores with geometric mean for multi-mood AND semantics) ---
   if (ctx.moods.length > 0 && ctx.moodScores) {
     const { score: moodFit, passesThreshold } = calculateMoodFitScore(ctx.moodScores, ctx.moods)
@@ -655,6 +740,14 @@ function calculateGroupFitScore(
 
   if (popularity > 100 || voteCount > 5000) {
     reasoning.push("Widely known & easy to find")
+  }
+
+  // --- Vote count confidence boost (log-scale, max +5) ---
+  // Continuous signal complementing the step-based availability bonus
+  if (voteCount > 0) {
+    const logBoost = Math.min(Math.log10(voteCount) / 5, 1.0)
+    const voteConfidenceBonus = Math.round(logBoost * 5)
+    score += voteConfidenceBonus
   }
 
   // --- Director affinity (max +12) ---
@@ -944,7 +1037,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
   // ── Phase 1: Parallel DB queries ──
   const t1 = timer("Phase 1: DB queries (parallel)")
-  const [groupGenres, seenMovies, dismissedTmdbIds, dislikedGenreSet, eraPreferences, crewAffinitiesResult, peerIds] = await Promise.all([
+  const [groupGenres, seenMovies, dismissedTmdbIds, dislikedGenreSet, eraPreferences, crewAffinitiesResult, peerIds, recentlyRecommendedTmdbIds] = await Promise.all([
     getGroupGenrePreferences(memberIds),
     getSeenMovieTmdbIds(memberIds),
     getDismissedMovieTmdbIds(memberIds),
@@ -952,6 +1045,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     getEraPreferences(memberIds),
     getCachedCrewAffinities(memberIds),
     getTasteSimilarPeers(memberIds),
+    getRecentRecommendationHistory(memberIds),
   ])
   t1.done()
 
@@ -1382,6 +1476,37 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     emergencyFetchUsed: viableCandidates.length < MIN_VIABLE_POOL,
   })
 
+  // ── Quality gate: filter low-quality and thin-metadata candidates ──
+  const qualityGateVoteCount = moods.includes("acclaimed")
+    ? QUALITY_GATES.ACCLAIMED_MIN_VOTE_COUNT
+    : QUALITY_GATES.MIN_VOTE_COUNT
+  const qualityGateVoteAverage = moods.includes("acclaimed")
+    ? QUALITY_GATES.ACCLAIMED_MIN_VOTE_AVERAGE
+    : QUALITY_GATES.MIN_VOTE_AVERAGE
+
+  const beforeQualityGate = uniqueMovies.length
+  uniqueMovies = uniqueMovies.filter((m: any) => {
+    const vc = m.vote_count || 0
+    const va = m.vote_average || 0
+
+    // Hard quality floor — not enough votes or poorly rated
+    if (vc < qualityGateVoteCount || va < qualityGateVoteAverage) return false
+
+    // Thin metadata — no overview means bad mood scores, no poster means broken UI
+    if (!m.overview || m.overview.trim() === "") return false
+    if (!m.poster_path) return false
+
+    // At least 1 genre for scoring to work
+    const genres = m.genres || m.genre_ids || []
+    if (genres.length === 0) return false
+
+    return true
+  })
+
+  if (beforeQualityGate !== uniqueMovies.length) {
+    console.log(`[Quality Gate] Filtered ${beforeQualityGate - uniqueMovies.length} candidates (${beforeQualityGate} → ${uniqueMovies.length})`)
+  }
+
   // ── Phase 3.5: Batch load cached OMDb + mood scores + selected member ratings (parallel) ──
   const t3 = timer("Phase 3: OMDb + mood + member ratings batch load")
   const candidateTmdbIdsForOmdb = uniqueMovies.map((m: any) => m.id as number)
@@ -1401,10 +1526,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   const firstPassScored: (MovieRecommendation & { _movie: any })[] = []
 
   for (const movie of uniqueMovies) {
-    // Skip previously shown movies (shuffle exclusion)
-    if (excludeSet.has(movie.id)) {
-      continue
-    }
+    // Previously shown movies are now deprioritized via scoring penalty, not hard-excluded
 
     // Skip movies dismissed ("Not Interested") by any participant
     if (dismissedTmdbIds.has(movie.id)) {
@@ -1464,6 +1586,8 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       moodScores: movieMoodScores,
       collectiveInfluence: collectiveInfluenceMap.get(movie.id) || null,
       selectedMemberRating: selectedMemberRatingsMap.get(movie.id) || null,
+      previouslyShownTmdbIds: excludeSet,
+      recentlyRecommendedTmdbIds,
     }
 
     const { score, reasoning } = calculateGroupFitScore(movie, ctx)
@@ -1591,6 +1715,8 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
         moodScores: reMovieMoodScores,
         collectiveInfluence: collectiveInfluenceMap.get(entry.tmdbId) || null,
         selectedMemberRating: selectedMemberRatingsMap.get(entry.tmdbId) || null,
+        previouslyShownTmdbIds: excludeSet,
+        recentlyRecommendedTmdbIds,
       }
 
       const { score, reasoning } = calculateGroupFitScore(entry._movie, ctx)
@@ -1701,6 +1827,11 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       }
     })
     .catch(e => console.error("[OMDb] Error checking final results for fetch:", e))
+
+  // Background: periodically clean up old recommendation history (fire-and-forget)
+  if (Math.random() < 0.05) {
+    cleanupOldRecommendationHistory().catch(() => {})
+  }
 
   totalTimer.done()
 
