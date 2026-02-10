@@ -582,7 +582,7 @@ async function getInternalCandidates(
         m.genres,
         m.tmdb_vote_average::float AS vote_average,
         m.tmdb_popularity::float AS popularity,
-        m.release_date,
+        m.release_date::text AS release_date,
         m.poster_path,
         m.backdrop_path,
         m.runtime_minutes AS runtime,
