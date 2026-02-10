@@ -8,6 +8,64 @@ import type { MovieRecommendation, ConcessionPairings } from "./types"
 const SERIF = "'Playfair Display', Georgia, serif"
 const SANS = "'DM Sans', sans-serif"
 
+// ─── LOCK IT IN BUTTON ───
+function LockItInButton({
+  isLocked,
+  onLockIn,
+}: {
+  isLocked: boolean
+  onLockIn: () => void
+}) {
+  if (isLocked) {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 5,
+          fontSize: 12,
+          fontWeight: 600,
+          color: "#2ecc71",
+          fontFamily: SANS,
+          padding: "8px 16px",
+        }}
+      >
+        &#x2713; Locked In
+      </span>
+    )
+  }
+
+  return (
+    <button
+      onClick={onLockIn}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        background: "transparent",
+        border: "1px solid #c97b3a44",
+        borderRadius: 8,
+        padding: "8px 16px",
+        cursor: "pointer",
+        fontSize: 12,
+        fontWeight: 600,
+        color: "#c97b3a",
+        fontFamily: SANS,
+        transition: "all 0.2s",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "#c97b3a11"
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent"
+      }}
+    >
+      <span style={{ fontSize: 10 }}>&#x25B6;</span>
+      Lock It In
+    </button>
+  )
+}
+
 // ─── METASCORE-STYLE FIT BADGE ───
 function FitScoreBadge({ score }: { score: number }) {
   const color = score >= 80 ? "#6c3" : score >= 60 ? "#fc3" : "#f33"
@@ -228,7 +286,19 @@ function ParentalGuide({ text }: { text: string }) {
 }
 
 // ─── MOVIE CARD ───
-export function RecommendationCard({ movie, index }: { movie: MovieRecommendation; index: number }) {
+export function RecommendationCard({
+  movie,
+  index,
+  isLocked = false,
+  isFaded = false,
+  onLockIn,
+}: {
+  movie: MovieRecommendation
+  index: number
+  isLocked?: boolean
+  isFaded?: boolean
+  onLockIn?: () => void
+}) {
   const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : ""
   const reasoningText = movie.reasoning?.[0] || ""
   const parentalText = movie.parentalSummary || null
@@ -240,8 +310,10 @@ export function RecommendationCard({ movie, index }: { movie: MovieRecommendatio
         borderRadius: 10,
         overflow: "hidden",
         position: "relative",
-        border: "1px solid #2a2420",
+        border: isLocked ? "1px solid #2ecc7144" : "1px solid #2a2420",
         animation: `sfFadeSlideIn 0.4s ease ${index * 0.08}s both`,
+        opacity: isFaded ? 0.35 : 1,
+        transition: "opacity 0.4s ease, border-color 0.3s ease",
       }}
     >
       {/* Left accent stripe */}
@@ -451,6 +523,13 @@ export function RecommendationCard({ movie, index }: { movie: MovieRecommendatio
             </span>
           </button>
         </div>
+
+        {/* Lock It In action */}
+        {onLockIn && (
+          <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+            <LockItInButton isLocked={isLocked} onLockIn={onLockIn} />
+          </div>
+        )}
       </div>
     </div>
   )

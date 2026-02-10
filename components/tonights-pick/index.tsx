@@ -302,7 +302,12 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
 
           {/* STEP 3: RESULTS */}
           {step === "results" && results && (
-            <ResultsStep results={results} members={members.filter(m => selectedMembers.includes(m.userId))} />
+            <ResultsStep
+              results={results}
+              members={members.filter(m => selectedMembers.includes(m.userId))}
+              collectiveId={collectiveId}
+              onClose={onBack}
+            />
           )}
         </div>
       </div>

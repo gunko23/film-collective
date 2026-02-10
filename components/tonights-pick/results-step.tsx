@@ -1,12 +1,114 @@
+"use client"
+
+import { useState, useCallback } from "react"
 import { RecommendationCard } from "./recommendation-card"
+import { LockInModal } from "./lock-in-modal"
+import { LockInSuccess } from "./lock-in-success"
 import { C, getAvatarGradient } from "./constants"
-import type { GroupMember, TonightPickResponse } from "./types"
+import type { GroupMember, MovieRecommendation, TonightPickResponse } from "./types"
+
+const SERIF = "'Playfair Display', Georgia, serif"
+const SANS = "'DM Sans', sans-serif"
 
 const memberColors = ["#d4753e", "#d4a050", "#6a9fd4", "#82b882", "#a088c0"]
 
-export function ResultsStep({ results, members }: { results: TonightPickResponse; members?: GroupMember[] }) {
+type Props = {
+  results: TonightPickResponse
+  members?: GroupMember[]
+  collectiveId?: string
+  onClose?: () => void
+}
+
+export function ResultsStep({ results, members, collectiveId, onClose }: Props) {
+  const [lockedTmdbId, setLockedTmdbId] = useState<number | null>(null)
+  const [pendingMovie, setPendingMovie] = useState<MovieRecommendation | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [successTitle, setSuccessTitle] = useState("")
+
+  const handleLockIn = useCallback((movie: MovieRecommendation) => {
+    setPendingMovie(movie)
+  }, [])
+
+  const handleConfirm = useCallback(async () => {
+    if (!pendingMovie) return
+    const movie = pendingMovie
+    setPendingMovie(null)
+    setSuccessTitle(movie.title)
+    setShowSuccess(true)
+    setLockedTmdbId(movie.tmdbId)
+
+    // Fire the API call after showing success
+    try {
+      const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : null
+      await fetch("/api/planned-watches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          movieId: movie.tmdbId,
+          movieTitle: movie.title,
+          movieYear: year,
+          moviePoster: movie.posterPath,
+          collectiveId: collectiveId ?? null,
+          participantIds: members?.map((m) => m.userId) ?? [],
+          moodTags: null,
+        }),
+      })
+    } catch (err) {
+      console.error("Failed to save planned watch:", err)
+    }
+  }, [pendingMovie, collectiveId, members])
+
+  const handleCancel = useCallback(() => {
+    setPendingMovie(null)
+  }, [])
+
+  const handleSuccessComplete = useCallback(() => {
+    setShowSuccess(false)
+  }, [])
+
+  const pendingYear = pendingMovie?.releaseDate
+    ? new Date(pendingMovie.releaseDate).getFullYear()
+    : ""
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, position: "relative" }}>
+      {/* Close button */}
+      {onClose && (
+        <button
+          onClick={onClose}
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 50,
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: "1px solid #2a2622",
+            background: "rgba(15,13,11,0.8)",
+            color: "#666",
+            fontSize: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "all 0.2s",
+            padding: 0,
+            lineHeight: 1,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "#555"
+            e.currentTarget.style.color = "#aaa"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "#2a2622"
+            e.currentTarget.style.color = "#666"
+          }}
+        >
+          &#x2715;
+        </button>
+      )}
+
       {/* Recommendations header card */}
       <div
         style={{
@@ -128,9 +230,35 @@ export function ResultsStep({ results, members }: { results: TonightPickResponse
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {results.recommendations.map((movie, index) => (
-            <RecommendationCard key={movie.tmdbId} movie={movie} index={index} />
+            <RecommendationCard
+              key={movie.tmdbId}
+              movie={movie}
+              index={index}
+              isLocked={lockedTmdbId === movie.tmdbId}
+              isFaded={lockedTmdbId !== null && lockedTmdbId !== movie.tmdbId}
+              onLockIn={() => handleLockIn(movie)}
+            />
           ))}
         </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {pendingMovie && (
+        <LockInModal
+          movieTitle={pendingMovie.title}
+          movieYear={pendingYear}
+          participants={members ?? []}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
+      )}
+
+      {/* Success Animation */}
+      {showSuccess && (
+        <LockInSuccess
+          movieTitle={successTitle}
+          onComplete={handleSuccessComplete}
+        />
       )}
     </div>
   )
