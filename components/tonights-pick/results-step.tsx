@@ -16,10 +16,10 @@ type Props = {
   results: TonightPickResponse
   members?: GroupMember[]
   collectiveId?: string
-  onClose?: () => void
+  onLockInComplete?: () => void
 }
 
-export function ResultsStep({ results, members, collectiveId, onClose }: Props) {
+export function ResultsStep({ results, members, collectiveId, onLockInComplete }: Props) {
   const [lockedTmdbId, setLockedTmdbId] = useState<number | null>(null)
   const [pendingMovie, setPendingMovie] = useState<MovieRecommendation | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -64,7 +64,10 @@ export function ResultsStep({ results, members, collectiveId, onClose }: Props) 
 
   const handleSuccessComplete = useCallback(() => {
     setShowSuccess(false)
-  }, [])
+    if (onLockInComplete) {
+      onLockInComplete()
+    }
+  }, [onLockInComplete])
 
   const pendingYear = pendingMovie?.releaseDate
     ? new Date(pendingMovie.releaseDate).getFullYear()
@@ -72,43 +75,6 @@ export function ResultsStep({ results, members, collectiveId, onClose }: Props) 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, position: "relative" }}>
-      {/* Close button */}
-      {onClose && (
-        <button
-          onClick={onClose}
-          style={{
-            position: "fixed",
-            top: 16,
-            right: 16,
-            zIndex: 50,
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            border: "1px solid #2a2622",
-            background: "rgba(15,13,11,0.8)",
-            color: "#666",
-            fontSize: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            transition: "all 0.2s",
-            padding: 0,
-            lineHeight: 1,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "#555"
-            e.currentTarget.style.color = "#aaa"
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "#2a2622"
-            e.currentTarget.style.color = "#666"
-          }}
-        >
-          &#x2715;
-        </button>
-      )}
-
       {/* Recommendations header card */}
       <div
         style={{
