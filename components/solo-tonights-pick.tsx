@@ -7,7 +7,7 @@ import { IconChevronLeft, IconUsers, IconFilm } from "@/components/tonights-pick
 import { IconCheck } from "@/components/tonights-pick/icons"
 import { MoodFiltersStep } from "@/components/tonights-pick/mood-filters-step"
 import { RecommendationCard } from "@/components/tonights-pick/recommendation-card"
-import type { GenrePreference, MovieRecommendation, Mood, ContentLevel } from "@/components/tonights-pick/types"
+import type { GenrePreference, MovieRecommendation, MoodValue, Audience, ContentLevel } from "@/components/tonights-pick/types"
 
 // ── Solo-specific types ──
 type SoloPickResponse = {
@@ -158,7 +158,8 @@ type SoloTonightsPickProps = {
 
 export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
   const [step, setStep] = useState<"mood" | "results">("mood")
-  const [selectedMood, setSelectedMood] = useState<Mood>(null)
+  const [selectedMoods, setSelectedMoods] = useState<MoodValue[]>([])
+  const [audience, setAudience] = useState<Audience>("anyone")
   const [maxRuntime, setMaxRuntime] = useState<number | null>(null)
   const [contentRating, setContentRating] = useState<string | null>(null)
   const [era, setEra] = useState<string | null>(null)
@@ -206,7 +207,8 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mood: selectedMood,
+          moods: selectedMoods,
+          audience,
           maxRuntime,
           contentRating,
           era,
@@ -285,8 +287,10 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
       {/* Step 1: Mood & Filters */}
       {step === "mood" && (
         <MoodFiltersStep
-          selectedMood={selectedMood}
-          setSelectedMood={setSelectedMood}
+          selectedMoods={selectedMoods}
+          setSelectedMoods={setSelectedMoods}
+          audience={audience}
+          setAudience={setAudience}
           maxRuntime={maxRuntime}
           setMaxRuntime={setMaxRuntime}
           contentRating={contentRating}

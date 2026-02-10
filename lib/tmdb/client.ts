@@ -337,6 +337,8 @@ class TMDBClient {
       withWatchProviders?: string   // pipe-separated provider IDs e.g. "8|337|9"
       watchRegion?: string          // ISO 3166-1 country code e.g. "US"
       withWatchMonetizationTypes?: string // "flatrate", "rent", "buy", "ads", or combo "flatrate|ads"
+      withoutGenres?: string              // comma-separated genre IDs to exclude
+      certificationGte?: string           // minimum certification e.g. "PG-13"
     } = {},
   ): Promise<TMDBMovieListResponse> {
     const params: Record<string, string> = {}
@@ -349,11 +351,13 @@ class TMDBClient {
     if (options.withRuntimeLte) params["with_runtime.lte"] = options.withRuntimeLte.toString()
     if (options.certificationCountry) params.certification_country = options.certificationCountry
     if (options.certificationLte) params["certification.lte"] = options.certificationLte
+    if (options.certificationGte) params["certification.gte"] = options.certificationGte
     if (options.primaryReleaseDateGte) params["primary_release_date.gte"] = options.primaryReleaseDateGte
     if (options.primaryReleaseDateLte) params["primary_release_date.lte"] = options.primaryReleaseDateLte
     if (options.withWatchProviders) params.with_watch_providers = options.withWatchProviders
     if (options.watchRegion) params.watch_region = options.watchRegion
     if (options.withWatchMonetizationTypes) params.with_watch_monetization_types = options.withWatchMonetizationTypes
+    if (options.withoutGenres) params.without_genres = options.withoutGenres
 
     return this.fetch<TMDBMovieListResponse>("/discover/movie", params)
   }
