@@ -1,9 +1,9 @@
 const SANS = "'DM Sans', sans-serif"
 
-export function StepIndicator({ currentStep }: { currentStep: "members" | "mood" | "filters" | "results" }) {
-  const steps = ["members", "mood", "filters", "results"] as const
-  const labels = { members: "Who", mood: "Mood", filters: "Filters", results: "Results" }
-  const currentIndex = steps.indexOf(currentStep)
+type StepConfig = { key: string; label: string }
+
+export function StepIndicator({ steps, currentStep }: { steps: StepConfig[]; currentStep: string }) {
+  const currentIndex = steps.findIndex(s => s.key === currentStep)
 
   return (
     <div
@@ -21,7 +21,7 @@ export function StepIndicator({ currentStep }: { currentStep: "members" | "mood"
         const isLast = i === steps.length - 1
 
         return (
-          <div key={s} style={{ display: "flex", alignItems: "center", gap: 0 }}>
+          <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <div
                 style={{
@@ -67,7 +67,7 @@ export function StepIndicator({ currentStep }: { currentStep: "members" | "mood"
                   fontWeight: 500,
                 }}
               >
-                {labels[s]}
+                {s.label}
               </span>
             </div>
             {!isLast && (

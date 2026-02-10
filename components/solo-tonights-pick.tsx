@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { TonightsPickLoading } from "@/components/tonights-pick-loading"
-import { C } from "@/components/tonights-pick/constants"
-import { IconChevronLeft, IconChevronRight, IconUsers, IconFilm } from "@/components/tonights-pick/icons"
-import { IconCheck } from "@/components/tonights-pick/icons"
+import { C, FONT_STACK } from "@/components/tonights-pick/constants"
+import { IconFilm } from "@/components/tonights-pick/icons"
+import { GrainOverlay, LightLeaks } from "@/components/tonights-pick/decorative"
+import { StepIndicator } from "@/components/tonights-pick/step-indicator"
+import { TopNav } from "@/components/tonights-pick/top-nav"
+import { BottomActionBar } from "@/components/tonights-pick/bottom-action-bar"
 import { MoodFiltersStep } from "@/components/tonights-pick/mood-filters-step"
 import { FiltersStep } from "@/components/tonights-pick/filters-step"
 import { RecommendationCard } from "@/components/tonights-pick/recommendation-card"
@@ -19,138 +22,11 @@ type SoloPickResponse = {
   }
 }
 
-// ── Solo Step Indicator (3-step: Mood -> Filters -> Results) ──
-function StepIndicator({ step }: { step: "mood" | "filters" | "results" }) {
-  const steps = ["mood", "filters", "results"] as const
-  const stepIndex = steps.indexOf(step)
-
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "12px 0",
-    }}>
-      {steps.map((s, i) => {
-        const isActive = step === s
-        const isCompleted = stepIndex > i
-
-        let bg: string
-        let borderColor: string
-        let textColor: string
-
-        if (isCompleted) {
-          bg = `linear-gradient(135deg, ${C.orange}, ${C.orangeMuted})`
-          borderColor = C.orange
-          textColor = C.warmBlack
-        } else if (isActive) {
-          bg = `linear-gradient(135deg, ${C.blue}, ${C.blueMuted})`
-          borderColor = C.blue
-          textColor = C.cream
-        } else {
-          bg = "transparent"
-          borderColor = C.creamFaint
-          textColor = C.creamFaint
-        }
-
-        return (
-          <div key={s} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%",
-                background: bg, border: `2px solid ${borderColor}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 12, fontWeight: 600, color: textColor,
-                transition: "all 0.3s",
-              }}>
-                {isCompleted ? <IconCheck size={14} color={C.warmBlack} /> : i + 1}
-              </div>
-              <span style={{
-                fontSize: 13, fontWeight: isActive ? 600 : 400,
-                color: isActive ? C.cream : C.creamFaint, whiteSpace: "nowrap",
-              }}>
-                {s === "mood" ? "Mood" : s === "filters" ? "Filters" : "Results"}
-              </span>
-            </div>
-            {i < steps.length - 1 && (
-              <div style={{
-                width: 32, height: 2, borderRadius: 1,
-                background: isCompleted ? `${C.orange}60` : "rgba(232,226,214,0.1)",
-              }} />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ── Back Nav ──
-function BackNav({ onBack }: { onBack: () => void }) {
-  return (
-    <div style={{ padding: "4px 0 8px" }}>
-      <button
-        type="button"
-        onClick={onBack}
-        style={{
-          display: "flex", alignItems: "center", gap: 4,
-          background: "none", border: "none", cursor: "pointer",
-          padding: "6px 0", color: C.creamMuted, fontSize: 14, fontWeight: 500,
-        }}
-      >
-        <IconChevronLeft size={18} color={C.creamMuted} />
-        <span>Back</span>
-      </button>
-    </div>
-  )
-}
-
-// ── User Profile Summary ──
-function UserProfileSummary() {
-  return (
-    <div style={{
-      borderRadius: 14, overflow: "hidden",
-      background: C.bgCard, border: "1px solid rgba(232,226,214,0.06)",
-    }}>
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: "20px 18px 18px",
-        gap: 10,
-      }}>
-        {/* Solo avatar */}
-        <div style={{
-          width: 30,
-          height: 30,
-          borderRadius: "50%",
-          background: `linear-gradient(135deg, ${C.orange}cc, ${C.orangeMuted}88)`,
-          border: `2px solid ${C.bg}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}>
-          <IconUsers size={14} color={C.bg} />
-        </div>
-
-        {/* Title */}
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: C.cream }}>
-            Tonight&apos;s Picks
-          </div>
-          <div style={{ fontSize: 12, color: C.creamFaint, marginTop: 3 }}>
-            based on your ratings
-          </div>
-        </div>
-
-        {/* Small gold accent divider */}
-        <div style={{
-          width: 32,
-          height: 1.5,
-          borderRadius: 1,
-          background: "linear-gradient(90deg, transparent, #d4a05088, transparent)",
-        }} />
-      </div>
-    </div>
-  )
-}
+const SOLO_STEPS = [
+  { key: "mood", label: "Mood" },
+  { key: "filters", label: "Filters" },
+  { key: "results", label: "Results" },
+]
 
 // ── Main Component ──
 type SoloTonightsPickProps = {
@@ -259,12 +135,46 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
     return <TonightsPickLoading />
   }
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, minHeight: "100dvh" }}>
-      {/* Back navigation */}
-      {onBack && <BackNav onBack={onBack} />}
+  // ── Top nav labels ──
+  const topNavConfig = {
+    mood: { label: "Back", action: onBack || (() => {}) },
+    filters: { label: "Back to Mood", action: () => setStep("mood") },
+    results: { label: "Back to Filters", action: () => setStep("filters") },
+  }
 
-      {/* Inline keyframes */}
+  const isFullscreen = !!onBack
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column" as const,
+        fontFamily: FONT_STACK,
+        ...(isFullscreen
+          ? {
+              height: "100dvh",
+              background: "#0e0c0a",
+              overflow: "hidden",
+            }
+          : {
+              position: "relative" as const,
+              minHeight: "100vh",
+            }),
+      }}
+    >
+      {/* Grain overlay */}
+      {isFullscreen && <GrainOverlay />}
+
+      {/* Light leaks */}
+      {isFullscreen && <LightLeaks />}
+
+      {/* Google Fonts */}
+      <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
+
+      {/* Global animation keyframes */}
       <style>{`
         @keyframes sfFadeSlideIn {
           from { opacity: 0; transform: translateY(8px); }
@@ -272,208 +182,174 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
         }
       `}</style>
 
-      {/* Step indicator */}
-      <StepIndicator step={step} />
+      {/* Close (X) button — exits Tonight's Pick entirely */}
+      {onBack && step === "results" && (
+        <button
+          onClick={onBack}
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 60,
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: "1px solid #2a2622",
+            background: "rgba(15,13,11,0.85)",
+            color: "#666",
+            fontSize: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "all 0.2s",
+            padding: 0,
+            lineHeight: 1,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "#555"
+            e.currentTarget.style.color = "#aaa"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "#2a2622"
+            e.currentTarget.style.color = "#666"
+          }}
+        >
+          &#x2715;
+        </button>
+      )}
 
-      {/* Error */}
-      {error && (
-        <div style={{
-          borderRadius: 10, padding: 14, fontSize: 14,
-          background: `${C.red}14`, border: `1px solid ${C.red}40`, color: C.red,
-        }}>
-          {error}
+      {/* Top Nav */}
+      {onBack && (
+        <div style={{ position: "relative", zIndex: 10, flexShrink: 0 }}>
+          <TopNav label={topNavConfig[step].label} onBack={topNavConfig[step].action} />
         </div>
       )}
 
-      {/* Step 1: Mood Selection */}
-      {step === "mood" && (
-        <MoodFiltersStep
-          selectedMoods={selectedMoods}
-          setSelectedMoods={setSelectedMoods}
-        />
-      )}
+      {/* Step Indicator */}
+      <div style={{ position: "relative", zIndex: 10, paddingBottom: 16, flexShrink: 0 }}>
+        <StepIndicator steps={SOLO_STEPS} currentStep={step} />
+      </div>
 
-      {/* Spacer to push mood button to bottom when content is short */}
-      {step === "mood" && <div style={{ flexGrow: 1 }} />}
-
-      {/* Continue Button (Mood step) */}
-      {step === "mood" && !loading && (
-        <div
-          className="sticky bottom-0 z-10"
-          style={{
-            paddingTop: 12, paddingBottom: 20,
-            marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16,
-            background: `linear-gradient(to top, ${C.bg}, ${C.bg}ee, transparent)`,
-          }}
-        >
-          <button
-            onClick={() => setStep("filters")}
-            style={{
-              width: "100%", height: 48, borderRadius: 14,
-              fontSize: 16, fontWeight: 700, border: "none", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              background: `linear-gradient(135deg, ${C.orange}, ${C.orangeMuted})`,
-              color: C.warmBlack,
-              transition: "opacity 0.15s",
-            }}
-          >
-            Continue
-            <IconChevronRight size={18} color={C.warmBlack} />
-          </button>
-        </div>
-      )}
-
-      {/* Step 2: Filters */}
-      {step === "filters" && (
-        <FiltersStep
-          audience={audience}
-          setAudience={setAudience}
-          maxRuntime={maxRuntime}
-          setMaxRuntime={setMaxRuntime}
-          contentRating={contentRating}
-          setContentRating={setContentRating}
-          era={era}
-          setEra={setEra}
-          startYear={startYear}
-          setStartYear={setStartYear}
-          streamingProviders={streamingProviders}
-          setStreamingProviders={setStreamingProviders}
-          toggleStreamingProvider={toggleStreamingProvider}
-          maxViolence={maxViolence}
-          setMaxViolence={setMaxViolence}
-          maxSexNudity={maxSexNudity}
-          setMaxSexNudity={setMaxSexNudity}
-          maxProfanity={maxProfanity}
-          setMaxProfanity={setMaxProfanity}
-          maxSubstances={maxSubstances}
-          setMaxSubstances={setMaxSubstances}
-          maxFrightening={maxFrightening}
-          setMaxFrightening={setMaxFrightening}
-          showContentFilters={showContentFilters}
-          setShowContentFilters={setShowContentFilters}
-        />
-      )}
-
-      {/* Sticky Filters Buttons (Get Recommendations + Back) */}
-      {step === "filters" && !loading && (
-        <div
-          className="sticky bottom-20 lg:bottom-0 z-10"
-          style={{
-            paddingTop: 12, paddingBottom: 8,
-            marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16,
-            background: `linear-gradient(to top, ${C.bg}, ${C.bg}ee, transparent)`,
-          }}
-        >
-          <button
-            onClick={() => getRecommendations(1)}
-            disabled={loading}
-            style={{
-              width: "100%", height: 48, borderRadius: 14,
-              fontSize: 16, fontWeight: 700, border: "none", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              background: `linear-gradient(135deg, ${C.orange}, ${C.orangeMuted})`,
-              color: C.warmBlack,
-              transition: "opacity 0.15s",
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            <span style={{ fontSize: 18 }}>&#10022;</span>
-            Get Recommendations
-          </button>
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
-            <button
-              onClick={() => setStep("mood")}
+      {/* Scrollable content */}
+      <div
+        className="flex-1"
+        style={{
+          overflowY: "auto",
+          position: "relative",
+          zIndex: 5,
+          paddingBottom: 16,
+        }}
+      >
+        <div style={{ padding: "0 20px" }}>
+          {/* Error */}
+          {error && (
+            <div
               style={{
-                background: "none", border: "none", cursor: "pointer",
-                fontSize: 14, fontWeight: 500, color: C.creamMuted,
-                padding: "6px 12px",
-                display: "flex", alignItems: "center", gap: 4,
+                borderRadius: 10,
+                border: `1px solid ${C.red}44`,
+                background: `${C.red}12`,
+                padding: "12px 16px",
+                fontSize: 14,
+                color: C.red,
+                marginBottom: 16,
+                fontFamily: FONT_STACK,
               }}
             >
-              <IconChevronLeft size={16} color={C.creamMuted} />
-              Back to Mood
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Results */}
-      {step === "results" && results && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <UserProfileSummary />
-
-          {/* Recommendations List */}
-          {results.recommendations.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px 0" }}>
-              <div style={{ margin: "0 auto 16px", display: "flex", justifyContent: "center" }}>
-                <IconFilm size={24} color={C.creamMuted} />
-              </div>
-              <p style={{ fontSize: 17, fontWeight: 600, color: C.cream, margin: "0 0 8px" }}>No recommendations found</p>
-              <p style={{ fontSize: 13, color: C.creamMuted, margin: 0 }}>
-                Try adjusting your mood or runtime preferences
-              </p>
+              {error}
             </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {results.recommendations.map((movie, index) => (
-                <RecommendationCard key={movie.tmdbId} movie={movie} index={index} />
-              ))}
+          )}
+
+          {/* STEP 1: MOOD */}
+          {step === "mood" && (
+            <MoodFiltersStep
+              selectedMoods={selectedMoods}
+              setSelectedMoods={setSelectedMoods}
+            />
+          )}
+
+          {/* STEP 2: FILTERS */}
+          {step === "filters" && (
+            <FiltersStep
+              audience={audience}
+              setAudience={setAudience}
+              maxRuntime={maxRuntime}
+              setMaxRuntime={setMaxRuntime}
+              contentRating={contentRating}
+              setContentRating={setContentRating}
+              era={era}
+              setEra={setEra}
+              startYear={startYear}
+              setStartYear={setStartYear}
+              streamingProviders={streamingProviders}
+              setStreamingProviders={setStreamingProviders}
+              toggleStreamingProvider={toggleStreamingProvider}
+              maxViolence={maxViolence}
+              setMaxViolence={setMaxViolence}
+              maxSexNudity={maxSexNudity}
+              setMaxSexNudity={setMaxSexNudity}
+              maxProfanity={maxProfanity}
+              setMaxProfanity={setMaxProfanity}
+              maxSubstances={maxSubstances}
+              setMaxSubstances={setMaxSubstances}
+              maxFrightening={maxFrightening}
+              setMaxFrightening={setMaxFrightening}
+              showContentFilters={showContentFilters}
+              setShowContentFilters={setShowContentFilters}
+            />
+          )}
+
+          {/* STEP 3: RESULTS */}
+          {step === "results" && results && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Results header */}
+              <div>
+                <div style={{
+                  fontFamily: FONT_STACK, fontSize: 18, fontWeight: 600,
+                  color: C.cream, letterSpacing: "-0.02em", marginBottom: 6,
+                }}>Your Picks for Tonight</div>
+                <div style={{
+                  fontSize: 13, color: C.creamMuted, marginBottom: 4, lineHeight: 1.5,
+                }}>Based on your taste and mood</div>
+              </div>
+
+              {/* Recommendations List */}
+              {results.recommendations.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0" }}>
+                  <div style={{ margin: "0 auto 16px", display: "flex", justifyContent: "center" }}>
+                    <IconFilm size={24} color={C.creamMuted} />
+                  </div>
+                  <p style={{ fontSize: 17, fontWeight: 600, color: C.cream, margin: "0 0 8px" }}>No recommendations found</p>
+                  <p style={{ fontSize: 13, color: C.creamMuted, margin: 0 }}>
+                    Try adjusting your mood or runtime preferences
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {results.recommendations.map((movie, index) => (
+                    <RecommendationCard key={movie.tmdbId} movie={movie} index={index} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
 
-      {/* Sticky Results Buttons */}
-      {step === "results" && results && (
-        <div
-          className="sticky bottom-20 lg:bottom-0 z-10"
-          style={{
-            paddingTop: 12, paddingBottom: 8,
-            marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16,
-            background: `linear-gradient(to top, ${C.bg}, ${C.bg}ee, transparent)`,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              onClick={() => setStep("filters")}
-              style={{
-                flex: 1, height: 44, borderRadius: 14,
-                fontSize: 14, fontWeight: 500, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                background: C.warmBlack,
-                border: `1px solid rgba(232,226,214,0.1)`,
-                color: C.cream,
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = C.bgCard }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = C.warmBlack }}
-            >
-              <IconChevronLeft size={16} color={C.cream} />
-              Back
-            </button>
-            <button
-              onClick={shuffleResults}
-              disabled={loading}
-              style={{
-                flex: 1.4, height: 44, borderRadius: 14,
-                fontSize: 14, fontWeight: 700, border: "none", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                background: `linear-gradient(135deg, ${C.orange}, ${C.orangeMuted})`,
-                color: C.warmBlack,
-                transition: "opacity 0.15s",
-                opacity: loading ? 0.7 : 1,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 4v6h-6" />
-                <path d="M1 20v-6h6" />
-                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
-              </svg>
-              Shuffle
-            </button>
-          </div>
-        </div>
-      )}
+      {/* STICKY BOTTOM ACTION BAR */}
+      <BottomActionBar
+        step={step}
+        loading={loading}
+        showBack={step !== "mood"}
+        onContinue={() => setStep("filters")}
+        onGetRecommendations={() => getRecommendations(1)}
+        onBack={() => {
+          if (step === "filters") setStep("mood")
+          else if (step === "results") setStep("filters")
+        }}
+        onShuffle={shuffleResults}
+        hasResults={!!results}
+      />
     </div>
   )
 }

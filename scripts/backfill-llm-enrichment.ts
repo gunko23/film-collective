@@ -15,6 +15,7 @@ dotenv.config({ path: path.join(__dirname, "..", ".env.local") })
 
 import Anthropic from "@anthropic-ai/sdk"
 import { neon } from "@neondatabase/serverless"
+import { rateLimitedCreate } from "../lib/anthropic/client"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -31,8 +32,6 @@ async function backfill() {
     console.error("[LLM Backfill] ANTHROPIC_API_KEY not set")
     process.exit(1)
   }
-
-  const anthropic = new Anthropic({ apiKey })
 
   console.log(`[LLM Backfill] Starting with limit=${limit}, batch-size=${batchSize}`)
 
@@ -81,7 +80,7 @@ For each movie provide:
 
 Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": {"name": "", "desc": ""}, "snack": {"name": "", "desc": ""}}, "parentalSummary": "..."}, ...}`
 
-      const response = await anthropic.messages.create({
+      const response = await rateLimitedCreate({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 2500,
         system: systemPrompt,

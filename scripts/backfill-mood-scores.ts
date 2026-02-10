@@ -15,6 +15,7 @@ dotenv.config({ path: path.join(__dirname, "..", ".env.local") })
 
 import Anthropic from "@anthropic-ai/sdk"
 import { neon } from "@neondatabase/serverless"
+import { rateLimitedCreate } from "../lib/anthropic/client"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -56,7 +57,6 @@ async function backfill() {
     process.exit(1)
   }
 
-  const anthropic = new Anthropic({ apiKey })
   console.log(`[Mood Backfill] Starting with limit=${limit}, batch-size=${batchSize}`)
 
   // Prioritize popular movies (most likely to be recommended)
@@ -103,7 +103,7 @@ async function backfill() {
 
       const userPrompt = `Score these movies:\n\n${movieLines}\n\nRespond with JSON: {"1": {"fun": 0.0, "intense": 0.0, "emotional": 0.0, "mindless": 0.0, "acclaimed": 0.0, "scary": 0.0, "thoughtProvoking": 0.0}, "2": {...}, ...}`
 
-      const response = await anthropic.messages.create({
+      const response = await rateLimitedCreate({
         model: "claude-haiku-4-5-20251001",
         max_tokens: Math.max(500, batch.length * 120),
         system: MOOD_PROMPT,
