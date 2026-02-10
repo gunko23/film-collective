@@ -1,0 +1,32 @@
+-- Migration: Reset mood scores for re-scoring with updated prompt
+-- The mood prompt has been updated:
+--   1. Replaced "thoughtProvoking" key with "funny"
+--   2. Added inverse relationship constraints
+--   3. Added calibration examples for scoring discipline
+--
+-- ALL existing mood scores are stale and need to be re-computed.
+-- After running this migration, re-run the backfill:
+--   npx tsx scripts/backfill-mood-scores.ts --limit 20 --batch-size 10
+-- Verify a few results against calibration examples, then run full catalog:
+--   npx tsx scripts/backfill-mood-scores.ts --limit 10000 --batch-size 10
+
+UPDATE movies SET mood_scored_at = NULL;
+
+-- Verification queries to run AFTER re-scoring:
+--
+-- Should return 0 rows: movies scored high on both mindless and acclaimed
+-- SELECT title, mood_scores->>'mindless' as mindless, mood_scores->>'acclaimed' as acclaimed
+-- FROM movies
+-- WHERE (mood_scores->>'mindless')::float > 0.5
+--   AND (mood_scores->>'acclaimed')::float > 0.5;
+--
+-- Should return 0 rows: movies scored high on both mindless and emotional
+-- SELECT title, mood_scores->>'mindless' as mindless, mood_scores->>'emotional' as emotional
+-- FROM movies
+-- WHERE (mood_scores->>'mindless')::float > 0.5
+--   AND (mood_scores->>'emotional')::float > 0.5;
+--
+-- Spot check: Spirited Away should NOT be mindless
+-- SELECT title, mood_scores
+-- FROM movies
+-- WHERE title ILIKE '%spirited away%';

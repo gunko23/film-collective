@@ -46,6 +46,21 @@ function exceedsSeverityLimit(
 }
 
 // ============================================
+// Quality & Recommendation History Config
+// ============================================
+
+const QUALITY_GATES = {
+  MIN_VOTE_COUNT: 50,
+  MIN_VOTE_AVERAGE: 5.0,
+  ACCLAIMED_MIN_VOTE_COUNT: 200,
+  ACCLAIMED_MIN_VOTE_AVERAGE: 7.0,
+}
+
+const RECENT_RECOMMENDATION_WINDOW_DAYS = 30
+const REPEAT_PENALTY = 15 // Score penalty for movies recommended in last 30 days
+const PREVIOUSLY_SHOWN_PENALTY = 25 // Score penalty for movies shown earlier in current session
+
+// ============================================
 // Types
 // ============================================
 
@@ -109,7 +124,7 @@ export type ParentalFilters = {
 export type TonightPickRequest = {
   collectiveId: string
   memberIds: string[] // Who's watching tonight
-  mood?: "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | "scary" | "thoughtProvoking" | null
+  mood?: "fun" | "funny" | "intense" | "emotional" | "mindless" | "acclaimed" | "scary" | null
   moods?: string[] // Multi-mood selection (union of mood filters)
   audience?: "anyone" | "teens" | "adults"
   maxRuntime?: number | null // In minutes
@@ -134,7 +149,7 @@ export type TonightPickResponse = {
 
 export type SoloTonightPickRequest = {
   userId: string
-  mood?: "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | "scary" | "thoughtProvoking" | null
+  mood?: "fun" | "funny" | "intense" | "emotional" | "mindless" | "acclaimed" | "scary" | null
   moods?: string[] // Multi-mood selection (union of mood filters)
   audience?: "anyone" | "teens" | "adults"
   maxRuntime?: number | null
@@ -207,6 +222,9 @@ type ScoringContext = {
   moodSoftAvoidGenres: number[]
   moodScores: MoodScores | null
   collectiveInfluence: CollectiveInfluenceEntry | null
+  selectedMemberRating: { avgScore: number; raterCount: number } | null
+  previouslyShownTmdbIds: Set<number>
+  recentlyRecommendedTmdbIds: Set<number>
 }
 
 function getDecade(releaseDate: string | null | undefined): string | null {
@@ -280,6 +298,105 @@ async function getSeenMovieTmdbIds(memberIds: string[]): Promise<Map<number, str
   }
 
   return seenMap
+}
+
+/**
+ * Batch fetch selected members' actual ratings for candidate movies.
+ * Used for the endorsement signal — when selected members have already
+ * rated a movie, their scores inform whether to boost or penalize it.
+ */
+async function getSelectedMemberRatings(
+  memberIds: string[],
+  tmdbIds: number[]
+): Promise<Map<number, { avgScore: number; raterCount: number; ratings: number[] }>> {
+  if (memberIds.length === 0 || tmdbIds.length === 0) return new Map()
+
+  const result = await sql`
+    SELECT
+      m.tmdb_id,
+      umr.overall_score
+    FROM user_movie_ratings umr
+    JOIN movies m ON umr.movie_id = m.id
+    WHERE umr.user_id = ANY(${memberIds}::uuid[])
+      AND m.tmdb_id = ANY(${tmdbIds}::int[])
+  `
+
+  // Group by tmdb_id
+  const ratingsMap = new Map<number, number[]>()
+  for (const row of result) {
+    const tmdbId = Number(row.tmdb_id)
+    if (!ratingsMap.has(tmdbId)) {
+      ratingsMap.set(tmdbId, [])
+    }
+    ratingsMap.get(tmdbId)!.push(Number(row.overall_score))
+  }
+
+  // Compute aggregates
+  const resultMap = new Map<number, { avgScore: number; raterCount: number; ratings: number[] }>()
+  for (const [tmdbId, ratings] of ratingsMap) {
+    const avgScore = Math.round(ratings.reduce((a, b) => a + b, 0) / ratings.length)
+    resultMap.set(tmdbId, { avgScore, raterCount: ratings.length, ratings })
+  }
+
+  return resultMap
+}
+
+/**
+ * Get TMDB IDs of movies recently recommended to any of the given members.
+ * Used for cross-session deprioritization to prevent repeat recommendations.
+ * Gracefully returns empty set if the recommendation_history table doesn't exist yet.
+ */
+async function getRecentRecommendationHistory(
+  memberIds: string[],
+  windowDays: number = RECENT_RECOMMENDATION_WINDOW_DAYS
+): Promise<Set<number>> {
+  if (memberIds.length === 0) return new Set()
+  try {
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - windowDays)
+    const result = await sql`
+      SELECT DISTINCT tmdb_id
+      FROM recommendation_history
+      WHERE user_id = ANY(${memberIds}::uuid[])
+        AND shown_at > ${cutoffDate.toISOString()}::timestamptz
+    `
+    return new Set(result.map((r: any) => Number(r.tmdb_id)))
+  } catch {
+    // Table may not exist yet — graceful fallback
+    return new Set()
+  }
+}
+
+/**
+ * Log recommended movies for cross-session deduplication.
+ * Fire-and-forget — errors are logged but not thrown.
+ */
+export async function logRecommendationHistory(
+  userId: string,
+  tmdbIds: number[],
+  context: string = "tonights_pick"
+): Promise<void> {
+  if (tmdbIds.length === 0) return
+  try {
+    await sql`
+      INSERT INTO recommendation_history (user_id, tmdb_id, context, shown_at)
+      SELECT ${userId}::uuid, unnest(${tmdbIds}::int[]), ${context}, NOW()
+    `
+  } catch (e) {
+    console.error("[RecommendationHistory] Error logging:", e)
+  }
+}
+
+/**
+ * Clean up recommendation_history rows older than 90 days.
+ * Should be called periodically (e.g., fire-and-forget after recommendations).
+ */
+async function cleanupOldRecommendationHistory(): Promise<void> {
+  try {
+    await sql`DELETE FROM recommendation_history WHERE shown_at < NOW() - INTERVAL '90 days'`
+  } catch {
+    // Table may not exist yet — ignore
+  }
 }
 
 /**
@@ -434,7 +551,11 @@ function calculateGroupFitScore(
   ctx: ScoringContext
 ): { score: number; reasoning: string[] } {
   const reasoning: string[] = []
-  let score = 50 // Base score
+  // Track which signal categories fire for the well-rounded bonus
+  const signalCategories = new Set<string>()
+
+  // --- Dynamic base score (55, up from 50) ---
+  let score = 55
 
   const movieGenreIds = new Set<number>(
     movie.genres
@@ -442,18 +563,28 @@ function calculateGroupFitScore(
       : (movie.genre_ids || [])
   )
 
-  // --- Genre match (weighted by member ratings, top 8 genres, max ~+40) ---
+  // +3 base bonus if the movie matches at least 1 preferred genre
+  const matchesAnyPreferredGenre = ctx.preferredGenres.some(p => movieGenreIds.has(p.genreId))
+  if (matchesAnyPreferredGenre) {
+    score += 3
+  }
+
+  // --- Genre match (weighted by member ratings, top 8 genres) ---
+  // Top 3 matches use multiplier 18, matches 4-8 use multiplier 15
   let genreBoost = 0
   let genreMatchCount = 0
-  for (const pref of ctx.preferredGenres.slice(0, 8)) {
+  for (let i = 0; i < Math.min(8, ctx.preferredGenres.length); i++) {
+    const pref = ctx.preferredGenres[i]
     if (movieGenreIds.has(pref.genreId)) {
       genreMatchCount++
       const confidence = Math.min(1, pref.ratingCount / 10)
-      genreBoost += (pref.avgScore / 100) * 15 * confidence
+      const multiplier = genreMatchCount <= 3 ? 18 : 15
+      genreBoost += (pref.avgScore / 100) * multiplier * confidence
     }
   }
   score += Math.round(genreBoost)
   if (genreMatchCount > 0) {
+    signalCategories.add("genre")
     reasoning.push(`Matches ${genreMatchCount} of your ${ctx.soloMode ? "" : "group's "}favorite genres`)
   }
 
@@ -469,15 +600,47 @@ function calculateGroupFitScore(
     reasoning.push(`Contains ${dislikedMatchCount} genre(s) you ${ctx.soloMode ? "tend" : "your group tends"} to rate lower`)
   }
 
-  // --- Seen penalty (-30 scaled by ratio) ---
+  // --- Seen penalty (softened in group mode: -15, full -30 in solo mode) ---
   if (ctx.seenByCount > 0) {
     const penaltyMultiplier = ctx.seenByCount / ctx.totalMembers
-    score -= Math.round(30 * penaltyMultiplier)
+    const basePenalty = ctx.soloMode ? 30 : 15
+    score -= Math.round(basePenalty * penaltyMultiplier)
     if (ctx.soloMode) {
       reasoning.push("You may have seen this")
     } else {
       reasoning.push(`${ctx.seenByCount} member(s) may have seen this`)
     }
+  }
+
+  // --- Selected member endorsement (max +30, or -10 penalty for disliked) ---
+  if (ctx.selectedMemberRating && ctx.seenByCount > 0 && ctx.seenByCount < ctx.totalMembers) {
+    const { avgScore, raterCount } = ctx.selectedMemberRating
+    if (avgScore >= 85) {
+      score += 30
+      signalCategories.add("endorsement")
+      reasoning.push(`Rated ${avgScore}/100 by ${raterCount} member${raterCount > 1 ? "s" : ""} in your group`)
+    } else if (avgScore >= 70) {
+      score += 20
+      signalCategories.add("endorsement")
+      reasoning.push(`Rated ${avgScore}/100 by ${raterCount} member${raterCount > 1 ? "s" : ""} in your group`)
+    } else if (avgScore >= 55) {
+      score += 10
+      signalCategories.add("endorsement")
+      reasoning.push(`Rated ${avgScore}/100 by ${raterCount} member${raterCount > 1 ? "s" : ""} in your group`)
+    } else if (avgScore < 40) {
+      score -= 10
+      reasoning.push(`Rated only ${avgScore}/100 by ${raterCount} member${raterCount > 1 ? "s" : ""} in your group`)
+    }
+  }
+
+  // --- Previously shown penalty (shuffle deprioritization) ---
+  if (ctx.previouslyShownTmdbIds.has(movie.id)) {
+    score -= PREVIOUSLY_SHOWN_PENALTY
+  }
+
+  // --- Recently recommended penalty (cross-session deprioritization) ---
+  if (ctx.recentlyRecommendedTmdbIds.has(movie.id)) {
+    score -= REPEAT_PENALTY
   }
 
   // --- Mood affinity scoring (per-movie mood scores with geometric mean for multi-mood AND semantics) ---
@@ -487,6 +650,8 @@ function calculateGroupFitScore(
     // Scale: 0.0-1.0 mood fit → 0 to +25 points
     const moodBonus = Math.round(moodFit * 25)
     score += moodBonus
+
+    if (moodFit >= 0.35) signalCategories.add("mood")
 
     if (moodFit >= 0.6) {
       reasoning.push(ctx.moods.length > 1
@@ -528,6 +693,7 @@ function calculateGroupFitScore(
   const qualityResult = calculateCompositeQualityScore(ctx.omdbScores, movie.vote_average, movie.popularity || 0)
   const { bonus: qualityBonus, reasoning: qualityReasoning } = getQualityBonus(qualityResult)
   score += qualityBonus
+  if (qualityBonus > 0) signalCategories.add("quality")
   if (qualityReasoning) reasoning.push(qualityReasoning)
 
   // --- Acclaimed mood bonus (critic-score-based, only when mood includes "acclaimed") ---
@@ -576,12 +742,21 @@ function calculateGroupFitScore(
     reasoning.push("Widely known & easy to find")
   }
 
+  // --- Vote count confidence boost (log-scale, max +5) ---
+  // Continuous signal complementing the step-based availability bonus
+  if (voteCount > 0) {
+    const logBoost = Math.min(Math.log10(voteCount) / 5, 1.0)
+    const voteConfidenceBonus = Math.round(logBoost * 5)
+    score += voteConfidenceBonus
+  }
+
   // --- Director affinity (max +12) ---
   if (ctx.candidateDirectorIds.size > 0 && ctx.directorAffinities.length > 0) {
     for (const aff of ctx.directorAffinities) {
       if (ctx.candidateDirectorIds.has(aff.personId)) {
         const bonus = Math.round((aff.avgScore / 100) * 12)
         score += bonus
+        signalCategories.add("crew")
         reasoning.push(`Directed by ${aff.name}, whose films you rate highly`)
         break // Only count top matching director
       }
@@ -603,6 +778,7 @@ function calculateGroupFitScore(
     actorBonus = Math.min(12, actorBonus)
     score += actorBonus
     if (matchedActors.length > 0) {
+      signalCategories.add("crew")
       reasoning.push(`Stars ${matchedActors.slice(0, 2).join(" & ")}, who you enjoy`)
     }
   }
@@ -620,6 +796,7 @@ function calculateGroupFitScore(
   if (collabScore) {
     const bonus = Math.round((collabScore / 100) * 20)
     score += bonus
+    signalCategories.add("collabFiltering")
     reasoning.push("Loved by people with similar taste")
   }
 
@@ -633,6 +810,7 @@ function calculateGroupFitScore(
     else if (raterCount >= 2) influenceBonus = Math.min(30, influenceBonus + 4)
 
     score += influenceBonus
+    signalCategories.add("collectiveInfluence")
 
     if (ctx.soloMode) {
       if (raterCount === 1) {
@@ -647,6 +825,12 @@ function calculateGroupFitScore(
         reasoning.push(`${raterNames.slice(0, 3).join(" & ")} in your collective loved this`)
       }
     }
+  }
+
+  // --- Well-rounded match bonus (+5 if 3+ signal categories fire) ---
+  if (signalCategories.size >= 3) {
+    score += 5
+    reasoning.push("Strong match across multiple dimensions")
   }
 
   return {
@@ -741,12 +925,12 @@ function getMoodFilters(mood: TonightPickRequest["mood"]): {
         softAvoidGenres: [10751, 16, 35, 10749], // Family, Animation, Comedy, Romance
         sortBy: "popularity.desc",
       }
-    case "thoughtProvoking":
+    case "funny":
       return {
-        preferGenres: [99, 18, 878, 36, 9648],   // Documentary, Drama, Sci-Fi, History, Mystery
+        preferGenres: [35, 16],                   // Comedy, Animation
         avoidGenres: [],
-        softAvoidGenres: [28, 16],                // Action, Animation
-        sortBy: "vote_average.desc",
+        softAvoidGenres: [27, 10752, 18],         // Horror, War, Drama (without comedy)
+        sortBy: "popularity.desc",
       }
     default:
       return {
@@ -853,7 +1037,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
   // ── Phase 1: Parallel DB queries ──
   const t1 = timer("Phase 1: DB queries (parallel)")
-  const [groupGenres, seenMovies, dismissedTmdbIds, dislikedGenreSet, eraPreferences, crewAffinitiesResult, peerIds] = await Promise.all([
+  const [groupGenres, seenMovies, dismissedTmdbIds, dislikedGenreSet, eraPreferences, crewAffinitiesResult, peerIds, recentlyRecommendedTmdbIds] = await Promise.all([
     getGroupGenrePreferences(memberIds),
     getSeenMovieTmdbIds(memberIds),
     getDismissedMovieTmdbIds(memberIds),
@@ -861,6 +1045,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     getEraPreferences(memberIds),
     getCachedCrewAffinities(memberIds),
     getTasteSimilarPeers(memberIds),
+    getRecentRecommendationHistory(memberIds),
   ])
   t1.done()
 
@@ -1291,12 +1476,48 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     emergencyFetchUsed: viableCandidates.length < MIN_VIABLE_POOL,
   })
 
-  // ── Phase 3.5: Batch load cached OMDb + mood scores (parallel) ──
-  const t3 = timer("Phase 3: OMDb + mood batch load")
+  // ── Quality gate: filter low-quality and thin-metadata candidates ──
+  const qualityGateVoteCount = moods.includes("acclaimed")
+    ? QUALITY_GATES.ACCLAIMED_MIN_VOTE_COUNT
+    : QUALITY_GATES.MIN_VOTE_COUNT
+  const qualityGateVoteAverage = moods.includes("acclaimed")
+    ? QUALITY_GATES.ACCLAIMED_MIN_VOTE_AVERAGE
+    : QUALITY_GATES.MIN_VOTE_AVERAGE
+
+  const beforeQualityGate = uniqueMovies.length
+  uniqueMovies = uniqueMovies.filter((m: any) => {
+    const vc = m.vote_count || 0
+    const va = m.vote_average || 0
+
+    // Hard quality floor — not enough votes or poorly rated
+    if (vc < qualityGateVoteCount || va < qualityGateVoteAverage) return false
+
+    // Thin metadata — no overview means bad mood scores, no poster means broken UI
+    if (!m.overview || m.overview.trim() === "") return false
+    if (!m.poster_path) return false
+
+    // At least 1 genre for scoring to work
+    const genres = m.genres || m.genre_ids || []
+    if (genres.length === 0) return false
+
+    return true
+  })
+
+  if (beforeQualityGate !== uniqueMovies.length) {
+    console.log(`[Quality Gate] Filtered ${beforeQualityGate - uniqueMovies.length} candidates (${beforeQualityGate} → ${uniqueMovies.length})`)
+  }
+
+  // ── Phase 3.5: Batch load cached OMDb + mood scores + selected member ratings (parallel) ──
+  const t3 = timer("Phase 3: OMDb + mood + member ratings batch load")
   const candidateTmdbIdsForOmdb = uniqueMovies.map((m: any) => m.id as number)
-  const [omdbScoresMap, moodScoresMap] = await Promise.all([
+  // Only fetch selected member ratings for movies that at least one member has seen
+  const seenCandidateTmdbIds = candidateTmdbIdsForOmdb.filter(id => seenMovies.has(id))
+  const [omdbScoresMap, moodScoresMap, selectedMemberRatingsMap] = await Promise.all([
     batchGetCachedOmdbScores(candidateTmdbIdsForOmdb),
     batchGetCachedMoodScores(candidateTmdbIdsForOmdb),
+    soloMode
+      ? Promise.resolve(new Map<number, { avgScore: number; raterCount: number; ratings: number[] }>())
+      : getSelectedMemberRatings(memberIds, seenCandidateTmdbIds),
   ])
   t3.done()
 
@@ -1305,10 +1526,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   const firstPassScored: (MovieRecommendation & { _movie: any })[] = []
 
   for (const movie of uniqueMovies) {
-    // Skip previously shown movies (shuffle exclusion)
-    if (excludeSet.has(movie.id)) {
-      continue
-    }
+    // Previously shown movies are now deprioritized via scoring penalty, not hard-excluded
 
     // Skip movies dismissed ("Not Interested") by any participant
     if (dismissedTmdbIds.has(movie.id)) {
@@ -1367,6 +1585,9 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       moodSoftAvoidGenres: moods.length > 0 ? moodFilters.softAvoidGenres : [],
       moodScores: movieMoodScores,
       collectiveInfluence: collectiveInfluenceMap.get(movie.id) || null,
+      selectedMemberRating: selectedMemberRatingsMap.get(movie.id) || null,
+      previouslyShownTmdbIds: excludeSet,
+      recentlyRecommendedTmdbIds,
     }
 
     const { score, reasoning } = calculateGroupFitScore(movie, ctx)
@@ -1493,6 +1714,9 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
         moodSoftAvoidGenres: moods.length > 0 ? moodFilters.softAvoidGenres : [],
         moodScores: reMovieMoodScores,
         collectiveInfluence: collectiveInfluenceMap.get(entry.tmdbId) || null,
+        selectedMemberRating: selectedMemberRatingsMap.get(entry.tmdbId) || null,
+        previouslyShownTmdbIds: excludeSet,
+        recentlyRecommendedTmdbIds,
       }
 
       const { score, reasoning } = calculateGroupFitScore(entry._movie, ctx)
@@ -1603,6 +1827,11 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       }
     })
     .catch(e => console.error("[OMDb] Error checking final results for fetch:", e))
+
+  // Background: periodically clean up old recommendation history (fire-and-forget)
+  if (Math.random() < 0.05) {
+    cleanupOldRecommendationHistory().catch(() => {})
+  }
 
   totalTimer.done()
 

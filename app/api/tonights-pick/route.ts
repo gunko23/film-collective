@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSafeUser } from "@/lib/auth/auth-utils"
-import { getSoloTonightsPick } from "@/lib/recommendations/recommendation-service"
+import { getSoloTonightsPick, logRecommendationHistory } from "@/lib/recommendations/recommendation-service"
 
 export async function POST(request: Request) {
   try {
@@ -33,6 +33,10 @@ export async function POST(request: Request) {
       streamingProviders: streamingProviders || null,
       excludeTmdbIds: excludeTmdbIds || null,
     })
+
+    // Fire-and-forget: log recommendations for cross-session deduplication
+    const recTmdbIds = result.recommendations.map((r: any) => r.tmdbId)
+    logRecommendationHistory(user.id, recTmdbIds).catch(() => {})
 
     return NextResponse.json(result)
   } catch (error) {

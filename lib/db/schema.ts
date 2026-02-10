@@ -275,6 +275,19 @@ export const plannedWatchParticipants = pgTable(
 )
 
 // ============================================
+// RECOMMENDATION HISTORY
+// ============================================
+export const recommendationHistory = pgTable("recommendation_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tmdbId: integer("tmdb_id").notNull(),
+  context: text("context").notNull().default("tonights_pick"),
+  shownAt: timestamp("shown_at", { withTimezone: true }).defaultNow(),
+})
+
+// ============================================
 // TYPES
 // ============================================
 export type User = typeof users.$inferSelect
@@ -300,6 +313,7 @@ export type PlannedWatch = typeof plannedWatches.$inferSelect
 export type NewPlannedWatch = typeof plannedWatches.$inferInsert
 export type PlannedWatchParticipant = typeof plannedWatchParticipants.$inferSelect
 export type NewPlannedWatchParticipant = typeof plannedWatchParticipants.$inferInsert
+export type RecommendationHistory = typeof recommendationHistory.$inferSelect
 
 // ============================================
 // PARENTAL GUIDE TYPES

@@ -55,7 +55,7 @@ export type TonightPickResponse = {
   }
 }
 
-export type MoodValue = "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | "scary" | "thoughtProvoking"
+export type MoodValue = "fun" | "funny" | "intense" | "emotional" | "mindless" | "acclaimed" | "scary"
 export type Mood = MoodValue | null
 export type Audience = "anyone" | "teens" | "adults"
 export type ContentLevel = "None" | "Mild" | "Moderate" | "Severe" | null

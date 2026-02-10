@@ -19,23 +19,43 @@ import { rateLimitedCreate } from "../lib/anthropic/client"
 
 const sql = neon(process.env.DATABASE_URL!)
 
-const MOOD_PROMPT = `You are a film analysis assistant. For each movie, rate how well it fits each mood on a scale from 0.0 to 1.0.
+const MOOD_PROMPT = `You are a strict film mood classifier. For each movie, rate how well it fits each mood on a scale from 0.0 to 1.0.
 
 Moods:
-- fun: Light-hearted, entertaining, makes you laugh or smile. Comedy, adventure, feel-good vibes.
-- intense: Gripping, edge-of-your-seat, adrenaline. Action, thriller, horror, suspense.
-- emotional: Moving, touching, deeply felt. Drama, romance, stories about the human condition.
-- mindless: Easy to watch without deep thinking. Popcorn entertainment, spectacle, simple plots.
-- acclaimed: Critical darling, award-worthy, artistically significant. High ratings, prestige cinema.
-- scary: Frightening, creepy, unsettling. Horror, supernatural, psychological terror, jump scares.
-- thoughtProvoking: Intellectually stimulating, makes you think and reflect. Complex themes, philosophical questions, social commentary, mind-bending narratives.
+- fun: Entertaining, enjoyable, a good time. Adventure, action, feel-good stories. A movie you'd happily recommend for a casual movie night.
+- funny: Actually comedic — makes you laugh out loud. Witty dialogue, physical comedy, absurd humor, satire. Reserve high scores for movies where comedy is a PRIMARY element, not just occasional light moments.
+- intense: Gripping, edge-of-your-seat, adrenaline-fueled. Thriller, action, suspense, high stakes. Your heart rate goes up.
+- emotional: Moving, touching, deeply felt. Makes you cry, reflect on life, or feel something profound. Drama, romance, stories about loss, love, the human condition.
+- mindless: Easy to watch without thinking. Pure popcorn entertainment, spectacle over substance, simple plots, low cognitive demand. You could watch this half-asleep and still enjoy it.
+- acclaimed: Critically praised, award-worthy, artistically significant. High scores from critics, prestige cinema, culturally important.
+- scary: Frightening, creepy, disturbing, or unsettling in any way. This includes traditional horror but ALSO applies to non-horror films with genuinely scary, menacing, or deeply disturbing content — a terrifying villain, graphic violence, psychological dread, scenes that make you tense or uncomfortable. A movie does not need to be in the horror genre to score high on scary.
 
-IMPORTANT:
-- A movie can score high on MULTIPLE moods (e.g., "Inside Out" might be fun: 0.85, emotional: 0.80)
-- A movie can also score low on all moods if none particularly apply
-- Be nuanced: "The Dark Knight" is intense (0.90) but also acclaimed (0.85), somewhat fun (0.55), not very emotional (0.35), not mindless (0.25), a bit scary (0.40), thought-provoking (0.65)
-- Consider the OVERALL viewing experience, not just genre labels
-- Scores should reflect how strongly a viewer seeking that mood would enjoy the film
+INVERSE RELATIONSHIPS — these constrain your scores:
+- If mindless is HIGH (>0.6), funny/emotional/acclaimed must be LOW (<0.4). A truly mindless movie is not deeply funny, moving, or critically praised.
+- If acclaimed is HIGH (>0.8), mindless MUST be LOW (<0.3). Critics don't celebrate mindless films.
+- If emotional is HIGH (>0.7) with themes of grief, trauma, or suffering, fun MUST be LOW (<0.4). Schindler's List is not fun.
+- If scary is HIGH (>0.7), fun should generally be LOW (<0.4) unless the movie is specifically a horror-comedy.
+- A movie CANNOT score above 0.5 on both mindless and emotional. Pick one — is this a thinking/feeling movie or a turn-your-brain-off movie?
+- A movie CANNOT score above 0.5 on both mindless and acclaimed. Pick one.
+
+SCORING DISCIPLINE:
+- Be HARSH. Most movies should score below 0.3 on moods that don't apply to them.
+- A score of 0.5+ means the mood is a MEANINGFUL part of the viewing experience.
+- A score of 0.8+ means the mood is a PRIMARY reason to watch the film.
+- Avoid "participation trophy" scores. If a movie is not funny, give it 0.1, not 0.3.
+- When in doubt, score LOWER. It is better to under-score than to let a movie leak into a mood it doesn't belong to.
+
+CALIBRATION EXAMPLES (use these as anchors):
+- "Spirited Away": fun: 0.70, funny: 0.25, intense: 0.45, emotional: 0.75, mindless: 0.15, acclaimed: 0.95, scary: 0.30
+- "The Hangover": fun: 0.85, funny: 0.95, intense: 0.15, emotional: 0.10, mindless: 0.80, acclaimed: 0.20, scary: 0.0
+- "Hereditary": fun: 0.05, funny: 0.0, intense: 0.85, emotional: 0.60, mindless: 0.05, acclaimed: 0.80, scary: 0.95
+- "Transformers: Age of Extinction": fun: 0.55, funny: 0.15, intense: 0.50, emotional: 0.05, mindless: 0.90, acclaimed: 0.05, scary: 0.0
+- "Schindler's List": fun: 0.0, funny: 0.0, intense: 0.70, emotional: 0.95, mindless: 0.0, acclaimed: 0.98, scary: 0.25
+- "Superbad": fun: 0.85, funny: 0.95, intense: 0.10, emotional: 0.25, mindless: 0.65, acclaimed: 0.30, scary: 0.0
+- "Arrival": fun: 0.20, funny: 0.0, intense: 0.55, emotional: 0.80, mindless: 0.05, acclaimed: 0.85, scary: 0.20
+- "The Dark Knight": fun: 0.60, funny: 0.10, intense: 0.90, emotional: 0.45, mindless: 0.15, acclaimed: 0.90, scary: 0.40
+- "Joker": fun: 0.05, funny: 0.05, intense: 0.75, emotional: 0.70, mindless: 0.05, acclaimed: 0.80, scary: 0.75
+- "Scary Movie": fun: 0.65, funny: 0.75, intense: 0.10, emotional: 0.0, mindless: 0.85, acclaimed: 0.05, scary: 0.15
 
 Respond with ONLY a JSON object mapping movie number to scores. No markdown, no backticks, no explanation.`
 
@@ -101,7 +121,7 @@ async function backfill() {
         return `${idx + 1}. "${m.title}" (${year}) — ${genres}${ratings ? ` [${ratings}]` : ""}\n   ${overview}`
       }).join("\n\n")
 
-      const userPrompt = `Score these movies:\n\n${movieLines}\n\nRespond with JSON: {"1": {"fun": 0.0, "intense": 0.0, "emotional": 0.0, "mindless": 0.0, "acclaimed": 0.0, "scary": 0.0, "thoughtProvoking": 0.0}, "2": {...}, ...}`
+      const userPrompt = `Score these movies:\n\n${movieLines}\n\nRespond with JSON: {"1": {"fun": 0.0, "funny": 0.0, "intense": 0.0, "emotional": 0.0, "mindless": 0.0, "acclaimed": 0.0, "scary": 0.0}, "2": {...}, ...}`
 
       const response = await rateLimitedCreate({
         model: "claude-haiku-4-5-20251001",
@@ -132,12 +152,12 @@ async function backfill() {
         const movie = batch[idx]
         const scores = {
           fun: clamp(Number(value.fun) || 0),
+          funny: clamp(Number(value.funny) || 0),
           intense: clamp(Number(value.intense) || 0),
           emotional: clamp(Number(value.emotional) || 0),
           mindless: clamp(Number(value.mindless) || 0),
           acclaimed: clamp(Number(value.acclaimed) || 0),
           scary: clamp(Number(value.scary) || 0),
-          thoughtProvoking: clamp(Number(value.thoughtProvoking) || 0),
         }
 
         try {

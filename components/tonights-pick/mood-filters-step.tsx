@@ -1,7 +1,7 @@
 import { C, FONT_STACK } from "./constants"
 import {
   IconSparkle, IconCoffee, IconZap, IconHeart, IconFilm, IconAward,
-  IconGhost, IconLightbulb,
+  IconGhost, IconLaugh,
 } from "./icons"
 import { SectionLabel } from "./filter-primitives"
 import { IconCheck } from "./icons"
@@ -58,11 +58,11 @@ const MOOD_OPTIONS: { value: MoodValue | null; label: string; icon: (c: string) 
     color: C.rose,
   },
   {
-    value: "thoughtProvoking",
-    label: "Thought-Provoking",
-    icon: (c) => <IconLightbulb size={20} color={c} />,
-    description: "Makes you think",
-    color: C.blue,
+    value: "funny",
+    label: "Funny",
+    icon: (c) => <IconLaugh size={20} color={c} />,
+    description: "Make me laugh",
+    color: C.teal,
   },
 ]
 
