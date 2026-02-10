@@ -225,6 +225,7 @@ type ScoringContext = {
   selectedMemberRating: { avgScore: number; raterCount: number } | null
   previouslyShownTmdbIds: Set<number>
   recentlyRecommendedTmdbIds: Set<number>
+  internalSignal: { avgScore: number; raterCount: number } | null
 }
 
 function getDecade(releaseDate: string | null | undefined): string | null {
@@ -538,6 +539,138 @@ async function getCollaborativeRecommendations(
   }
 }
 
+/**
+ * Fetch high-quality candidates from Film Collective's own movies database.
+ * These are movies that platform users have watched and rated, providing far
+ * richer signal than TMDB discover results.
+ */
+async function getInternalCandidates(
+  memberIds: string[],
+  options: {
+    moods?: string[]
+    maxRuntime?: number | null
+    era?: string | null
+    startYear?: number | null
+    audience?: string
+    limit?: number
+  }
+): Promise<any[]> {
+  const { moods = [], maxRuntime, era, startYear, audience, limit = 100 } = options
+  try {
+    // Pre-compute era date bounds for parameterized query
+    let eraStartDate: string | null = null
+    let eraEndDate: string | null = null
+    if (era) {
+      if (era === "Pre-40s") {
+        eraEndDate = "1939-12-31"
+      } else {
+        const decadeStart = parseInt(era)
+        if (!isNaN(decadeStart)) {
+          eraStartDate = `${decadeStart}-01-01`
+          eraEndDate = `${decadeStart + 9}-12-31`
+        }
+      }
+    } else if (startYear) {
+      eraStartDate = `${startYear}-01-01`
+    }
+
+    const result = await sql`
+      SELECT
+        m.tmdb_id AS id,
+        m.title,
+        m.overview,
+        m.genres,
+        m.tmdb_vote_average::float AS vote_average,
+        m.tmdb_popularity::float AS popularity,
+        m.release_date,
+        m.poster_path,
+        m.backdrop_path,
+        m.runtime_minutes AS runtime,
+        m.tmdb_vote_count AS vote_count,
+        AVG(umr.overall_score)::float AS internal_avg_score,
+        COUNT(DISTINCT umr.user_id)::int AS internal_rater_count
+      FROM movies m
+      JOIN user_movie_ratings umr ON m.id = umr.movie_id
+      WHERE m.poster_path IS NOT NULL
+        AND m.overview IS NOT NULL AND m.overview != ''
+        AND m.genres IS NOT NULL AND jsonb_array_length(m.genres) > 0
+        AND NOT (
+          -- Exclude movies seen by ALL selected members
+          (SELECT COUNT(DISTINCT umr2.user_id) FROM user_movie_ratings umr2
+           WHERE umr2.movie_id = m.id AND umr2.user_id = ANY(${memberIds}::uuid[]))
+          >= ${memberIds.length}
+        )
+        AND m.tmdb_id NOT IN (
+          SELECT movie_id FROM user_dismissed_movies
+          WHERE user_id = ANY(${memberIds}::uuid[])
+        )
+        ${maxRuntime ? sql`AND (m.runtime_minutes IS NULL OR m.runtime_minutes <= ${maxRuntime})` : sql``}
+        ${eraStartDate && eraEndDate ? sql`AND m.release_date >= ${eraStartDate} AND m.release_date <= ${eraEndDate}` : eraStartDate ? sql`AND m.release_date >= ${eraStartDate}` : eraEndDate ? sql`AND m.release_date <= ${eraEndDate}` : sql``}
+        ${audience === "adults" ? sql`AND NOT (m.genres @> '[{"id": 10751}]'::jsonb OR m.genres @> '[{"id": 16}]'::jsonb)` : sql``}
+      GROUP BY m.id, m.tmdb_id, m.title, m.overview, m.genres, m.tmdb_vote_average,
+               m.tmdb_popularity, m.release_date, m.poster_path, m.backdrop_path,
+               m.runtime_minutes, m.tmdb_vote_count, m.mood_scores
+      HAVING COUNT(DISTINCT umr.user_id) >= 2
+      ORDER BY AVG(umr.overall_score) * LN(COUNT(DISTINCT umr.user_id) + 1) DESC
+      LIMIT ${limit}
+    `
+
+    return result.map((row: any) => ({
+      id: Number(row.id),
+      title: row.title,
+      overview: row.overview,
+      genres: typeof row.genres === "string" ? JSON.parse(row.genres) : row.genres,
+      vote_average: Number(row.vote_average) || 0,
+      popularity: Number(row.popularity) || 0,
+      release_date: row.release_date,
+      poster_path: row.poster_path,
+      backdrop_path: row.backdrop_path,
+      runtime: row.runtime ? Number(row.runtime) : null,
+      vote_count: row.vote_count ? Number(row.vote_count) : 0,
+      // Extra fields for internal signal bonus
+      _internal_avg_score: Number(row.internal_avg_score),
+      _internal_rater_count: Number(row.internal_rater_count),
+    }))
+  } catch (e) {
+    console.error("[InternalCandidates] Error:", e)
+    return []
+  }
+}
+
+/**
+ * Batch fetch avg rating + rater count for candidates that exist in the internal DB.
+ * Used to add internal signal bonuses to TMDB-sourced candidates.
+ */
+async function getInternalSignalBatch(
+  tmdbIds: number[]
+): Promise<Map<number, { avgScore: number; raterCount: number }>> {
+  if (tmdbIds.length === 0) return new Map()
+  try {
+    const result = await sql`
+      SELECT
+        m.tmdb_id,
+        AVG(umr.overall_score)::float AS avg_score,
+        COUNT(DISTINCT umr.user_id)::int AS rater_count
+      FROM user_movie_ratings umr
+      JOIN movies m ON umr.movie_id = m.id
+      WHERE m.tmdb_id = ANY(${tmdbIds}::int[])
+      GROUP BY m.tmdb_id
+      HAVING COUNT(DISTINCT umr.user_id) >= 2
+    `
+    const map = new Map<number, { avgScore: number; raterCount: number }>()
+    for (const row of result) {
+      map.set(Number(row.tmdb_id), {
+        avgScore: Math.round(Number(row.avg_score)),
+        raterCount: Number(row.rater_count),
+      })
+    }
+    return map
+  } catch (e) {
+    console.error("[InternalSignalBatch] Error:", e)
+    return new Map()
+  }
+}
+
 // buildCrewAffinities removed — replaced by getCachedCrewAffinities
 
 // fetchCandidateCredits removed — replaced by getCachedCandidateCredits
@@ -647,8 +780,8 @@ function calculateGroupFitScore(
   if (ctx.moods.length > 0 && ctx.moodScores) {
     const { score: moodFit, passesThreshold } = calculateMoodFitScore(ctx.moodScores, ctx.moods)
 
-    // Scale: 0.0-1.0 mood fit → 0 to +25 points
-    const moodBonus = Math.round(moodFit * 25)
+    // Scale: 0.0-1.0 mood fit → 0 to +40 points
+    const moodBonus = Math.round(moodFit * 40)
     score += moodBonus
 
     if (moodFit >= 0.35) signalCategories.add("mood")
@@ -663,7 +796,7 @@ function calculateGroupFitScore(
 
     // Penalty for not passing threshold on any mood
     if (!passesThreshold) {
-      score -= 10
+      score -= 20
     }
   } else if (ctx.moods.length > 0) {
     // Fallback: no mood scores available, use legacy genre-based scoring (reduced weight)
@@ -823,6 +956,45 @@ function calculateGroupFitScore(
         reasoning.push(`${raterNames[0]} in your collective rated this ${avgScore}/100`)
       } else {
         reasoning.push(`${raterNames.slice(0, 3).join(" & ")} in your collective loved this`)
+      }
+    }
+  }
+
+  // --- Internal DB signal (max +15) ---
+  // Movies rated by Film Collective users have proven real-world appeal
+  if (ctx.internalSignal) {
+    const { avgScore, raterCount } = ctx.internalSignal
+    let internalBonus = 0
+
+    // Scale by rating quality
+    if (avgScore >= 80) internalBonus += 8
+    else if (avgScore >= 65) internalBonus += 4
+
+    // Scale by confidence (more raters = more reliable)
+    if (raterCount >= 5) internalBonus += 7
+    else if (raterCount >= 3) internalBonus += 5
+    else if (raterCount >= 2) internalBonus += 3
+
+    internalBonus = Math.min(15, internalBonus)
+    score += internalBonus
+
+    if (internalBonus > 0) {
+      signalCategories.add("internalDB")
+      reasoning.push(`Rated by ${raterCount} Film Collective member${raterCount > 1 ? "s" : ""}`)
+    }
+  }
+
+  // --- Mood dampening: scale down non-mood bonuses for poor mood fits ---
+  if (ctx.moods.length > 0 && ctx.moodScores) {
+    const { score: moodFit } = calculateMoodFitScore(ctx.moodScores, ctx.moods)
+    if (moodFit < 0.5) {
+      // At moodFit=0.4: dampening = 0.9 (mild)
+      // At moodFit=0.25: dampening = 0.75 (moderate)
+      // At moodFit=0.1: dampening = 0.6 (strong)
+      const dampening = 0.5 + (moodFit * 1.0) // 0.5-1.0 range
+      const bonusAboveBase = score - 55
+      if (bonusAboveBase > 0) {
+        score = 55 + Math.round(bonusAboveBase * dampening)
       }
     }
   }
@@ -1037,7 +1209,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
   // ── Phase 1: Parallel DB queries ──
   const t1 = timer("Phase 1: DB queries (parallel)")
-  const [groupGenres, seenMovies, dismissedTmdbIds, dislikedGenreSet, eraPreferences, crewAffinitiesResult, peerIds, recentlyRecommendedTmdbIds] = await Promise.all([
+  const [groupGenres, seenMovies, dismissedTmdbIds, dislikedGenreSet, eraPreferences, crewAffinitiesResult, peerIds, recentlyRecommendedTmdbIds, internalCandidates] = await Promise.all([
     getGroupGenrePreferences(memberIds),
     getSeenMovieTmdbIds(memberIds),
     getDismissedMovieTmdbIds(memberIds),
@@ -1046,6 +1218,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     getCachedCrewAffinities(memberIds),
     getTasteSimilarPeers(memberIds),
     getRecentRecommendationHistory(memberIds),
+    getInternalCandidates(memberIds, { moods, maxRuntime, era, startYear, audience }),
   ])
   t1.done()
 
@@ -1286,7 +1459,8 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   ])
   t2.done()
 
-  const candidateMovies: any[] = []
+  // Seed with internal DB candidates first — TMDB results are added after
+  const candidateMovies: any[] = [...internalCandidates]
   for (const result of tmdbResults) {
     if (result?.results) candidateMovies.push(...result.results)
   }
@@ -1470,6 +1644,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
   console.log(`[Perf] Candidate pool size after dedup: ${uniqueMovies.length}`)
   console.log(`[Recommendations] Pool stats:`, {
+    internalCandidates: internalCandidates.length,
     totalCandidatesFetched: candidateMovies.length,
     afterDedup: uniqueMovies.length,
     viableBeforeScoring: viableCandidates.length,
@@ -1507,18 +1682,40 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     console.log(`[Quality Gate] Filtered ${beforeQualityGate - uniqueMovies.length} candidates (${beforeQualityGate} → ${uniqueMovies.length})`)
   }
 
-  // ── Phase 3.5: Batch load cached OMDb + mood scores + selected member ratings (parallel) ──
-  const t3 = timer("Phase 3: OMDb + mood + member ratings batch load")
+  // ── Phase 3.5: Batch load cached OMDb + mood scores + selected member ratings + internal signal (parallel) ──
+  const t3 = timer("Phase 3: OMDb + mood + member ratings + internal signal batch load")
   const candidateTmdbIdsForOmdb = uniqueMovies.map((m: any) => m.id as number)
   // Only fetch selected member ratings for movies that at least one member has seen
   const seenCandidateTmdbIds = candidateTmdbIdsForOmdb.filter(id => seenMovies.has(id))
-  const [omdbScoresMap, moodScoresMap, selectedMemberRatingsMap] = await Promise.all([
+
+  // Build initial internal signal map from internal candidates (they already have avg_score + rater_count)
+  const internalSignalMap = new Map<number, { avgScore: number; raterCount: number }>()
+  for (const ic of internalCandidates) {
+    if (ic._internal_avg_score && ic._internal_rater_count >= 2) {
+      internalSignalMap.set(ic.id, {
+        avgScore: Math.round(ic._internal_avg_score),
+        raterCount: ic._internal_rater_count,
+      })
+    }
+  }
+
+  const [omdbScoresMap, moodScoresMap, selectedMemberRatingsMap, externalInternalSignalMap] = await Promise.all([
     batchGetCachedOmdbScores(candidateTmdbIdsForOmdb),
     batchGetCachedMoodScores(candidateTmdbIdsForOmdb),
     soloMode
       ? Promise.resolve(new Map<number, { avgScore: number; raterCount: number; ratings: number[] }>())
       : getSelectedMemberRatings(memberIds, seenCandidateTmdbIds),
+    // Fetch internal signal for TMDB-sourced candidates that might also exist in our DB
+    getInternalSignalBatch(candidateTmdbIdsForOmdb),
   ])
+
+  // Merge external internal signal into the map (external query covers all candidates)
+  for (const [tmdbId, signal] of externalInternalSignalMap) {
+    if (!internalSignalMap.has(tmdbId)) {
+      internalSignalMap.set(tmdbId, signal)
+    }
+  }
+
   t3.done()
 
   // ── Phase 4: First-pass scoring (without credits) ──
@@ -1588,6 +1785,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       selectedMemberRating: selectedMemberRatingsMap.get(movie.id) || null,
       previouslyShownTmdbIds: excludeSet,
       recentlyRecommendedTmdbIds,
+      internalSignal: internalSignalMap.get(movie.id) || null,
     }
 
     const { score, reasoning } = calculateGroupFitScore(movie, ctx)
@@ -1632,8 +1830,12 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       })
     }
 
-    let gated = applyMoodGating(0.25)
+    let gated = applyMoodGating(0.4)
     if (gated.length < 15) {
+      console.log(`[Mood Gating] Only ${gated.length} candidates at threshold 0.4, lowering to 0.25`)
+      gated = applyMoodGating(0.25)
+    }
+    if (gated.length < 10) {
       console.log(`[Mood Gating] Only ${gated.length} candidates at threshold 0.25, lowering to 0.15`)
       gated = applyMoodGating(0.15)
     }
@@ -1717,6 +1919,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
         selectedMemberRating: selectedMemberRatingsMap.get(entry.tmdbId) || null,
         previouslyShownTmdbIds: excludeSet,
         recentlyRecommendedTmdbIds,
+        internalSignal: internalSignalMap.get(entry.tmdbId) || null,
       }
 
       const { score, reasoning } = calculateGroupFitScore(entry._movie, ctx)
