@@ -220,6 +220,43 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
         }
       `}</style>
 
+      {/* Close (X) button — exits Tonight's Pick entirely */}
+      {onBack && step === "results" && (
+        <button
+          onClick={onBack}
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 60,
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: "1px solid #2a2622",
+            background: "rgba(15,13,11,0.85)",
+            color: "#666",
+            fontSize: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            transition: "all 0.2s",
+            padding: 0,
+            lineHeight: 1,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "#555"
+            e.currentTarget.style.color = "#aaa"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "#2a2622"
+            e.currentTarget.style.color = "#666"
+          }}
+        >
+          &#x2715;
+        </button>
+      )}
+
       {/* Top Nav */}
       {onBack && (
         <div style={{ position: "relative", zIndex: 10 }}>
@@ -310,7 +347,13 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
               results={results}
               members={members.filter(m => selectedMembers.includes(m.userId))}
               collectiveId={collectiveId}
-              onClose={onBack}
+              onLockInComplete={() => {
+                if (onBack) {
+                  onBack()
+                } else {
+                  window.location.href = `/collectives/${collectiveId}`
+                }
+              }}
             />
           )}
         </div>

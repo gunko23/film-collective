@@ -8,8 +8,8 @@ import type { MovieRecommendation, ConcessionPairings } from "./types"
 const SERIF = "'Playfair Display', Georgia, serif"
 const SANS = "'DM Sans', sans-serif"
 
-// ─── LOCK IT IN BUTTON ───
-function LockItInButton({
+// ─── LOCK IT IN BUTTON (full-width footer) ───
+function LockItInFooter({
   isLocked,
   onLockIn,
 }: {
@@ -18,20 +18,29 @@ function LockItInButton({
 }) {
   if (isLocked) {
     return (
-      <span
+      <div
         style={{
-          display: "inline-flex",
+          borderTop: "1px solid #2ecc7122",
+          padding: "12px 0",
+          display: "flex",
           alignItems: "center",
-          gap: 5,
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#2ecc71",
-          fontFamily: SANS,
-          padding: "8px 16px",
+          justifyContent: "center",
+          gap: 6,
+          background: "#2ecc7108",
         }}
       >
-        &#x2713; Locked In
-      </span>
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: "#2ecc71",
+            fontFamily: SANS,
+            letterSpacing: 0.3,
+          }}
+        >
+          &#x2713; Locked In
+        </span>
+      </div>
     )
   }
 
@@ -39,29 +48,42 @@ function LockItInButton({
     <button
       onClick={onLockIn}
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 5,
+        width: "100%",
+        borderTop: "1px solid #2a241f",
         background: "transparent",
-        border: "1px solid #c97b3a44",
-        borderRadius: 8,
-        padding: "8px 16px",
+        border: "none",
+        borderTopWidth: 1,
+        borderTopStyle: "solid",
+        borderTopColor: "#2a241f",
+        padding: "13px 0",
         cursor: "pointer",
-        fontSize: 12,
-        fontWeight: 600,
-        color: "#c97b3a",
-        fontFamily: SANS,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 7,
         transition: "all 0.2s",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "#c97b3a11"
+        e.currentTarget.style.background = "#c97b3a0a"
+        e.currentTarget.style.borderTopColor = "#c97b3a33"
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = "transparent"
+        e.currentTarget.style.borderTopColor = "#2a241f"
       }}
     >
-      <span style={{ fontSize: 10 }}>&#x25B6;</span>
-      Lock It In
+      <span style={{ fontSize: 10, color: "#c97b3a" }}>&#x25B6;</span>
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: "#c97b3a",
+          fontFamily: SANS,
+          letterSpacing: 0.3,
+        }}
+      >
+        Lock It In
+      </span>
     </button>
   )
 }
@@ -524,13 +546,12 @@ export function RecommendationCard({
           </button>
         </div>
 
-        {/* Lock It In action */}
-        {onLockIn && (
-          <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-            <LockItInButton isLocked={isLocked} onLockIn={onLockIn} />
-          </div>
-        )}
       </div>
+
+      {/* Lock It In footer — full width, outside padding */}
+      {onLockIn && (
+        <LockItInFooter isLocked={isLocked} onLockIn={onLockIn} />
+      )}
     </div>
   )
 }
