@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { TonightsPickLoading } from "@/components/tonights-pick-loading"
 import { C, FONT_STACK } from "@/components/tonights-pick/constants"
 import { IconFilm } from "@/components/tonights-pick/icons"
@@ -54,6 +54,54 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
   const [maxSubstances, setMaxSubstances] = useState<ContentLevel>(null)
   const [maxFrightening, setMaxFrightening] = useState<ContentLevel>(null)
   const [showContentFilters, setShowContentFilters] = useState(true)
+
+  // Dismissal state
+  const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set())
+  const [undoMovie, setUndoMovie] = useState<MovieRecommendation | null>(null)
+  const undoTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    }
+  }, [])
+
+  const handleNotInterested = useCallback((movie: MovieRecommendation) => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+
+    setDismissedIds(prev => new Set(prev).add(movie.tmdbId))
+    setUndoMovie(movie)
+
+    fetch("/api/dismissed-movies", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ movieId: movie.tmdbId, source: "recommendation" }),
+    }).catch(err => console.error("Failed to dismiss movie:", err))
+
+    undoTimerRef.current = setTimeout(() => {
+      setUndoMovie(null)
+      undoTimerRef.current = null
+    }, 5000)
+  }, [])
+
+  const handleUndo = useCallback(() => {
+    if (!undoMovie) return
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current)
+      undoTimerRef.current = null
+    }
+
+    const movieId = undoMovie.tmdbId
+    setDismissedIds(prev => {
+      const next = new Set(prev)
+      next.delete(movieId)
+      return next
+    })
+    setUndoMovie(null)
+
+    fetch(`/api/dismissed-movies/${movieId}`, { method: "DELETE" })
+      .catch(err => console.error("Failed to undo dismissal:", err))
+  }, [undoMovie])
 
   // Load user's saved streaming providers on mount
   useEffect(() => {
@@ -314,21 +362,117 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
               </div>
 
               {/* Recommendations List */}
-              {results.recommendations.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 0" }}>
-                  <div style={{ margin: "0 auto 16px", display: "flex", justifyContent: "center" }}>
-                    <IconFilm size={24} color={C.creamMuted} />
+              {(() => {
+                const visibleMovies = results.recommendations.filter(m => !dismissedIds.has(m.tmdbId))
+                if (results.recommendations.length === 0) {
+                  return (
+                    <div style={{ textAlign: "center", padding: "40px 0" }}>
+                      <div style={{ margin: "0 auto 16px", display: "flex", justifyContent: "center" }}>
+                        <IconFilm size={24} color={C.creamMuted} />
+                      </div>
+                      <p style={{ fontSize: 17, fontWeight: 600, color: C.cream, margin: "0 0 8px" }}>No recommendations found</p>
+                      <p style={{ fontSize: 13, color: C.creamMuted, margin: 0 }}>
+                        Try adjusting your mood or runtime preferences
+                      </p>
+                    </div>
+                  )
+                }
+                if (visibleMovies.length === 0) {
+                  return (
+                    <div style={{ textAlign: "center", padding: "40px 0" }}>
+                      <p style={{ fontSize: 17, fontWeight: 600, color: C.cream, margin: "0 0 8px" }}>
+                        No picks left
+                      </p>
+                      <p style={{ fontSize: 13, color: C.creamMuted, margin: "0 0 20px" }}>
+                        You dismissed all recommendations
+                      </p>
+                      <button
+                        onClick={shuffleResults}
+                        style={{
+                          background: "none",
+                          border: "1px solid #3a3430",
+                          borderRadius: 8,
+                          padding: "10px 20px",
+                          color: "#d4a050",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          fontFamily: FONT_STACK,
+                          cursor: "pointer",
+                          transition: "border-color 0.15s",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = "#d4a050" }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = "#3a3430" }}
+                      >
+                        Shuffle for new picks
+                      </button>
+                    </div>
+                  )
+                }
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {results.recommendations.map((movie) => {
+                      const isDismissed = dismissedIds.has(movie.tmdbId)
+                      const visibleIndex = visibleMovies.indexOf(movie)
+                      return (
+                        <div
+                          key={movie.tmdbId}
+                          style={{
+                            opacity: isDismissed ? 0 : 1,
+                            maxHeight: isDismissed ? 0 : 2000,
+                            marginBottom: isDismissed ? -14 : 0,
+                            overflow: "hidden",
+                            transition: "opacity 0.3s ease, max-height 0.3s ease, margin-bottom 0.3s ease",
+                          }}
+                        >
+                          <RecommendationCard
+                            movie={movie}
+                            index={visibleIndex >= 0 ? visibleIndex : 0}
+                            onNotInterested={() => handleNotInterested(movie)}
+                          />
+                        </div>
+                      )
+                    })}
                   </div>
-                  <p style={{ fontSize: 17, fontWeight: 600, color: C.cream, margin: "0 0 8px" }}>No recommendations found</p>
-                  <p style={{ fontSize: 13, color: C.creamMuted, margin: 0 }}>
-                    Try adjusting your mood or runtime preferences
-                  </p>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {results.recommendations.map((movie, index) => (
-                    <RecommendationCard key={movie.tmdbId} movie={movie} index={index} />
-                  ))}
+                )
+              })()}
+
+              {/* Dismiss undo toast */}
+              {undoMovie && (
+                <div
+                  style={{
+                    position: "sticky",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    padding: "12px 16px",
+                    background: "#1a1816",
+                    borderTop: "1px solid #2a2420",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    zIndex: 10,
+                    marginTop: 14,
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: "#8a7e70", fontFamily: FONT_STACK }}>
+                    Removed from recommendations
+                  </span>
+                  <button
+                    onClick={handleUndo}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#d4a050",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      fontFamily: FONT_STACK,
+                      cursor: "pointer",
+                      padding: "2px 4px",
+                    }}
+                  >
+                    Undo
+                  </button>
                 </div>
               )}
             </div>

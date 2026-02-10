@@ -314,12 +314,14 @@ export function RecommendationCard({
   isLocked = false,
   isFaded = false,
   onLockIn,
+  onNotInterested,
 }: {
   movie: MovieRecommendation
   index: number
   isLocked?: boolean
   isFaded?: boolean
   onLockIn?: () => void
+  onNotInterested?: () => void
 }) {
   const year = movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : ""
   const reasoningText = movie.reasoning?.[0] || ""
@@ -490,6 +492,13 @@ export function RecommendationCard({
           </div>
         )}
 
+        {/* Parental guide (if available) */}
+        {parentalText && (
+          <div style={{ marginTop: 12 }}>
+            <ParentalGuide text={parentalText} />
+          </div>
+        )}
+
         {/* Bottom actions */}
         <div
           style={{
@@ -499,8 +508,25 @@ export function RecommendationCard({
             justifyContent: "space-between",
           }}
         >
-          {parentalText ? (
-            <ParentalGuide text={parentalText} />
+          {onNotInterested ? (
+            <button
+              onClick={onNotInterested}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 500,
+                fontFamily: SANS,
+                color: "#666",
+                padding: "4px 0",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#999" }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "#666" }}
+            >
+              Not interested
+            </button>
           ) : (
             <div />
           )}

@@ -601,6 +601,8 @@ export default function FilmDetailPage() {
   const [isEditingReview, setIsEditingReview] = useState(false)
   const [isSavingReview, setIsSavingReview] = useState(false)
   const [reviewDraft, setReviewDraft] = useState("")
+  const [isDismissed, setIsDismissed] = useState(false)
+  const [dismissFeedback, setDismissFeedback] = useState<string | null>(null)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -665,6 +667,36 @@ export default function FilmDetailPage() {
       setUserReview(userRatingData.userRating.userComment)
     }
   }, [userRatingData])
+
+  // Load dismissed state for this movie
+  useEffect(() => {
+    if (!user) return
+    fetch("/api/dismissed-movies")
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.movieIds?.includes(Number(id))) {
+          setIsDismissed(true)
+        }
+      })
+      .catch(() => {})
+  }, [user, id])
+
+  const toggleDismissed = useCallback(async () => {
+    if (isDismissed) {
+      setIsDismissed(false)
+      fetch(`/api/dismissed-movies/${id}`, { method: "DELETE" })
+        .catch(err => console.error("Failed to undo dismissal:", err))
+    } else {
+      setIsDismissed(true)
+      setDismissFeedback("Won't be recommended")
+      setTimeout(() => setDismissFeedback(null), 3000)
+      fetch("/api/dismissed-movies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movieId: Number(id), source: "detail_page" }),
+      }).catch(err => console.error("Failed to dismiss movie:", err))
+    }
+  }, [isDismissed, id])
 
   // Scroll tracking for header transition + parallax
   const handleScroll = useCallback(() => {
@@ -1183,7 +1215,26 @@ export default function FilmDetailPage() {
                   <ShareIcon size={16} />
                   Share
                 </button>
+                {user && (
+                  <button
+                    type="button"
+                    onClick={toggleDismissed}
+                    className="flex-1 p-3.5 rounded-xl border text-[14px] font-medium flex items-center justify-center gap-2 transition-colors hover:bg-foreground/[0.08]"
+                    style={{
+                      border: `1px solid ${isDismissed ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.1)"}`,
+                      background: isDismissed ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.04)",
+                      color: isDismissed ? "rgba(232,226,214,0.4)" : undefined,
+                    }}
+                  >
+                    {isDismissed ? "Not Interested \u2713" : "Not Interested"}
+                  </button>
+                )}
               </div>
+              {dismissFeedback && (
+                <div className="mt-2 text-[12px] text-foreground/40 text-center" style={{ transition: "opacity 0.3s" }}>
+                  {dismissFeedback}
+                </div>
+              )}
             </div>
 
             {/* ═══════ RIGHT COLUMN / MAIN CONTENT ═══════ */}
@@ -1749,7 +1800,7 @@ export default function FilmDetailPage() {
                     )}
 
                     {/* Mobile action buttons */}
-                    <div className="grid grid-cols-2 gap-2.5 lg:hidden">
+                    <div className={`grid gap-2.5 lg:hidden ${user ? "grid-cols-3" : "grid-cols-2"}`}>
                       <button
                         type="button"
                         className="p-3.5 bg-surface rounded-[10px] border border-foreground/[0.08] text-[13px] font-medium flex items-center justify-center gap-2"
@@ -1764,7 +1815,25 @@ export default function FilmDetailPage() {
                         <ShareIcon size={16} />
                         Share
                       </button>
+                      {user && (
+                        <button
+                          type="button"
+                          onClick={toggleDismissed}
+                          className="p-3.5 bg-surface rounded-[10px] border text-[13px] font-medium flex items-center justify-center gap-1"
+                          style={{
+                            borderColor: isDismissed ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.08)",
+                            color: isDismissed ? "rgba(232,226,214,0.4)" : undefined,
+                          }}
+                        >
+                          {isDismissed ? "Not Interested \u2713" : "Not Interested"}
+                        </button>
+                      )}
                     </div>
+                    {dismissFeedback && (
+                      <div className="mt-2 text-[12px] text-foreground/40 text-center lg:hidden" style={{ transition: "opacity 0.3s" }}>
+                        {dismissFeedback}
+                      </div>
+                    )}
                   </div>
                 )}
 
