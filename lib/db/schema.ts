@@ -74,6 +74,8 @@ export const movies = pgTable("movies", {
   tmdbPopularity: numeric("tmdb_popularity"),
   tmdbVoteAverage: numeric("tmdb_vote_average"),
   tmdbVoteCount: integer("tmdb_vote_count"),
+  moodScores: jsonb("mood_scores"), // { fun: 0.7, intense: 0.3, emotional: 0.8, mindless: 0.2, acclaimed: 0.6 }
+  moodScoredAt: timestamp("mood_scored_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 })

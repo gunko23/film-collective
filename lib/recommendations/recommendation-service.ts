@@ -6,6 +6,7 @@ import { calculateCompositeQualityScore, getQualityBonus, getAcclaimedMoodBonus 
 import { generateRecommendationReasoning, getLovedMovies, getDislikedMovies } from "@/lib/recommendations/reasoning-service"
 import { getCachedCrewAffinities, getCachedCandidateCredits } from "@/lib/recommendations/crew-affinity-service"
 import { getSoloCollectiveInfluence, getGroupCollectiveInfluence, type CollectiveInfluenceEntry } from "@/lib/recommendations/collective-influence-service"
+import { batchGetCachedMoodScores, calculateRuleBasedMoodScores, calculateMoodFitScore, type MoodScores } from "@/lib/recommendations/mood-score-service"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -204,6 +205,7 @@ type ScoringContext = {
   audience: string
   moodPreferGenres: number[]
   moodSoftAvoidGenres: number[]
+  moodScores: MoodScores | null
   collectiveInfluence: CollectiveInfluenceEntry | null
 }
 
@@ -463,24 +465,43 @@ function calculateGroupFitScore(
     }
   }
 
-  // --- Mood-based genre scoring ---
-  if (ctx.moodPreferGenres.length > 0 || ctx.moodSoftAvoidGenres.length > 0) {
+  // --- Mood affinity scoring (per-movie mood scores with geometric mean for multi-mood AND semantics) ---
+  if (ctx.moods.length > 0 && ctx.moodScores) {
+    const { score: moodFit, passesThreshold } = calculateMoodFitScore(ctx.moodScores, ctx.moods)
+
+    // Scale: 0.0-1.0 mood fit → 0 to +25 points
+    const moodBonus = Math.round(moodFit * 25)
+    score += moodBonus
+
+    if (moodFit >= 0.6) {
+      reasoning.push(ctx.moods.length > 1
+        ? `Great match for your ${ctx.moods.join(" + ")} mood`
+        : `Fits the ${ctx.moods[0]} mood well`)
+    } else if (moodFit >= 0.35) {
+      reasoning.push("Somewhat fits your mood")
+    }
+
+    // Penalty for not passing threshold on any mood
+    if (!passesThreshold) {
+      score -= 10
+    }
+  } else if (ctx.moods.length > 0) {
+    // Fallback: no mood scores available, use legacy genre-based scoring (reduced weight)
     let moodMatchCount = 0
     for (const genreId of ctx.moodPreferGenres) {
       if (movieGenreIds.has(genreId)) {
         moodMatchCount++
-        score += 10
+        score += 5
       }
     }
     if (moodMatchCount > 0) {
-      reasoning.push("Fits the mood you're looking for")
+      reasoning.push("Genre fits your mood")
     }
-
     let softAvoidCount = 0
     for (const genreId of ctx.moodSoftAvoidGenres) {
       if (movieGenreIds.has(genreId)) {
         softAvoidCount++
-        score -= 12
+        score -= 6
       }
     }
     if (softAvoidCount > 0) {
@@ -500,22 +521,6 @@ function calculateGroupFitScore(
     score += acclaimedBonus
     if (acclaimedReasoning.length > 0) {
       reasoning.push(acclaimedReasoning.join(", "))
-    }
-  }
-
-  // --- Multi-mood crossover bonus (+5 when movie matches genres from 2+ selected moods) ---
-  if (ctx.moods.length > 1) {
-    // Check how many distinct mood filter sets this movie's genres satisfy
-    let moodHitCount = 0
-    for (const m of ctx.moods) {
-      const singleMoodFilters = getMoodFilters(m as any)
-      if (singleMoodFilters.preferGenres.some(g => movieGenreIds.has(g))) {
-        moodHitCount++
-      }
-    }
-    if (moodHitCount >= 2) {
-      score += 5
-      reasoning.push("Hits multiple moods you're after")
     }
   }
 
@@ -844,8 +849,8 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   if (moods.includes("acclaimed")) filterPressure += 3
   else if (moods.includes("emotional") || moods.includes("intense")) filterPressure += 1
   else if (moods.length > 0) filterPressure += 0.5
-  // Multi-mood is less restrictive: reduce pressure
-  if (moods.length > 1) filterPressure = Math.max(0, filterPressure - 0.3)
+  // Multi-mood AND semantics is moderately restrictive
+  if (moods.length > 1) filterPressure += 2
 
   if (era) filterPressure += 3
   else if (startYear) filterPressure += 1
@@ -1256,10 +1261,13 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     emergencyFetchUsed: viableCandidates.length < MIN_VIABLE_POOL,
   })
 
-  // ── Phase 3.5: Batch load cached OMDb scores ──
-  const t3 = timer("Phase 3: OMDb batch load")
+  // ── Phase 3.5: Batch load cached OMDb + mood scores (parallel) ──
+  const t3 = timer("Phase 3: OMDb + mood batch load")
   const candidateTmdbIdsForOmdb = uniqueMovies.map((m: any) => m.id as number)
-  const omdbScoresMap = await batchGetCachedOmdbScores(candidateTmdbIdsForOmdb)
+  const [omdbScoresMap, moodScoresMap] = await Promise.all([
+    batchGetCachedOmdbScores(candidateTmdbIdsForOmdb),
+    batchGetCachedMoodScores(candidateTmdbIdsForOmdb),
+  ])
   t3.done()
 
   // ── Phase 4: First-pass scoring (without credits) ──
@@ -1290,6 +1298,18 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       continue
     }
 
+    const cachedMoodScores = moodScoresMap.get(movie.id) || null
+    const movieMoodScores = cachedMoodScores || (moods.length > 0
+      ? calculateRuleBasedMoodScores({
+          genres: movie.genres || movie.genre_ids?.map((id: number) => ({ id })) || [],
+          vote_average: movie.vote_average,
+          popularity: movie.popularity,
+          runtime: movie.runtime,
+          overview: movie.overview,
+          omdbScores: omdbScoresMap.get(movie.id) || null,
+        })
+      : null)
+
     const ctx: ScoringContext = {
       preferredGenres: groupGenres,
       dislikedGenres: dislikedGenreSet,
@@ -1310,6 +1330,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       audience,
       moodPreferGenres: moods.length > 0 ? moodFilters.preferGenres : [],
       moodSoftAvoidGenres: moods.length > 0 ? moodFilters.softAvoidGenres : [],
+      moodScores: movieMoodScores,
       collectiveInfluence: collectiveInfluenceMap.get(movie.id) || null,
     }
 
@@ -1341,6 +1362,34 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   }
 
   firstPassScored.sort((a, b) => b.groupFitScore - a.groupFitScore)
+
+  // ── Mood threshold gating (progressive lowering) ──
+  // Filter out movies that fail mood threshold on any selected mood.
+  // Only applies to movies with cached LLM mood scores (don't penalize unscored movies).
+  if (moods.length > 0) {
+    const applyMoodGating = (threshold: number) => {
+      return firstPassScored.filter(entry => {
+        const cached = moodScoresMap.get(entry.tmdbId)
+        if (!cached) return true // Don't exclude unscored movies
+        const { passesThreshold } = calculateMoodFitScore(cached, moods, threshold)
+        return passesThreshold
+      })
+    }
+
+    let gated = applyMoodGating(0.25)
+    if (gated.length < 15) {
+      console.log(`[Mood Gating] Only ${gated.length} candidates at threshold 0.25, lowering to 0.15`)
+      gated = applyMoodGating(0.15)
+    }
+    if (gated.length < 10) {
+      console.log(`[Mood Gating] Only ${gated.length} candidates at threshold 0.15, disabling threshold`)
+      // Keep all candidates — the affinity scoring in calculateGroupFitScore still ranks them
+    } else {
+      firstPassScored.length = 0
+      firstPassScored.push(...gated)
+    }
+  }
+
   t4.done()
 
   console.log(`[Perf] Candidates scored: ${firstPassScored.length}, top score: ${firstPassScored[0]?.groupFitScore}, bottom of top 30: ${firstPassScored[29]?.groupFitScore}`)
@@ -1376,6 +1425,18 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       const creds = creditsMap.get(entry.tmdbId)
       const seenBy = seenMovies.get(entry.tmdbId) || []
 
+      const reCachedMoodScores = moodScoresMap.get(entry.tmdbId) || null
+      const reMovieMoodScores = reCachedMoodScores || (moods.length > 0
+        ? calculateRuleBasedMoodScores({
+            genres: entry.genres || [],
+            vote_average: entry.voteAverage,
+            popularity: entry.popularity,
+            runtime: entry.runtime || undefined,
+            overview: entry.overview,
+            omdbScores: omdbScoresMap.get(entry.tmdbId) || null,
+          })
+        : null)
+
       const ctx: ScoringContext = {
         preferredGenres: groupGenres,
         dislikedGenres: dislikedGenreSet,
@@ -1395,6 +1456,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
         audience,
         moodPreferGenres: moods.length > 0 ? moodFilters.preferGenres : [],
         moodSoftAvoidGenres: moods.length > 0 ? moodFilters.softAvoidGenres : [],
+        moodScores: reMovieMoodScores,
         collectiveInfluence: collectiveInfluenceMap.get(entry.tmdbId) || null,
       }
 
