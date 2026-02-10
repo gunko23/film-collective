@@ -105,7 +105,7 @@ async function backfill() {
 
       const response = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: Math.max(300, batch.length * 80),
+        max_tokens: Math.max(500, batch.length * 120),
         system: MOOD_PROMPT,
         messages: [{ role: "user", content: userPrompt }],
       })
