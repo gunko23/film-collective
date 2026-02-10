@@ -605,7 +605,6 @@ async function getInternalCandidates(
           SELECT movie_id FROM user_dismissed_movies
           WHERE user_id = ANY(${memberIds}::uuid[])
         )
-        ${excludeTmdbIds && excludeTmdbIds.length > 0 ? sql`AND m.tmdb_id != ALL(${excludeTmdbIds}::int[])` : sql``}
         ${maxRuntime ? sql`AND (m.runtime_minutes IS NULL OR m.runtime_minutes <= ${maxRuntime})` : sql``}
         ${eraStartDate && eraEndDate ? sql`AND m.release_date >= ${eraStartDate} AND m.release_date <= ${eraEndDate}` : eraStartDate ? sql`AND m.release_date >= ${eraStartDate}` : eraEndDate ? sql`AND m.release_date <= ${eraEndDate}` : sql``}
         ${audience === "adults" ? sql`AND NOT (m.genres @> '[{"id": 10751}]'::jsonb OR m.genres @> '[{"id": 16}]'::jsonb)` : sql``}
@@ -1275,6 +1274,16 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     else filterPressure += 1
   }
 
+  // Shuffle pressure — each shuffle depletes the viable pool, so progressively relax filters
+  // page=2 means first shuffle (5 movies already shown), page=3 means second shuffle (10 shown), etc.
+  if (page > 1) {
+    filterPressure += page // page=2→+2, page=3→+3, etc.
+  }
+  // Previously shown movies further constrain viable output — factor their count into pressure
+  if (excludeSet.size > 0) {
+    filterPressure += Math.min(excludeSet.size / 5, 3) // +1 per 5 excluded, max +3
+  }
+
   const pressureTier = filterPressure <= 3 ? "low"
                      : filterPressure <= 6 ? "medium"
                      : "high"
@@ -1307,6 +1316,9 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
 
   console.log(`[Recommendations] Filter pressure: ${filterPressure} (${pressureTier})`, {
     moods: moods.length > 0 ? moods.join("+") : "none",
+    page,
+    pageOffset,
+    excludeSetSize: excludeSet.size,
     audience,
     era: era || startYear || "none",
     maxRuntime: maxRuntime || "none",
@@ -1434,17 +1446,18 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     }),
   ]
 
-  // When mood is active: add dedicated mood-genre-only discovers (always fire, not just under pressure)
-  // and a separate user-preference discover so taste-relevant candidates aren't lost
-  if (moods.length > 0 && moodFilters.preferGenres.length > 0) {
+  // Shuffle diversity discovers: use vote_average.desc sorting with mood genres
+  // to surface highly-rated but less mainstream movies the group may not have seen.
+  // popularity.desc on deep pages yields movies the group likely already knows;
+  // vote_average.desc surfaces different, critically-acclaimed genre matches.
+  if (page > 1 && moods.length > 0 && moodFilters.preferGenres.length > 0) {
     const moodGenreOrParam = moodFilters.preferGenres.join("|")
     tmdbDiscoverPromises.push(
-      // 2 pages of mood-genre movies sorted by popularity
       tmdb.discoverMovies({
         page: 1 + pageOffset,
-        sortBy: "popularity.desc",
-        voteCountGte: voteCountFloor,
-        voteAverageGte: voteAverageFloor,
+        sortBy: "vote_average.desc",
+        voteCountGte: Math.max(Math.round(voteCountFloor * 0.5), 100),
+        voteAverageGte: Math.max(voteAverageFloor, 6.5),
         withGenres: moodGenreOrParam,
         ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
         ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
@@ -1454,9 +1467,22 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       }),
       tmdb.discoverMovies({
         page: 2 + pageOffset,
-        sortBy: "popularity.desc",
-        voteCountGte: voteCountFloor,
-        voteAverageGte: voteAverageFloor,
+        sortBy: "vote_average.desc",
+        voteCountGte: Math.max(Math.round(voteCountFloor * 0.5), 100),
+        voteAverageGte: Math.max(voteAverageFloor, 6.5),
+        withGenres: moodGenreOrParam,
+        ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+        ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+        ...eraDateRange,
+        ...streamingParams,
+        ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
+      }),
+      // Even broader: lower vote count floor to find hidden gems
+      tmdb.discoverMovies({
+        page: 1 + pageOffset,
+        sortBy: "vote_average.desc",
+        voteCountGte: Math.max(Math.round(voteCountFloor * 0.25), 50),
+        voteAverageGte: Math.max(voteAverageFloor, 6.8),
         withGenres: moodGenreOrParam,
         ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
         ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
@@ -1465,6 +1491,110 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
         ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
       }),
     )
+  }
+
+  // When mood is active: add dedicated mood-genre-only discovers (always fire, not just under pressure)
+  // On first load (page=1): include fixed pages 1-2 as stable baseline
+  // On shuffle (page>1): ALL pages paginate with pageOffset to avoid re-fetching already-shown movies
+  if (moods.length > 0 && moodFilters.preferGenres.length > 0) {
+    const moodGenreOrParam = moodFilters.preferGenres.join("|")
+
+    if (page === 1) {
+      // First load: fixed pages 1-2 provide a reliable baseline
+      tmdbDiscoverPromises.push(
+        tmdb.discoverMovies({
+          page: 1,
+          sortBy: "popularity.desc",
+          voteCountGte: voteCountFloor,
+          voteAverageGte: voteAverageFloor,
+          withGenres: moodGenreOrParam,
+          ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+          ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+          ...eraDateRange,
+          ...streamingParams,
+          ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
+        }),
+        tmdb.discoverMovies({
+          page: 2,
+          sortBy: "popularity.desc",
+          voteCountGte: voteCountFloor,
+          voteAverageGte: voteAverageFloor,
+          withGenres: moodGenreOrParam,
+          ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+          ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+          ...eraDateRange,
+          ...streamingParams,
+          ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
+        }),
+        // vote_average sorted for variety
+        tmdb.discoverMovies({
+          page: 1,
+          sortBy: "vote_average.desc",
+          voteCountGte: Math.max(voteCountFloor, 300),
+          voteAverageGte: Math.max(voteAverageFloor, 6.5),
+          withGenres: moodGenreOrParam,
+          ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+          ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+          ...eraDateRange,
+          ...streamingParams,
+          ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
+        }),
+      )
+    } else {
+      // Shuffle: all pages advance with pageOffset — no fixed pages
+      tmdbDiscoverPromises.push(
+        tmdb.discoverMovies({
+          page: 1 + pageOffset,
+          sortBy: "popularity.desc",
+          voteCountGte: voteCountFloor,
+          voteAverageGte: voteAverageFloor,
+          withGenres: moodGenreOrParam,
+          ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+          ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+          ...eraDateRange,
+          ...streamingParams,
+          ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
+        }),
+        tmdb.discoverMovies({
+          page: 2 + pageOffset,
+          sortBy: "popularity.desc",
+          voteCountGte: voteCountFloor,
+          voteAverageGte: voteAverageFloor,
+          withGenres: moodGenreOrParam,
+          ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+          ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+          ...eraDateRange,
+          ...streamingParams,
+          ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
+        }),
+        // vote_average sorted — surfaces critically acclaimed genre matches
+        tmdb.discoverMovies({
+          page: 1 + pageOffset,
+          sortBy: "vote_average.desc",
+          voteCountGte: Math.max(Math.round(voteCountFloor * 0.5), 100),
+          voteAverageGte: Math.max(voteAverageFloor, 6.5),
+          withGenres: moodGenreOrParam,
+          ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+          ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+          ...eraDateRange,
+          ...streamingParams,
+          ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
+        }),
+        tmdb.discoverMovies({
+          page: 2 + pageOffset,
+          sortBy: "vote_average.desc",
+          voteCountGte: Math.max(Math.round(voteCountFloor * 0.5), 100),
+          voteAverageGte: Math.max(voteAverageFloor, 6.5),
+          withGenres: moodGenreOrParam,
+          ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+          ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+          ...eraDateRange,
+          ...streamingParams,
+          ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
+        }),
+      )
+    }
+
     // Separate user-preference discover — ensures taste-relevant candidates
     // even when primary discovers are mood-genre-focused
     if (preferredGenreIds.length > 0) {
@@ -2033,6 +2163,18 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   const t6 = timer("Phase 6: Parental guide + taste context")
   let candidates = scoredMovies.slice(0, 50)
 
+  // Shuffle pool diagnostics — track how many candidates survive the exclude filter
+  if (excludeSet.size > 0) {
+    const nonExcludedCount = candidates.filter(m => !excludeSet.has(m.tmdbId)).length
+    console.log(`[Shuffle Pool] ${candidates.length} candidates, ${nonExcludedCount} non-excluded (${excludeSet.size} in excludeSet)`)
+    if (nonExcludedCount < 5) {
+      console.log(`[Shuffle Pool] WARNING: Only ${nonExcludedCount} non-excluded candidates available — pool may be exhausted`)
+      // Log the scored pool beyond top 50 for diagnostics
+      const fullNonExcluded = scoredMovies.filter(m => !excludeSet.has(m.tmdbId)).length
+      console.log(`[Shuffle Pool] Full scored pool: ${scoredMovies.length}, non-excluded: ${fullNonExcluded}`)
+    }
+  }
+
   const [parentalGuideData, lovedMovies, dislikedMovies] = await Promise.all([
     getParentalGuideBatch(candidates.map(m => ({ tmdbId: m.tmdbId }))),
     getLovedMovies(memberIds),
@@ -2062,6 +2204,10 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       }
     }
 
+    // Skip previously shown movies — they stay in the scoring pool to prevent
+    // pool collapse, but must never appear in final output
+    if (excludeSet.has(movie.tmdbId)) continue
+
     if (hasParentalFilters && pg) {
       if (exceedsSeverityLimit(pg.violence, parentalFilters?.maxViolence)) continue
       if (exceedsSeverityLimit(pg.sexNudity, parentalFilters?.maxSexNudity)) continue
@@ -2073,6 +2219,51 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     filteredMovies.push(movie)
 
     if (filteredMovies.length >= 5) break
+  }
+
+  // ── Backfill safety net: guarantee 5 results ──
+  // If parental filters or thin pool left us short, progressively relax constraints
+  if (filteredMovies.length < 5) {
+    const filteredTmdbIds = new Set(filteredMovies.map(m => m.tmdbId))
+
+    // Pass 1: backfill from candidates ignoring parental filters (still respect score order)
+    for (const movie of candidates) {
+      if (filteredMovies.length >= 5) break
+      if (filteredTmdbIds.has(movie.tmdbId)) continue
+      if (excludeSet.has(movie.tmdbId)) continue
+      filteredMovies.push(movie)
+      filteredTmdbIds.add(movie.tmdbId)
+    }
+
+    // Pass 2: if still short, pull from the full re-scored pool beyond top 50
+    if (filteredMovies.length < 5) {
+      for (const movie of scoredMovies) {
+        if (filteredMovies.length >= 5) break
+        if (filteredTmdbIds.has(movie.tmdbId)) continue
+        if (excludeSet.has(movie.tmdbId)) continue
+        filteredMovies.push(movie)
+        filteredTmdbIds.add(movie.tmdbId)
+      }
+    }
+
+    // Pass 3: if still short, pull from the ENTIRE first-pass scored pool (beyond top 30)
+    // This is the widest net — includes all movies that passed quality/mood gates
+    if (filteredMovies.length < 5) {
+      console.log(`[Backfill] Pass 3: searching full firstPassScored pool (${firstPassScored.length} movies)`)
+      for (const entry of firstPassScored) {
+        if (filteredMovies.length >= 5) break
+        if (filteredTmdbIds.has(entry.tmdbId)) continue
+        if (excludeSet.has(entry.tmdbId)) continue
+        // Convert firstPassScored entry to MovieRecommendation format
+        const { _movie, ...movieRec } = entry
+        filteredMovies.push(movieRec)
+        filteredTmdbIds.add(entry.tmdbId)
+      }
+    }
+
+    if (filteredMovies.length < 5) {
+      console.log(`[Recommendations] Backfill exhausted — only ${filteredMovies.length} results available`)
+    }
   }
 
   const finalResults = filteredMovies.slice(0, 5)
