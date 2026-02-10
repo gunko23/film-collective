@@ -1320,7 +1320,6 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
   })
 
   const preferredGenreIds = groupGenres.slice(0, 3).map((g) => g.genreId)
-  const combinedGenres = [...new Set([...moodFilters.preferGenres, ...preferredGenreIds])]
 
   const discoverOptions: any = {
     page: 1,
@@ -1343,8 +1342,17 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     }
   }
 
-  if (combinedGenres.length > 0) {
-    discoverOptions.withGenres = combinedGenres.slice(0, 3).join(",")
+  // Genre strategy: when mood is active, use OR (pipe) semantics for mood genres
+  // so "funny" → Comedy OR Animation, NOT Comedy AND Animation AND Drama.
+  // When no mood, combine mood + preference genres with AND semantics as before.
+  if (moods.length > 0 && moodFilters.preferGenres.length > 0) {
+    // Mood genres with OR semantics — "35|16" means Comedy OR Animation
+    discoverOptions.withGenres = moodFilters.preferGenres.join("|")
+  } else {
+    const combinedGenres = [...new Set([...moodFilters.preferGenres, ...preferredGenreIds])]
+    if (combinedGenres.length > 0) {
+      discoverOptions.withGenres = combinedGenres.slice(0, 3).join(",")
+    }
   }
 
   if (maxRuntime) {
@@ -1426,6 +1434,56 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     }),
   ]
 
+  // When mood is active: add dedicated mood-genre-only discovers (always fire, not just under pressure)
+  // and a separate user-preference discover so taste-relevant candidates aren't lost
+  if (moods.length > 0 && moodFilters.preferGenres.length > 0) {
+    const moodGenreOrParam = moodFilters.preferGenres.join("|")
+    tmdbDiscoverPromises.push(
+      // 2 pages of mood-genre movies sorted by popularity
+      tmdb.discoverMovies({
+        page: 1 + pageOffset,
+        sortBy: "popularity.desc",
+        voteCountGte: voteCountFloor,
+        voteAverageGte: voteAverageFloor,
+        withGenres: moodGenreOrParam,
+        ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+        ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+        ...eraDateRange,
+        ...streamingParams,
+        ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
+      }),
+      tmdb.discoverMovies({
+        page: 2 + pageOffset,
+        sortBy: "popularity.desc",
+        voteCountGte: voteCountFloor,
+        voteAverageGte: voteAverageFloor,
+        withGenres: moodGenreOrParam,
+        ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+        ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+        ...eraDateRange,
+        ...streamingParams,
+        ...(audience === "adults" ? { withoutGenres: "16,10751" } : {}),
+      }),
+    )
+    // Separate user-preference discover — ensures taste-relevant candidates
+    // even when primary discovers are mood-genre-focused
+    if (preferredGenreIds.length > 0) {
+      tmdbDiscoverPromises.push(
+        tmdb.discoverMovies({
+          page: 1 + pageOffset,
+          sortBy: "vote_average.desc",
+          voteAverageGte: voteAverageFloor,
+          voteCountGte: voteCountFloor,
+          withGenres: preferredGenreIds.slice(0, 2).join("|"),
+          ...(maxRuntime ? { withRuntimeLte: maxRuntime } : {}),
+          ...(contentRating ? { certificationCountry: "US", certificationLte: contentRating } : {}),
+          ...eraDateRange,
+          ...streamingParams,
+        })
+      )
+    }
+  }
+
   if (!contentRating) {
     if (eraDateRange.primaryReleaseDateGte || eraDateRange.primaryReleaseDateLte || streamingParams.withWatchProviders) {
       // When streaming, era, or date filters are active, use discover endpoint (popular/top-rated endpoints don't support these params)
@@ -1505,7 +1563,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       pressurePromises.push(
         tmdb.discoverMovies({
           ...broadOptions,
-          withGenres: moodFilters.preferGenres.slice(0, 2).join(","),
+          withGenres: moodFilters.preferGenres.slice(0, 2).join("|"),
           page: 1 + pageOffset,
         })
       )
