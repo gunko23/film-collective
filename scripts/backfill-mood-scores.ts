@@ -28,7 +28,7 @@ Moods:
 - emotional: Moving, touching, deeply felt. Makes you cry, reflect on life, or feel something profound. Drama, romance, stories about loss, love, the human condition.
 - mindless: Easy to watch without thinking. Pure popcorn entertainment, spectacle over substance, simple plots, low cognitive demand. You could watch this half-asleep and still enjoy it.
 - acclaimed: Critically praised, award-worthy, artistically significant. High scores from critics, prestige cinema, culturally important.
-- scary: Frightening, creepy, disturbing, unsettling. Horror, supernatural, psychological terror, dread, jump scares. Makes you want to leave the lights on.
+- scary: Frightening, creepy, disturbing, or unsettling in any way. This includes traditional horror but ALSO applies to non-horror films with genuinely scary, menacing, or deeply disturbing content — a terrifying villain, graphic violence, psychological dread, scenes that make you tense or uncomfortable. A movie does not need to be in the horror genre to score high on scary.
 
 INVERSE RELATIONSHIPS — these constrain your scores:
 - If mindless is HIGH (>0.6), funny/emotional/acclaimed must be LOW (<0.4). A truly mindless movie is not deeply funny, moving, or critically praised.
@@ -53,6 +53,8 @@ CALIBRATION EXAMPLES (use these as anchors):
 - "Schindler's List": fun: 0.0, funny: 0.0, intense: 0.70, emotional: 0.95, mindless: 0.0, acclaimed: 0.98, scary: 0.25
 - "Superbad": fun: 0.85, funny: 0.95, intense: 0.10, emotional: 0.25, mindless: 0.65, acclaimed: 0.30, scary: 0.0
 - "Arrival": fun: 0.20, funny: 0.0, intense: 0.55, emotional: 0.80, mindless: 0.05, acclaimed: 0.85, scary: 0.20
+- "The Dark Knight": fun: 0.60, funny: 0.10, intense: 0.90, emotional: 0.45, mindless: 0.15, acclaimed: 0.90, scary: 0.40
+- "Joker": fun: 0.05, funny: 0.05, intense: 0.75, emotional: 0.70, mindless: 0.05, acclaimed: 0.80, scary: 0.75
 - "Scary Movie": fun: 0.65, funny: 0.75, intense: 0.10, emotional: 0.0, mindless: 0.85, acclaimed: 0.05, scary: 0.15
 
 Respond with ONLY a JSON object mapping movie number to scores. No markdown, no backticks, no explanation.`
