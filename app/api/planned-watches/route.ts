@@ -18,15 +18,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { movieId, movieTitle, movieYear, moviePoster, collectiveId, participantIds, scheduledFor, moodTags } = body
+    const { movieId, movieTitle, movieYear, moviePoster, collectiveId, participantIds, scheduledFor, moodTags, source } = body
 
     if (!movieId || !movieTitle) {
       return NextResponse.json({ error: "movieId and movieTitle are required" }, { status: 400 })
     }
 
-    if (!Array.isArray(participantIds) || participantIds.length === 0) {
-      return NextResponse.json({ error: "participantIds must be a non-empty array" }, { status: 400 })
-    }
+    const validSources = ["tonights_pick", "manual", "recommendation"] as const
+    const safeSource = validSources.includes(source) ? source : "tonights_pick"
+
+    // For manual adds, participantIds can be empty — default to current user
+    const resolvedParticipantIds =
+      Array.isArray(participantIds) && participantIds.length > 0
+        ? participantIds
+        : [user.id]
 
     const plannedWatch = await createPlannedWatch({
       movieId,
@@ -35,10 +40,10 @@ export async function POST(request: NextRequest) {
       moviePoster: moviePoster ?? null,
       createdBy: user.id,
       collectiveId: collectiveId ?? null,
-      participantIds,
+      participantIds: resolvedParticipantIds,
       scheduledFor: scheduledFor ?? null,
       moodTags: moodTags ?? null,
-      source: "tonights_pick",
+      source: safeSource,
     })
 
     return NextResponse.json({ plannedWatch }, { status: 201 })

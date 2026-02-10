@@ -1,20 +1,29 @@
 "use client"
 
+import { useState } from "react"
 import type { GroupMember } from "./types"
 import { getAvatarGradient } from "./constants"
 
 const SERIF = "'Playfair Display', Georgia, serif"
 const SANS = "'DM Sans', sans-serif"
 
+const TIMING_OPTIONS = [
+  { key: "Tonight", label: "Tonight" },
+  { key: "This Week", label: "This Week" },
+  { key: "This Weekend", label: "This Weekend" },
+] as const
+
 type Props = {
   movieTitle: string
   movieYear: string | number
   participants: GroupMember[]
-  onConfirm: () => void
+  onConfirm: (scheduledFor: string) => void
   onCancel: () => void
 }
 
 export function LockInModal({ movieTitle, movieYear, participants, onConfirm, onCancel }: Props) {
+  const [selectedTiming, setSelectedTiming] = useState("Tonight")
+
   return (
     <div
       onClick={onCancel}
@@ -147,18 +156,60 @@ export function LockInModal({ movieTitle, movieYear, participants, onConfirm, on
           </>
         )}
 
+        {/* When are you watching? */}
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: "#777",
+            fontFamily: SANS,
+            textAlign: "center",
+            marginBottom: 10,
+          }}
+        >
+          When are you watching?
+        </div>
+
+        {/* Timing pills */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 18, width: "100%" }}>
+          {TIMING_OPTIONS.map(({ key, label }) => {
+            const isActive = selectedTiming === key
+            return (
+              <button
+                key={key}
+                onClick={() => setSelectedTiming(key)}
+                style={{
+                  flex: 1,
+                  padding: "8px 0",
+                  borderRadius: 8,
+                  border: `1px solid ${isActive ? "#c97b3a" : "#2a2622"}`,
+                  background: isActive ? "#c97b3a14" : "transparent",
+                  color: isActive ? "#e8943a" : "#888",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  fontFamily: SANS,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+
         {/* Helper text */}
         <div
           style={{
             fontSize: 12,
-            color: "#666",
+            color: "#555",
             fontFamily: SANS,
             textAlign: "center",
             lineHeight: 1.6,
-            marginBottom: 22,
+            marginBottom: 18,
           }}
         >
-          This will be saved as a planned watch and visible on your dashboard and collective page.
+          This will be saved as a planned watch and visible on your dashboard.
         </div>
 
         {/* Buttons */}
@@ -190,7 +241,7 @@ export function LockInModal({ movieTitle, movieYear, participants, onConfirm, on
             Cancel
           </button>
           <button
-            onClick={onConfirm}
+            onClick={() => onConfirm(selectedTiming)}
             style={{
               flex: 1,
               padding: "12px 0",

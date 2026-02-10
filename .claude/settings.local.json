@@ -28,7 +28,9 @@
       "WebFetch(domain:image.tmdb.org)",
       "Bash(powershell -Command:*)",
       "Bash(powershell -File:*)",
-      "Bash(pwsh:*)"
+      "Bash(pwsh:*)",
+      "Bash(tasklist:*)",
+      "Bash(git rm:*)"
     ]
   }
 }

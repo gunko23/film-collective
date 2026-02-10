@@ -83,7 +83,7 @@ export function ResultsStep({ results, members, collectiveId, onLockInComplete, 
     setPendingMovie(movie)
   }, [])
 
-  const handleConfirm = useCallback(async () => {
+  const handleConfirm = useCallback(async (scheduledFor: string) => {
     if (!pendingMovie) return
     const movie = pendingMovie
     setPendingMovie(null)
@@ -104,6 +104,7 @@ export function ResultsStep({ results, members, collectiveId, onLockInComplete, 
           moviePoster: movie.posterPath,
           collectiveId: collectiveId ?? null,
           participantIds: members?.map((m) => m.userId) ?? [],
+          scheduledFor,
           moodTags: null,
         }),
       })
