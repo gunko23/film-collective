@@ -11,7 +11,7 @@ import { MembersStep } from "./members-step"
 import { MoodFiltersStep } from "./mood-filters-step"
 import { ResultsStep } from "./results-step"
 import { BottomActionBar } from "./bottom-action-bar"
-import type { GroupMember, TonightPickResponse, Mood, ContentLevel } from "./types"
+import type { GroupMember, TonightPickResponse, MoodValue, Audience, ContentLevel } from "./types"
 
 type Props = {
   collectiveId: string
@@ -23,7 +23,8 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
   const [step, setStep] = useState<"members" | "mood" | "results">("members")
   const [members, setMembers] = useState<GroupMember[]>([])
   const [selectedMembers, setSelectedMembers] = useState<string[]>([])
-  const [selectedMood, setSelectedMood] = useState<Mood>(null)
+  const [selectedMoods, setSelectedMoods] = useState<MoodValue[]>([])
+  const [audience, setAudience] = useState<Audience>("anyone")
   const [maxRuntime, setMaxRuntime] = useState<number | null>(null)
   const [contentRating, setContentRating] = useState<string | null>(null)
   const [era, setEra] = useState<string | null>(null)
@@ -99,7 +100,8 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           memberIds: selectedMembers,
-          mood: selectedMood,
+          moods: selectedMoods,
+          audience,
           maxRuntime,
           contentRating,
           era,
@@ -272,8 +274,10 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
           {/* STEP 2: MOOD */}
           {step === "mood" && (
             <MoodFiltersStep
-              selectedMood={selectedMood}
-              setSelectedMood={setSelectedMood}
+              selectedMoods={selectedMoods}
+              setSelectedMoods={setSelectedMoods}
+              audience={audience}
+              setAudience={setAudience}
               maxRuntime={maxRuntime}
               setMaxRuntime={setMaxRuntime}
               contentRating={contentRating}
