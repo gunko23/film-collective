@@ -552,10 +552,11 @@ async function getInternalCandidates(
     era?: string | null
     startYear?: number | null
     audience?: string
+    excludeTmdbIds?: number[] | null
     limit?: number
   }
 ): Promise<any[]> {
-  const { moods = [], maxRuntime, era, startYear, audience, limit = 100 } = options
+  const { moods = [], maxRuntime, era, startYear, audience, excludeTmdbIds, limit = 100 } = options
   try {
     // Pre-compute era date bounds for parameterized query
     let eraStartDate: string | null = null
@@ -604,6 +605,7 @@ async function getInternalCandidates(
           SELECT movie_id FROM user_dismissed_movies
           WHERE user_id = ANY(${memberIds}::uuid[])
         )
+        ${excludeTmdbIds && excludeTmdbIds.length > 0 ? sql`AND m.tmdb_id != ALL(${excludeTmdbIds}::int[])` : sql``}
         ${maxRuntime ? sql`AND (m.runtime_minutes IS NULL OR m.runtime_minutes <= ${maxRuntime})` : sql``}
         ${eraStartDate && eraEndDate ? sql`AND m.release_date >= ${eraStartDate} AND m.release_date <= ${eraEndDate}` : eraStartDate ? sql`AND m.release_date >= ${eraStartDate}` : eraEndDate ? sql`AND m.release_date <= ${eraEndDate}` : sql``}
         ${audience === "adults" ? sql`AND NOT (m.genres @> '[{"id": 10751}]'::jsonb OR m.genres @> '[{"id": 16}]'::jsonb)` : sql``}
@@ -1218,7 +1220,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     getCachedCrewAffinities(memberIds),
     getTasteSimilarPeers(memberIds),
     getRecentRecommendationHistory(memberIds),
-    getInternalCandidates(memberIds, { moods, maxRuntime, era, startYear, audience }),
+    getInternalCandidates(memberIds, { moods, maxRuntime, era, startYear, audience, excludeTmdbIds }),
   ])
   t1.done()
 
