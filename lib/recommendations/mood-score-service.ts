@@ -13,15 +13,15 @@ import type { CachedOmdbScores } from "@/lib/omdb/omdb-cache"
 
 export type MoodScores = {
   fun: number
+  funny: number
   intense: number
   emotional: number
   mindless: number
   acclaimed: number
   scary: number
-  thoughtProvoking: number
 }
 
-export const MOOD_KEYS = ["fun", "intense", "emotional", "mindless", "acclaimed", "scary", "thoughtProvoking"] as const
+export const MOOD_KEYS = ["fun", "funny", "intense", "emotional", "mindless", "acclaimed", "scary"] as const
 export type MoodKey = typeof MOOD_KEYS[number]
 
 // ============================================
@@ -51,12 +51,12 @@ export async function batchGetCachedMoodScores(tmdbIds: number[]): Promise<Map<n
       if (scores && typeof scores === "object") {
         map.set(row.tmdb_id, {
           fun: Number(scores.fun) || 0,
+          funny: Number(scores.funny) || 0,
           intense: Number(scores.intense) || 0,
           emotional: Number(scores.emotional) || 0,
           mindless: Number(scores.mindless) || 0,
           acclaimed: Number(scores.acclaimed) || 0,
           scary: Number(scores.scary) || 0,
-          thoughtProvoking: Number(scores.thoughtProvoking) || 0,
         })
       }
     }
@@ -113,6 +113,16 @@ export function calculateRuleBasedMoodScores(movie: {
   if (genreIds.has(DRAMA) && !genreIds.has(COMEDY)) fun -= 0.15
   if (genreIds.has(THRILLER)) fun -= 0.1
   if (overview.includes("hilarious") || overview.includes("laugh") || overview.includes("comedy")) fun += 0.05
+
+  // --- Funny ---
+  let funny = 0.15
+  if (genreIds.has(COMEDY)) funny += 0.45
+  if (genreIds.has(ANIMATION) && genreIds.has(COMEDY)) funny += 0.1
+  if (genreIds.has(HORROR)) funny -= 0.1
+  if (genreIds.has(WAR)) funny -= 0.1
+  if (genreIds.has(DRAMA) && !genreIds.has(COMEDY)) funny -= 0.1
+  if (genreIds.has(DOCUMENTARY)) funny -= 0.1
+  if (overview.includes("hilarious") || overview.includes("laugh") || overview.includes("witty") || overview.includes("humor") || overview.includes("comedy") || overview.includes("joke") || overview.includes("satirical")) funny += 0.1
 
   // --- Intense ---
   let intense = 0.3
@@ -172,27 +182,31 @@ export function calculateRuleBasedMoodScores(movie: {
   if (genreIds.has(ROMANCE) && !genreIds.has(THRILLER)) scary -= 0.1
   if (overview.includes("terror") || overview.includes("haunted") || overview.includes("nightmare") || overview.includes("horror")) scary += 0.05
 
-  // --- Thought-Provoking ---
-  let thoughtProvoking = 0.3
-  if (genreIds.has(DOCUMENTARY)) thoughtProvoking += 0.25
-  if (genreIds.has(DRAMA)) thoughtProvoking += 0.15
-  if (genreIds.has(SCIFI)) thoughtProvoking += 0.1
-  if (genreIds.has(HISTORY)) thoughtProvoking += 0.1
-  if (genreIds.has(MYSTERY)) thoughtProvoking += 0.1
-  if (genreIds.has(ACTION) && !genreIds.has(DRAMA)) thoughtProvoking -= 0.1
-  if (genreIds.has(COMEDY) && !genreIds.has(DRAMA)) thoughtProvoking -= 0.1
-  if (genreIds.has(ANIMATION) && genreIds.has(FAMILY)) thoughtProvoking -= 0.15
-  if (voteAvg >= 7.5) thoughtProvoking += 0.1
-  if (overview.includes("moral") || overview.includes("philosophical") || overview.includes("existential") || overview.includes("question") || overview.includes("society")) thoughtProvoking += 0.05
+  // --- Inverse constraint enforcement ---
+  // Acclaimed high → mindless low
+  if (acclaimed > 0.8) mindless = Math.min(mindless, 0.3)
+  // Mindless high → acclaimed low, emotional low
+  if (mindless > 0.6) {
+    acclaimed = Math.min(acclaimed, 0.4)
+    emotional = Math.min(emotional, 0.4)
+  }
+  // Emotional high with heavy themes → fun low
+  if (emotional > 0.7 && (overview.includes("grief") || overview.includes("trauma") || overview.includes("suffering"))) {
+    fun = Math.min(fun, 0.4)
+  }
+  // Scary high → fun low (unless comedy is present, i.e. horror-comedy)
+  if (scary > 0.7 && !genreIds.has(COMEDY)) {
+    fun = Math.min(fun, 0.4)
+  }
 
   return {
     fun: clamp(fun),
+    funny: clamp(funny),
     intense: clamp(intense),
     emotional: clamp(emotional),
     mindless: clamp(mindless),
     acclaimed: clamp(acclaimed),
     scary: clamp(scary),
-    thoughtProvoking: clamp(thoughtProvoking),
   }
 }
 

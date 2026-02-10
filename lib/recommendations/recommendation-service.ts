@@ -124,7 +124,7 @@ export type ParentalFilters = {
 export type TonightPickRequest = {
   collectiveId: string
   memberIds: string[] // Who's watching tonight
-  mood?: "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | "scary" | "thoughtProvoking" | null
+  mood?: "fun" | "funny" | "intense" | "emotional" | "mindless" | "acclaimed" | "scary" | null
   moods?: string[] // Multi-mood selection (union of mood filters)
   audience?: "anyone" | "teens" | "adults"
   maxRuntime?: number | null // In minutes
@@ -149,7 +149,7 @@ export type TonightPickResponse = {
 
 export type SoloTonightPickRequest = {
   userId: string
-  mood?: "fun" | "intense" | "emotional" | "mindless" | "acclaimed" | "scary" | "thoughtProvoking" | null
+  mood?: "fun" | "funny" | "intense" | "emotional" | "mindless" | "acclaimed" | "scary" | null
   moods?: string[] // Multi-mood selection (union of mood filters)
   audience?: "anyone" | "teens" | "adults"
   maxRuntime?: number | null
@@ -925,12 +925,12 @@ function getMoodFilters(mood: TonightPickRequest["mood"]): {
         softAvoidGenres: [10751, 16, 35, 10749], // Family, Animation, Comedy, Romance
         sortBy: "popularity.desc",
       }
-    case "thoughtProvoking":
+    case "funny":
       return {
-        preferGenres: [99, 18, 878, 36, 9648],   // Documentary, Drama, Sci-Fi, History, Mystery
+        preferGenres: [35, 16],                   // Comedy, Animation
         avoidGenres: [],
-        softAvoidGenres: [28, 16],                // Action, Animation
-        sortBy: "vote_average.desc",
+        softAvoidGenres: [27, 10752, 18],         // Horror, War, Drama (without comedy)
+        sortBy: "popularity.desc",
       }
     default:
       return {
