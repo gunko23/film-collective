@@ -13,7 +13,7 @@ export function BottomActionBar({
   onShuffle,
   hasResults,
 }: {
-  step: "members" | "mood" | "results"
+  step: "members" | "mood" | "filters" | "results"
   selectedMemberCount: number
   loading: boolean
   onContinue: () => void
@@ -65,6 +65,65 @@ export function BottomActionBar({
   }
 
   if (step === "mood") {
+    return (
+      <div
+        style={{
+          flexShrink: 0,
+          zIndex: 20,
+          padding: "12px 20px 20px",
+          background: `linear-gradient(to top, ${C.bg} 60%, transparent)`,
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center" }}>
+          <button
+            onClick={onContinue}
+            style={{
+              width: "100%",
+              height: 48,
+              borderRadius: 14,
+              border: "none",
+              cursor: "pointer",
+              fontSize: 16,
+              fontWeight: 600,
+              fontFamily: FONT_STACK,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              background: `linear-gradient(135deg, ${C.orange}, ${C.orangeLight})`,
+              color: C.warmBlack,
+              transition: "all 0.2s ease",
+            }}
+          >
+            Continue
+            <IconChevronRight size={18} color={C.warmBlack} />
+          </button>
+          <button
+            onClick={onBack}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 14,
+              fontWeight: 500,
+              fontFamily: FONT_STACK,
+              color: C.creamMuted,
+              padding: "6px 12px",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              transition: "color 0.15s",
+            }}
+          >
+            <IconChevronLeft size={16} color={C.creamMuted} />
+            Back
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === "filters") {
     return (
       <div
         style={{

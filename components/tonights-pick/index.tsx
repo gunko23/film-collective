@@ -9,6 +9,7 @@ import { StepIndicator } from "./step-indicator"
 import { TopNav } from "./top-nav"
 import { MembersStep } from "./members-step"
 import { MoodFiltersStep } from "./mood-filters-step"
+import { FiltersStep } from "./filters-step"
 import { ResultsStep } from "./results-step"
 import { BottomActionBar } from "./bottom-action-bar"
 import type { GroupMember, TonightPickResponse, MoodValue, Audience, ContentLevel } from "./types"
@@ -20,7 +21,7 @@ type Props = {
 }
 
 export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
-  const [step, setStep] = useState<"members" | "mood" | "results">("members")
+  const [step, setStep] = useState<"members" | "mood" | "filters" | "results">("members")
   const [members, setMembers] = useState<GroupMember[]>([])
   const [selectedMembers, setSelectedMembers] = useState<string[]>([])
   const [selectedMoods, setSelectedMoods] = useState<MoodValue[]>([])
@@ -179,7 +180,8 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
   const topNavConfig = {
     members: { label: "Back to Feed", action: onBack || (() => {}) },
     mood: { label: "Back to Who", action: () => setStep("members") },
-    results: { label: "Back to Mood", action: () => setStep("mood") },
+    filters: { label: "Back to Mood", action: () => setStep("mood") },
+    results: { label: "Back to Filters", action: () => setStep("filters") },
   }
 
   return (
@@ -313,6 +315,12 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
             <MoodFiltersStep
               selectedMoods={selectedMoods}
               setSelectedMoods={setSelectedMoods}
+            />
+          )}
+
+          {/* STEP 3: FILTERS */}
+          {step === "filters" && (
+            <FiltersStep
               audience={audience}
               setAudience={setAudience}
               maxRuntime={maxRuntime}
@@ -364,9 +372,13 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
         step={step}
         selectedMemberCount={selectedMembers.length}
         loading={loading}
-        onContinue={() => setStep("mood")}
+        onContinue={() => setStep(step === "members" ? "mood" : "filters")}
         onGetRecommendations={() => getRecommendations(1)}
-        onBack={() => setStep(step === "mood" ? "members" : "mood")}
+        onBack={() => {
+          if (step === "mood") setStep("members")
+          else if (step === "filters") setStep("mood")
+          else if (step === "results") setStep("filters")
+        }}
         onShuffle={shuffleResults}
         hasResults={!!results}
       />

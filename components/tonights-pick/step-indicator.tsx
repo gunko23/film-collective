@@ -1,8 +1,8 @@
 const SANS = "'DM Sans', sans-serif"
 
-export function StepIndicator({ currentStep }: { currentStep: "members" | "mood" | "results" }) {
-  const steps = ["members", "mood", "results"] as const
-  const labels = { members: "Who", mood: "Mood", results: "Results" }
+export function StepIndicator({ currentStep }: { currentStep: "members" | "mood" | "filters" | "results" }) {
+  const steps = ["members", "mood", "filters", "results"] as const
+  const labels = { members: "Who", mood: "Mood", filters: "Filters", results: "Results" }
   const currentIndex = steps.indexOf(currentStep)
 
   return (
@@ -73,12 +73,12 @@ export function StepIndicator({ currentStep }: { currentStep: "members" | "mood"
             {!isLast && (
               <div
                 style={{
-                  width: 36,
+                  width: 28,
                   height: 1.5,
                   background: isComplete
                     ? "linear-gradient(90deg, #e8843a, #e8843a88)"
                     : "#2a2420",
-                  margin: "0 10px",
+                  margin: "0 8px",
                   borderRadius: 1,
                 }}
               />

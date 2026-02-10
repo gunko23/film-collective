@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react"
 import { TonightsPickLoading } from "@/components/tonights-pick-loading"
 import { C } from "@/components/tonights-pick/constants"
-import { IconChevronLeft, IconUsers, IconFilm } from "@/components/tonights-pick/icons"
+import { IconChevronLeft, IconChevronRight, IconUsers, IconFilm } from "@/components/tonights-pick/icons"
 import { IconCheck } from "@/components/tonights-pick/icons"
 import { MoodFiltersStep } from "@/components/tonights-pick/mood-filters-step"
+import { FiltersStep } from "@/components/tonights-pick/filters-step"
 import { RecommendationCard } from "@/components/tonights-pick/recommendation-card"
 import type { GenrePreference, MovieRecommendation, MoodValue, Audience, ContentLevel } from "@/components/tonights-pick/types"
 
@@ -18,9 +19,9 @@ type SoloPickResponse = {
   }
 }
 
-// ── Solo Step Indicator (2-step: Mood -> Results) ──
-function StepIndicator({ step }: { step: "mood" | "results" }) {
-  const steps = ["mood", "results"] as const
+// ── Solo Step Indicator (3-step: Mood -> Filters -> Results) ──
+function StepIndicator({ step }: { step: "mood" | "filters" | "results" }) {
+  const steps = ["mood", "filters", "results"] as const
   const stepIndex = steps.indexOf(step)
 
   return (
@@ -65,7 +66,7 @@ function StepIndicator({ step }: { step: "mood" | "results" }) {
                 fontSize: 13, fontWeight: isActive ? 600 : 400,
                 color: isActive ? C.cream : C.creamFaint, whiteSpace: "nowrap",
               }}>
-                {s === "mood" ? "Mood & Filters" : "Results"}
+                {s === "mood" ? "Mood" : s === "filters" ? "Filters" : "Results"}
               </span>
             </div>
             {i < steps.length - 1 && (
@@ -157,7 +158,7 @@ type SoloTonightsPickProps = {
 }
 
 export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
-  const [step, setStep] = useState<"mood" | "results">("mood")
+  const [step, setStep] = useState<"mood" | "filters" | "results">("mood")
   const [selectedMoods, setSelectedMoods] = useState<MoodValue[]>([])
   const [audience, setAudience] = useState<Audience>("anyone")
   const [maxRuntime, setMaxRuntime] = useState<number | null>(null)
@@ -259,7 +260,7 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, minHeight: "100dvh" }}>
       {/* Back navigation */}
       {onBack && <BackNav onBack={onBack} />}
 
@@ -284,11 +285,47 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
         </div>
       )}
 
-      {/* Step 1: Mood & Filters */}
+      {/* Step 1: Mood Selection */}
       {step === "mood" && (
         <MoodFiltersStep
           selectedMoods={selectedMoods}
           setSelectedMoods={setSelectedMoods}
+        />
+      )}
+
+      {/* Spacer to push mood button to bottom when content is short */}
+      {step === "mood" && <div style={{ flexGrow: 1 }} />}
+
+      {/* Continue Button (Mood step) */}
+      {step === "mood" && !loading && (
+        <div
+          className="sticky bottom-0 z-10"
+          style={{
+            paddingTop: 12, paddingBottom: 20,
+            marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16,
+            background: `linear-gradient(to top, ${C.bg}, ${C.bg}ee, transparent)`,
+          }}
+        >
+          <button
+            onClick={() => setStep("filters")}
+            style={{
+              width: "100%", height: 48, borderRadius: 14,
+              fontSize: 16, fontWeight: 700, border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              background: `linear-gradient(135deg, ${C.orange}, ${C.orangeMuted})`,
+              color: C.warmBlack,
+              transition: "opacity 0.15s",
+            }}
+          >
+            Continue
+            <IconChevronRight size={18} color={C.warmBlack} />
+          </button>
+        </div>
+      )}
+
+      {/* Step 2: Filters */}
+      {step === "filters" && (
+        <FiltersStep
           audience={audience}
           setAudience={setAudience}
           maxRuntime={maxRuntime}
@@ -317,8 +354,8 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
         />
       )}
 
-      {/* Sticky Get Recommendations Button */}
-      {step === "mood" && !loading && (
+      {/* Sticky Filters Buttons (Get Recommendations + Back) */}
+      {step === "filters" && !loading && (
         <div
           className="sticky bottom-20 lg:bottom-0 z-10"
           style={{
@@ -343,10 +380,24 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
             <span style={{ fontSize: 18 }}>&#10022;</span>
             Get Recommendations
           </button>
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
+            <button
+              onClick={() => setStep("mood")}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: 14, fontWeight: 500, color: C.creamMuted,
+                padding: "6px 12px",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <IconChevronLeft size={16} color={C.creamMuted} />
+              Back to Mood
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Step 2: Results */}
+      {/* Step 3: Results */}
       {step === "results" && results && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <UserProfileSummary />
@@ -384,7 +435,7 @@ export function SoloTonightsPick({ onBack }: SoloTonightsPickProps) {
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
-              onClick={() => setStep("mood")}
+              onClick={() => setStep("filters")}
               style={{
                 flex: 1, height: 44, borderRadius: 14,
                 fontSize: 14, fontWeight: 500, cursor: "pointer",
