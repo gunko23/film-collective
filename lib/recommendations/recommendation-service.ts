@@ -207,6 +207,7 @@ type ScoringContext = {
   moodSoftAvoidGenres: number[]
   moodScores: MoodScores | null
   collectiveInfluence: CollectiveInfluenceEntry | null
+  selectedMemberRating: { avgScore: number; raterCount: number } | null
 }
 
 function getDecade(releaseDate: string | null | undefined): string | null {
@@ -280,6 +281,47 @@ async function getSeenMovieTmdbIds(memberIds: string[]): Promise<Map<number, str
   }
 
   return seenMap
+}
+
+/**
+ * Batch fetch selected members' actual ratings for candidate movies.
+ * Used for the endorsement signal — when selected members have already
+ * rated a movie, their scores inform whether to boost or penalize it.
+ */
+async function getSelectedMemberRatings(
+  memberIds: string[],
+  tmdbIds: number[]
+): Promise<Map<number, { avgScore: number; raterCount: number; ratings: number[] }>> {
+  if (memberIds.length === 0 || tmdbIds.length === 0) return new Map()
+
+  const result = await sql`
+    SELECT
+      m.tmdb_id,
+      umr.overall_score
+    FROM user_movie_ratings umr
+    JOIN movies m ON umr.movie_id = m.id
+    WHERE umr.user_id = ANY(${memberIds}::uuid[])
+      AND m.tmdb_id = ANY(${tmdbIds}::int[])
+  `
+
+  // Group by tmdb_id
+  const ratingsMap = new Map<number, number[]>()
+  for (const row of result) {
+    const tmdbId = Number(row.tmdb_id)
+    if (!ratingsMap.has(tmdbId)) {
+      ratingsMap.set(tmdbId, [])
+    }
+    ratingsMap.get(tmdbId)!.push(Number(row.overall_score))
+  }
+
+  // Compute aggregates
+  const resultMap = new Map<number, { avgScore: number; raterCount: number; ratings: number[] }>()
+  for (const [tmdbId, ratings] of ratingsMap) {
+    const avgScore = Math.round(ratings.reduce((a, b) => a + b, 0) / ratings.length)
+    resultMap.set(tmdbId, { avgScore, raterCount: ratings.length, ratings })
+  }
+
+  return resultMap
 }
 
 /**
@@ -434,7 +476,11 @@ function calculateGroupFitScore(
   ctx: ScoringContext
 ): { score: number; reasoning: string[] } {
   const reasoning: string[] = []
-  let score = 50 // Base score
+  // Track which signal categories fire for the well-rounded bonus
+  const signalCategories = new Set<string>()
+
+  // --- Dynamic base score (55, up from 50) ---
+  let score = 55
 
   const movieGenreIds = new Set<number>(
     movie.genres
@@ -442,18 +488,28 @@ function calculateGroupFitScore(
       : (movie.genre_ids || [])
   )
 
-  // --- Genre match (weighted by member ratings, top 8 genres, max ~+40) ---
+  // +3 base bonus if the movie matches at least 1 preferred genre
+  const matchesAnyPreferredGenre = ctx.preferredGenres.some(p => movieGenreIds.has(p.genreId))
+  if (matchesAnyPreferredGenre) {
+    score += 3
+  }
+
+  // --- Genre match (weighted by member ratings, top 8 genres) ---
+  // Top 3 matches use multiplier 18, matches 4-8 use multiplier 15
   let genreBoost = 0
   let genreMatchCount = 0
-  for (const pref of ctx.preferredGenres.slice(0, 8)) {
+  for (let i = 0; i < Math.min(8, ctx.preferredGenres.length); i++) {
+    const pref = ctx.preferredGenres[i]
     if (movieGenreIds.has(pref.genreId)) {
       genreMatchCount++
       const confidence = Math.min(1, pref.ratingCount / 10)
-      genreBoost += (pref.avgScore / 100) * 15 * confidence
+      const multiplier = genreMatchCount <= 3 ? 18 : 15
+      genreBoost += (pref.avgScore / 100) * multiplier * confidence
     }
   }
   score += Math.round(genreBoost)
   if (genreMatchCount > 0) {
+    signalCategories.add("genre")
     reasoning.push(`Matches ${genreMatchCount} of your ${ctx.soloMode ? "" : "group's "}favorite genres`)
   }
 
@@ -469,14 +525,36 @@ function calculateGroupFitScore(
     reasoning.push(`Contains ${dislikedMatchCount} genre(s) you ${ctx.soloMode ? "tend" : "your group tends"} to rate lower`)
   }
 
-  // --- Seen penalty (-30 scaled by ratio) ---
+  // --- Seen penalty (softened in group mode: -15, full -30 in solo mode) ---
   if (ctx.seenByCount > 0) {
     const penaltyMultiplier = ctx.seenByCount / ctx.totalMembers
-    score -= Math.round(30 * penaltyMultiplier)
+    const basePenalty = ctx.soloMode ? 30 : 15
+    score -= Math.round(basePenalty * penaltyMultiplier)
     if (ctx.soloMode) {
       reasoning.push("You may have seen this")
     } else {
       reasoning.push(`${ctx.seenByCount} member(s) may have seen this`)
+    }
+  }
+
+  // --- Selected member endorsement (max +30, or -10 penalty for disliked) ---
+  if (ctx.selectedMemberRating && ctx.seenByCount > 0 && ctx.seenByCount < ctx.totalMembers) {
+    const { avgScore, raterCount } = ctx.selectedMemberRating
+    if (avgScore >= 85) {
+      score += 30
+      signalCategories.add("endorsement")
+      reasoning.push(`Rated ${avgScore}/100 by ${raterCount} member${raterCount > 1 ? "s" : ""} in your group`)
+    } else if (avgScore >= 70) {
+      score += 20
+      signalCategories.add("endorsement")
+      reasoning.push(`Rated ${avgScore}/100 by ${raterCount} member${raterCount > 1 ? "s" : ""} in your group`)
+    } else if (avgScore >= 55) {
+      score += 10
+      signalCategories.add("endorsement")
+      reasoning.push(`Rated ${avgScore}/100 by ${raterCount} member${raterCount > 1 ? "s" : ""} in your group`)
+    } else if (avgScore < 40) {
+      score -= 10
+      reasoning.push(`Rated only ${avgScore}/100 by ${raterCount} member${raterCount > 1 ? "s" : ""} in your group`)
     }
   }
 
@@ -487,6 +565,8 @@ function calculateGroupFitScore(
     // Scale: 0.0-1.0 mood fit → 0 to +25 points
     const moodBonus = Math.round(moodFit * 25)
     score += moodBonus
+
+    if (moodFit >= 0.35) signalCategories.add("mood")
 
     if (moodFit >= 0.6) {
       reasoning.push(ctx.moods.length > 1
@@ -528,6 +608,7 @@ function calculateGroupFitScore(
   const qualityResult = calculateCompositeQualityScore(ctx.omdbScores, movie.vote_average, movie.popularity || 0)
   const { bonus: qualityBonus, reasoning: qualityReasoning } = getQualityBonus(qualityResult)
   score += qualityBonus
+  if (qualityBonus > 0) signalCategories.add("quality")
   if (qualityReasoning) reasoning.push(qualityReasoning)
 
   // --- Acclaimed mood bonus (critic-score-based, only when mood includes "acclaimed") ---
@@ -582,6 +663,7 @@ function calculateGroupFitScore(
       if (ctx.candidateDirectorIds.has(aff.personId)) {
         const bonus = Math.round((aff.avgScore / 100) * 12)
         score += bonus
+        signalCategories.add("crew")
         reasoning.push(`Directed by ${aff.name}, whose films you rate highly`)
         break // Only count top matching director
       }
@@ -603,6 +685,7 @@ function calculateGroupFitScore(
     actorBonus = Math.min(12, actorBonus)
     score += actorBonus
     if (matchedActors.length > 0) {
+      signalCategories.add("crew")
       reasoning.push(`Stars ${matchedActors.slice(0, 2).join(" & ")}, who you enjoy`)
     }
   }
@@ -620,6 +703,7 @@ function calculateGroupFitScore(
   if (collabScore) {
     const bonus = Math.round((collabScore / 100) * 20)
     score += bonus
+    signalCategories.add("collabFiltering")
     reasoning.push("Loved by people with similar taste")
   }
 
@@ -633,6 +717,7 @@ function calculateGroupFitScore(
     else if (raterCount >= 2) influenceBonus = Math.min(30, influenceBonus + 4)
 
     score += influenceBonus
+    signalCategories.add("collectiveInfluence")
 
     if (ctx.soloMode) {
       if (raterCount === 1) {
@@ -647,6 +732,12 @@ function calculateGroupFitScore(
         reasoning.push(`${raterNames.slice(0, 3).join(" & ")} in your collective loved this`)
       }
     }
+  }
+
+  // --- Well-rounded match bonus (+5 if 3+ signal categories fire) ---
+  if (signalCategories.size >= 3) {
+    score += 5
+    reasoning.push("Strong match across multiple dimensions")
   }
 
   return {
@@ -1291,12 +1382,17 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
     emergencyFetchUsed: viableCandidates.length < MIN_VIABLE_POOL,
   })
 
-  // ── Phase 3.5: Batch load cached OMDb + mood scores (parallel) ──
-  const t3 = timer("Phase 3: OMDb + mood batch load")
+  // ── Phase 3.5: Batch load cached OMDb + mood scores + selected member ratings (parallel) ──
+  const t3 = timer("Phase 3: OMDb + mood + member ratings batch load")
   const candidateTmdbIdsForOmdb = uniqueMovies.map((m: any) => m.id as number)
-  const [omdbScoresMap, moodScoresMap] = await Promise.all([
+  // Only fetch selected member ratings for movies that at least one member has seen
+  const seenCandidateTmdbIds = candidateTmdbIdsForOmdb.filter(id => seenMovies.has(id))
+  const [omdbScoresMap, moodScoresMap, selectedMemberRatingsMap] = await Promise.all([
     batchGetCachedOmdbScores(candidateTmdbIdsForOmdb),
     batchGetCachedMoodScores(candidateTmdbIdsForOmdb),
+    soloMode
+      ? Promise.resolve(new Map<number, { avgScore: number; raterCount: number; ratings: number[] }>())
+      : getSelectedMemberRatings(memberIds, seenCandidateTmdbIds),
   ])
   t3.done()
 
@@ -1367,6 +1463,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
       moodSoftAvoidGenres: moods.length > 0 ? moodFilters.softAvoidGenres : [],
       moodScores: movieMoodScores,
       collectiveInfluence: collectiveInfluenceMap.get(movie.id) || null,
+      selectedMemberRating: selectedMemberRatingsMap.get(movie.id) || null,
     }
 
     const { score, reasoning } = calculateGroupFitScore(movie, ctx)
@@ -1493,6 +1590,7 @@ async function _fetchAndScoreMovies(options: FetchAndScoreOptions): Promise<{
         moodSoftAvoidGenres: moods.length > 0 ? moodFilters.softAvoidGenres : [],
         moodScores: reMovieMoodScores,
         collectiveInfluence: collectiveInfluenceMap.get(entry.tmdbId) || null,
+        selectedMemberRating: selectedMemberRatingsMap.get(entry.tmdbId) || null,
       }
 
       const { score, reasoning } = calculateGroupFitScore(entry._movie, ctx)
