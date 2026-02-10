@@ -178,7 +178,7 @@ export function MobileCollectiveView({
   const badgeInitials = getCollectiveInitials(collectiveName)
 
   return (
-    <div className="min-h-screen bg-background pb-20 lg:pb-0 lg:flex">
+    <div className={`bg-background lg:pb-0 lg:flex ${activeTab === "tonights-pick" ? "h-dvh overflow-hidden flex flex-col" : "min-h-screen pb-20"}`}>
       {/* ─── Desktop Sidebar ─────────────────────────────── */}
       <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-[300px] lg:border-r lg:p-6"
         style={{ background: "#1a1714", borderColor: "rgba(107,99,88,0.06)" }}
@@ -576,7 +576,7 @@ export function MobileCollectiveView({
       )}
 
       {/* ─── Mobile Tab Content ─────────────────────────── */}
-      <div className={`lg:hidden sf-reveal sf-delay-2 ${activeTab === "chat" ? "fixed inset-x-0 bottom-20 top-[260px]" : activeTab === "tonights-pick" ? "" : ""}`}>
+      <div className={`lg:hidden sf-reveal sf-delay-2 ${activeTab === "chat" ? "fixed inset-x-0 bottom-20 top-[260px]" : activeTab === "tonights-pick" ? "flex-1 min-h-0" : ""}`}>
 
         {/* Feed Tab */}
         {activeTab === "feed" && (
@@ -823,8 +823,8 @@ export function MobileCollectiveView({
         <LogFilmFAB onClick={() => setShowLogModal(true)} />
       )}
 
-      {/* ─── Bottom Nav ───────────────────────────────────── */}
-      <MobileBottomNav />
+      {/* ─── Bottom Nav (hidden during Tonight's Pick) ───── */}
+      {activeTab !== "tonights-pick" && <MobileBottomNav />}
 
       {/* ─── Members Modal ────────────────────────────────── */}
       <MembersModal

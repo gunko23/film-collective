@@ -155,7 +155,7 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
       <div
         style={{
           ...(isFullscreenMobile
-            ? { height: "100vh", display: "flex", flexDirection: "column" as const, background: C.bg }
+            ? { height: "100%", display: "flex", flexDirection: "column" as const, background: C.bg, alignItems: "center" as const, justifyContent: "center" as const }
             : {}),
         }}
       >
@@ -189,15 +189,15 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
       style={{
         display: "flex",
         flexDirection: "column" as const,
-        position: "relative" as const,
         fontFamily: FONT_STACK,
         ...(isFullscreenMobile
           ? {
-              height: "100vh",
+              height: "100%",
               background: "#0e0c0a",
               overflow: "hidden",
             }
           : {
+              position: "relative" as const,
               minHeight: "100vh",
             }),
       }}
@@ -261,14 +261,22 @@ export function TonightsPick({ collectiveId, currentUserId, onBack }: Props) {
 
       {/* Top Nav */}
       {onBack && (
-        <div style={{ position: "relative", zIndex: 10 }}>
+        <div style={{ position: "relative", zIndex: 10, flexShrink: 0 }}>
           <TopNav label={topNavConfig[step].label} onBack={topNavConfig[step].action} />
         </div>
       )}
 
       {/* Step Indicator */}
-      <div style={{ position: "relative", zIndex: 10, paddingBottom: 16 }}>
-        <StepIndicator currentStep={step} />
+      <div style={{ position: "relative", zIndex: 10, paddingBottom: 16, flexShrink: 0 }}>
+        <StepIndicator
+          steps={[
+            { key: "members", label: "Who" },
+            { key: "mood", label: "Mood" },
+            { key: "filters", label: "Filters" },
+            { key: "results", label: "Results" },
+          ]}
+          currentStep={step}
+        />
       </div>
 
       {/* Scrollable content */}

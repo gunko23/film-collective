@@ -5,22 +5,24 @@ const SANS = "'DM Sans', sans-serif"
 
 export function BottomActionBar({
   step,
-  selectedMemberCount,
+  selectedMemberCount = 1,
   loading,
   onContinue,
   onGetRecommendations,
   onBack,
   onShuffle,
   hasResults,
+  showBack = true,
 }: {
   step: "members" | "mood" | "filters" | "results"
-  selectedMemberCount: number
+  selectedMemberCount?: number
   loading: boolean
   onContinue: () => void
   onGetRecommendations: () => void
   onBack: () => void
   onShuffle: () => void
   hasResults: boolean
+  showBack?: boolean
 }) {
   if (step === "members") {
     return (
@@ -98,26 +100,28 @@ export function BottomActionBar({
             Continue
             <IconChevronRight size={18} color={C.warmBlack} />
           </button>
-          <button
-            onClick={onBack}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 14,
-              fontWeight: 500,
-              fontFamily: FONT_STACK,
-              color: C.creamMuted,
-              padding: "6px 12px",
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              transition: "color 0.15s",
-            }}
-          >
-            <IconChevronLeft size={16} color={C.creamMuted} />
-            Back
-          </button>
+          {showBack && (
+            <button
+              onClick={onBack}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 14,
+                fontWeight: 500,
+                fontFamily: FONT_STACK,
+                color: C.creamMuted,
+                padding: "6px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                transition: "color 0.15s",
+              }}
+            >
+              <IconChevronLeft size={16} color={C.creamMuted} />
+              Back
+            </button>
+          )}
         </div>
       </div>
     )

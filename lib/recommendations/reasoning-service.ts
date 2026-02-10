@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { sql } from "@/lib/db"
+import { getAnthropicClient, rateLimitedCreate } from "@/lib/anthropic/client"
 import type { MovieRecommendation } from "./recommendation-service"
 
 function timer(label: string) {
@@ -11,12 +12,6 @@ function timer(label: string) {
       return ms
     }
   }
-}
-
-function getAnthropicClient(): Anthropic | null {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return null
-  return new Anthropic({ apiKey })
 }
 
 // ============================================
@@ -137,7 +132,6 @@ async function getCachedEnrichment(
  * This is the fast path — small prompt, small response.
  */
 async function generateSummaryBatch(
-  client: Anthropic,
   batch: MovieRecommendation[],
   ctx: SummaryContext
 ): Promise<Map<number, string>> {
@@ -181,7 +175,7 @@ ${ctx.soloMode ? 'Address the user as "you".' : 'Address the group as "your grou
 Respond: {"1": "summary text", "2": "summary text", ...}`
 
   try {
-    const response = await client.messages.create({
+    const response = await rateLimitedCreate({
       model: "claude-haiku-4-5-20251001",
       max_tokens: Math.max(300, batch.length * 120),
       system: systemPrompt,
@@ -218,7 +212,6 @@ Respond: {"1": "summary text", "2": "summary text", ...}`
  * Results are cached to the movies table via fire-and-forget.
  */
 async function _generateEnrichmentBatch(
-  client: Anthropic,
   batch: MovieRecommendation[]
 ): Promise<Map<number, { pairings: any; parentalSummary: string }>> {
 
@@ -242,7 +235,7 @@ For each movie provide:
 Respond: {"1": {"pairings": {"cocktail": {"name": "", "desc": ""}, "zeroproof": {"name": "", "desc": ""}, "snack": {"name": "", "desc": ""}}, "parentalSummary": "..."}, ...}`
 
   try {
-    const response = await client.messages.create({
+    const response = await rateLimitedCreate({
       model: "claude-haiku-4-5-20251001",
       max_tokens: Math.max(400, batch.length * 250),
       system: systemPrompt,
@@ -299,8 +292,7 @@ export async function generateRecommendationReasoning(
   input: ReasoningInput
 ): Promise<Map<number, ReasoningResult>> {
   const totalTimer = timer("generateRecommendationReasoning TOTAL")
-  const client = getAnthropicClient()
-  if (!client) {
+  if (!getAnthropicClient()) {
     console.warn("[LLM Reasoning] ANTHROPIC_API_KEY not set")
     totalTimer.done()
     return new Map()
@@ -355,10 +347,10 @@ export async function generateRecommendationReasoning(
 
   console.log(`[Perf] LLM: Firing ${summaryBatches.length} summary batches + ${enrichmentBatches.length} enrichment batches (${summaryBatches.length + enrichmentBatches.length} total parallel calls)`)
 
-  // Fire all in parallel — max 4 calls (2 summary + 2 enrichment)
+  // Fire all in parallel — rate limiter enforces max 4 concurrent + 200ms spacing
   const allPromises: Promise<any>[] = [
-    ...summaryBatches.map(batch => generateSummaryBatch(client, batch, summaryContext)),
-    ...enrichmentBatches.map(batch => _generateEnrichmentBatch(client, batch)),
+    ...summaryBatches.map(batch => generateSummaryBatch(batch, summaryContext)),
+    ...enrichmentBatches.map(batch => _generateEnrichmentBatch(batch)),
   ]
 
   const tLLM = timer("LLM: All parallel calls (summaries + enrichment)")
