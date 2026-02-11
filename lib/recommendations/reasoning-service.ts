@@ -143,6 +143,7 @@ CRITICAL RULES:
 - NEVER compare a movie unfavorably to the audience's favorites.
 - NEVER say things like "skip this", "not for you", "lacks", "falls short", "hollow", "generic", or any negative framing.
 - NEVER reference the audience's disliked movies.
+- NEVER use markdown formatting — no **bold**, no *italics*, no backticks. Write plain text only.
 - Find the genuine appeal of each movie — exciting set pieces, fun performances, great pacing, visual spectacle, crowd-pleasing moments, a perfect popcorn movie, etc.
 - When friends from their collective loved a movie, lead with that social connection and name them.
 - Reference specific things that make the movie worth watching: standout performances, memorable scenes, unique tone, bold style.
