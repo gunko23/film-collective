@@ -269,7 +269,9 @@ export const plannedWatchParticipants = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     rsvpStatus: text("rsvp_status").notNull().default("confirmed"), // 'confirmed', 'maybe', 'declined'
+    watchStatus: text("watch_status").notNull().default("planned"), // 'planned', 'watching', 'watched'
     addedAt: timestamp("added_at", { withTimezone: true }).defaultNow(),
+    watchedAt: timestamp("watched_at", { withTimezone: true }),
   },
   (table) => [unique().on(table.plannedWatchId, table.userId)],
 )

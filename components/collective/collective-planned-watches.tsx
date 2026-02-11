@@ -24,11 +24,39 @@ type CollectivePlannedWatchData = {
     name: string | null
     avatarUrl: string | null
     rsvpStatus: string
+    watchStatus: string
   }[]
 }
 
 type Props = {
   collectiveId: string
+}
+
+function ParticipantStatusBadge({ status }: { status: string }) {
+  const config = {
+    planned: { color: "#c97b3a", bg: "#c97b3a12", border: "#c97b3a25", label: "Planned" },
+    watching: { color: "#2ecc71", bg: "#2ecc7112", border: "#2ecc7125", label: "Watching" },
+    watched: { color: "#8e8e93", bg: "#8e8e9312", border: "#8e8e9325", label: "Watched" },
+  }[status] ?? { color: "#6b6358", bg: "transparent", border: "#6b635820", label: status }
+
+  return (
+    <span
+      style={{
+        fontSize: 8,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        padding: "1px 4px",
+        borderRadius: 3,
+        color: config.color,
+        background: config.bg,
+        border: `1px solid ${config.border}`,
+        flexShrink: 0,
+      }}
+    >
+      {config.label}
+    </span>
+  )
 }
 
 export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
@@ -138,43 +166,6 @@ export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
                     {watch.movieYear && (
                       <p style={{ fontSize: 11, color: "#6b6358", marginTop: 2 }}>{watch.movieYear}</p>
                     )}
-                    {watch.status === "watching" ? (
-                      <span
-                        style={{
-                          display: "inline-block",
-                          marginTop: 4,
-                          fontSize: 9,
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          color: "#2ecc71",
-                          background: "#2ecc7112",
-                          border: "1px solid #2ecc7125",
-                        }}
-                      >
-                        Watching
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          display: "inline-block",
-                          marginTop: 4,
-                          fontSize: 9,
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          color: "#c97b3a",
-                          background: "#c97b3a12",
-                          border: "1px solid #c97b3a25",
-                        }}
-                      >
-                        Planned
-                      </span>
-                    )}
                   </div>
                 </div>
 
@@ -185,65 +176,50 @@ export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
                   </p>
                 )}
 
-                {/* Creator */}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                  <div
-                    style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: "50%",
-                      background: watch.createdByAvatar
-                        ? `url(${watch.createdByAvatar}) center/cover`
-                        : "linear-gradient(135deg, #c97b3a88, #e8943a44)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 7,
-                      fontWeight: 700,
-                      color: "#0f0d0b",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {!watch.createdByAvatar && (watch.createdByName?.[0] || "?")}
-                  </div>
-                  <span style={{ fontSize: 11, color: "#6b6358" }}>
-                    {watch.createdByName || "Someone"}
-                  </span>
-                </div>
-
-                {/* Participants */}
+                {/* Participant list with individual status */}
                 {confirmedParticipants.length > 0 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                    <div style={{ display: "flex" }}>
-                      {confirmedParticipants.slice(0, 4).map((p, i) => (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+                    {confirmedParticipants.slice(0, 4).map((p) => (
+                      <div key={p.userId} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <div
-                          key={p.userId}
                           style={{
-                            width: 18,
-                            height: 18,
+                            width: 16,
+                            height: 16,
                             borderRadius: "50%",
+                            flexShrink: 0,
                             background: p.avatarUrl
                               ? `url(${p.avatarUrl}) center/cover`
                               : "linear-gradient(135deg, #c97b3a88, #e8943a44)",
-                            border: "1.5px solid #1a1714",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             fontSize: 7,
                             fontWeight: 700,
                             color: "#0f0d0b",
-                            marginLeft: i === 0 ? 0 : -5,
-                            zIndex: confirmedParticipants.length - i,
-                            position: "relative",
                           }}
                         >
                           {!p.avatarUrl && (p.name?.[0] || "?")}
                         </div>
-                      ))}
-                    </div>
-                    <span style={{ fontSize: 10, color: "#6b6358" }}>
-                      {confirmedParticipants.length} watching
-                    </span>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            color: "#a69e90",
+                            flex: 1,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {p.name || "Someone"}
+                        </span>
+                        <ParticipantStatusBadge status={p.watchStatus || "planned"} />
+                      </div>
+                    ))}
+                    {confirmedParticipants.length > 4 && (
+                      <span style={{ fontSize: 9, color: "#6b6358", paddingLeft: 22 }}>
+                        +{confirmedParticipants.length - 4} more
+                      </span>
+                    )}
                   </div>
                 )}
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useStackApp } from "@stackframe/stack"
-import useSWR from "swr"
+import useSWR, { mutate as globalMutate } from "swr"
 import Link from "next/link"
 import Image from "next/image"
 import { Settings, LogOut, LayoutDashboard, User, Compass, Users, Info } from "lucide-react"
@@ -645,7 +645,10 @@ export function UserDashboard() {
       <AddPlannedWatchModal
         isOpen={showAddPlannedWatch}
         onClose={() => setShowAddPlannedWatch(false)}
-        onSuccess={() => mutate()}
+        onSuccess={() => {
+          mutate()
+          globalMutate("/api/planned-watches/upcoming")
+        }}
       />
     </div>
   )

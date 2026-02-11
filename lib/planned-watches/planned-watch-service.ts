@@ -24,6 +24,8 @@ export type PlannedWatchParticipant = {
   plannedWatchId: string
   userId: string
   rsvpStatus: "confirmed" | "maybe" | "declined" | "pending"
+  watchStatus: "planned" | "watching" | "watched"
+  watchedAt: string | null
   addedAt: string
 }
 
@@ -32,7 +34,7 @@ export type CollectivePlannedWatch = PlannedWatch & {
   createdByAvatar: string | null
   isParticipant: boolean
   myRsvpStatus: string | null
-  participants: { userId: string; name: string | null; avatarUrl: string | null; rsvpStatus: string }[]
+  participants: { userId: string; name: string | null; avatarUrl: string | null; rsvpStatus: string; watchStatus: string }[]
 }
 
 export type CreatePlannedWatchInput = {
@@ -144,25 +146,64 @@ export async function updateParticipantRsvp(
   return rows.length > 0
 }
 
+export async function updateParticipantWatchStatus(
+  plannedWatchId: string,
+  userId: string,
+  watchStatus: "watching" | "watched",
+): Promise<{ success: boolean; movieId?: number }> {
+  let rows
+  if (watchStatus === "watched") {
+    rows = await sql`
+      UPDATE planned_watch_participants
+      SET watch_status = ${watchStatus}, watched_at = NOW()
+      WHERE planned_watch_id = ${plannedWatchId} AND user_id = ${userId}
+        AND rsvp_status = 'confirmed'
+      RETURNING id
+    `
+  } else {
+    rows = await sql`
+      UPDATE planned_watch_participants
+      SET watch_status = ${watchStatus}
+      WHERE planned_watch_id = ${plannedWatchId} AND user_id = ${userId}
+        AND rsvp_status = 'confirmed'
+      RETURNING id
+    `
+  }
+
+  if (rows.length === 0) return { success: false }
+
+  const watchRow = await sql`
+    SELECT movie_id FROM planned_watches WHERE id = ${plannedWatchId}
+  `
+
+  return {
+    success: true,
+    movieId: watchRow.length > 0 ? watchRow[0].movie_id : undefined,
+  }
+}
+
 export async function getUpcomingPlannedWatches(userId: string): Promise<(PlannedWatch & {
   myRsvpStatus: string
+  myWatchStatus: string
   createdByName: string | null
-  participants: { userId: string; name: string | null; avatarUrl: string | null; rsvpStatus: string }[]
+  participants: { userId: string; name: string | null; avatarUrl: string | null; rsvpStatus: string; watchStatus: string }[]
 })[]> {
   const rows = await sql`
-    SELECT pw.*, my_pwp.rsvp_status AS my_rsvp_status, creator.name AS created_by_name
+    SELECT pw.*, my_pwp.rsvp_status AS my_rsvp_status, my_pwp.watch_status AS my_watch_status, creator.name AS created_by_name
     FROM planned_watches pw
     LEFT JOIN planned_watch_participants my_pwp ON my_pwp.planned_watch_id = pw.id AND my_pwp.user_id = ${userId}
     LEFT JOIN users creator ON creator.id = pw.created_by
     WHERE (pw.created_by = ${userId} OR my_pwp.user_id IS NOT NULL)
       AND pw.status IN ('planned', 'watching')
       AND (my_pwp.rsvp_status IS NULL OR my_pwp.rsvp_status != 'declined')
+      AND (my_pwp.watch_status IS NULL OR my_pwp.watch_status != 'watched')
     ORDER BY pw.locked_in_at DESC
   `
 
   const watches = rows.map((row: any) => ({
     ...mapRow(row),
     myRsvpStatus: row.my_rsvp_status ?? "confirmed",
+    myWatchStatus: row.my_watch_status ?? "planned",
     createdByName: row.created_by_name ?? null,
   }))
 
@@ -170,7 +211,7 @@ export async function getUpcomingPlannedWatches(userId: string): Promise<(Planne
   const result = []
   for (const watch of watches) {
     const participants = await sql`
-      SELECT pwp.user_id, pwp.rsvp_status, u.name, u.avatar_url
+      SELECT pwp.user_id, pwp.rsvp_status, pwp.watch_status, u.name, u.avatar_url
       FROM planned_watch_participants pwp
       JOIN users u ON u.id = pwp.user_id
       WHERE pwp.planned_watch_id = ${watch.id}
@@ -182,6 +223,7 @@ export async function getUpcomingPlannedWatches(userId: string): Promise<(Planne
         name: p.name,
         avatarUrl: p.avatar_url,
         rsvpStatus: p.rsvp_status,
+        watchStatus: p.watch_status ?? "planned",
       })),
     })
   }
@@ -207,7 +249,7 @@ export async function getCollectivePlannedWatches(
   const result: CollectivePlannedWatch[] = []
   for (const row of rows) {
     const participants = await sql`
-      SELECT pwp.user_id, pwp.rsvp_status, u.name, u.avatar_url
+      SELECT pwp.user_id, pwp.rsvp_status, pwp.watch_status, u.name, u.avatar_url
       FROM planned_watch_participants pwp
       JOIN users u ON u.id = pwp.user_id
       WHERE pwp.planned_watch_id = ${row.id}
@@ -228,6 +270,7 @@ export async function getCollectivePlannedWatches(
         name: p.name,
         avatarUrl: p.avatar_url,
         rsvpStatus: p.rsvp_status,
+        watchStatus: p.watch_status ?? "planned",
       })),
     })
   }
