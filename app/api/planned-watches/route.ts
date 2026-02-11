@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { movieId, movieTitle, movieYear, moviePoster, collectiveId, participantIds, scheduledFor, moodTags, source } = body
+    const { movieId, movieTitle, movieYear, moviePoster, collectiveId, collectiveIds, participantIds, scheduledFor, moodTags, source } = body
 
     if (!movieId || !movieTitle) {
       return NextResponse.json({ error: "movieId and movieTitle are required" }, { status: 400 })
@@ -33,13 +33,20 @@ export async function POST(request: NextRequest) {
         ? participantIds
         : [user.id]
 
+    // Support both collectiveIds (array) and legacy collectiveId (single)
+    const resolvedCollectiveIds: string[] = Array.isArray(collectiveIds)
+      ? collectiveIds
+      : collectiveId
+        ? [collectiveId]
+        : []
+
     const plannedWatch = await createPlannedWatch({
       movieId,
       movieTitle,
       movieYear: movieYear ?? null,
       moviePoster: moviePoster ?? null,
       createdBy: user.id,
-      collectiveId: collectiveId ?? null,
+      collectiveIds: resolvedCollectiveIds,
       participantIds: resolvedParticipantIds,
       scheduledFor: scheduledFor ?? null,
       moodTags: moodTags ?? null,

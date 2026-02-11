@@ -23,9 +23,9 @@ export async function POST(
 
     const { id: plannedWatchId } = await params
 
-    // Get the planned watch to verify it exists and get its collectiveId
+    // Verify the planned watch exists
     const watchRows = await sql`
-      SELECT id, collective_id FROM planned_watches
+      SELECT id FROM planned_watches
       WHERE id = ${plannedWatchId} AND status IN ('planned', 'watching')
     `
 
@@ -36,13 +36,17 @@ export async function POST(
       )
     }
 
-    const collectiveId = watchRows[0].collective_id
+    // If it's a collective watch, verify user is a member of at least one linked collective
+    const linkedCollectives = await sql`
+      SELECT pwc.collective_id FROM planned_watch_collectives pwc
+      WHERE pwc.planned_watch_id = ${plannedWatchId}
+    `
 
-    // If it's a collective watch, verify user is a member
-    if (collectiveId) {
+    if (linkedCollectives.length > 0) {
+      const collectiveIdList = linkedCollectives.map((r: any) => r.collective_id)
       const membership = await sql`
         SELECT id FROM collective_memberships
-        WHERE collective_id = ${collectiveId}::uuid AND user_id = ${user.id}::uuid
+        WHERE collective_id = ANY(${collectiveIdList}) AND user_id = ${user.id}::uuid
       `
       if (membership.length === 0) {
         return NextResponse.json(
