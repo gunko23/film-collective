@@ -1,8 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import useSWR from "swr"
 import Image from "next/image"
 import { SectionLabel } from "@/components/ui/section-label"
+import { QuickRatingModal } from "@/components/quick-rating-modal"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
@@ -13,6 +15,7 @@ type PlannedWatchData = {
   movieYear: number | null
   moviePoster: string | null
   status: string
+  myWatchStatus: string
   scheduledFor: string | null
   lockedInAt: string
   collectiveId: string | null
@@ -23,6 +26,7 @@ type PlannedWatchData = {
     name: string | null
     avatarUrl: string | null
     rsvpStatus: string
+    watchStatus: string
   }[]
 }
 
@@ -41,20 +45,61 @@ export function PlannedWatchesSection({ onAddClick }: { onAddClick?: () => void 
     fetcher,
   )
 
+  const [ratingModal, setRatingModal] = useState<{ open: boolean; movieTitle: string; tmdbId: number; moviePoster: string | null } | null>(null)
+
   const watches = data?.watches ?? []
   const pendingInvites = watches.filter((w) => w.myRsvpStatus === "pending")
   const confirmedWatches = watches.filter((w) => w.myRsvpStatus !== "pending")
 
-  const handleStatusUpdate = async (id: string, status: "watching" | "watched" | "cancelled") => {
+  const handleParticipantStatusUpdate = async (id: string, watchStatus: "watching" | "watched", watch: PlannedWatchData) => {
+    try {
+      const res = await fetch(`/api/planned-watches/${id}/participant-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ watchStatus }),
+      })
+      const data = await res.json()
+
+      if (watchStatus === "watched" && data.movieId) {
+        // Only show rating modal if user hasn't already rated this movie
+        try {
+          const ratingRes = await fetch(`/api/ratings?tmdbId=${data.movieId}`)
+          const ratingData = await ratingRes.json()
+          if (!ratingData.userRating) {
+            setRatingModal({
+              open: true,
+              movieTitle: watch.movieTitle,
+              tmdbId: data.movieId,
+              moviePoster: watch.moviePoster,
+            })
+          }
+        } catch {
+          // If rating check fails, show the modal anyway
+          setRatingModal({
+            open: true,
+            movieTitle: watch.movieTitle,
+            tmdbId: data.movieId,
+            moviePoster: watch.moviePoster,
+          })
+        }
+      }
+
+      mutate()
+    } catch (err) {
+      console.error("Failed to update watch status:", err)
+    }
+  }
+
+  const handleCancel = async (id: string) => {
     try {
       await fetch(`/api/planned-watches/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status: "cancelled" }),
       })
       mutate()
     } catch (err) {
-      console.error("Failed to update status:", err)
+      console.error("Failed to cancel watch:", err)
     }
   }
 
@@ -234,6 +279,7 @@ export function PlannedWatchesSection({ onAddClick }: { onAddClick?: () => void 
       {confirmedWatches.length > 0 && (
         <div className="flex flex-col gap-2.5">
           {confirmedWatches.map((watch) => {
+            const myStatus = watch.myWatchStatus || "planned"
             return (
               <div
                 key={watch.id}
@@ -242,7 +288,7 @@ export function PlannedWatchesSection({ onAddClick }: { onAddClick?: () => void 
                 <div
                   className="absolute top-0 left-0 right-0 h-[2px] rounded-t-[14px]"
                   style={{
-                    background: watch.status === "watching"
+                    background: myStatus === "watching"
                       ? "linear-gradient(to right, #2ecc71, #2ecc7140, transparent)"
                       : "linear-gradient(to right, rgba(201,123,58,0.45), transparent)",
                   }}
@@ -274,7 +320,7 @@ export function PlannedWatchesSection({ onAddClick }: { onAddClick?: () => void 
                       {watch.movieYear && (
                         <span className="text-xs text-cream-faint">{watch.movieYear}</span>
                       )}
-                      {watch.status === "watching" ? (
+                      {myStatus === "watching" ? (
                         <span
                           className="text-[10px] font-semibold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded"
                           style={{ color: "#2ecc71", background: "#2ecc7112", border: "1px solid #2ecc7125" }}
@@ -339,10 +385,10 @@ export function PlannedWatchesSection({ onAddClick }: { onAddClick?: () => void 
 
                 {/* Actions */}
                 <div className="flex border-t border-cream-faint/[0.06]">
-                  {watch.status === "planned" && (
+                  {myStatus === "planned" && (
                     <>
                       <button
-                        onClick={() => handleStatusUpdate(watch.id, "watching")}
+                        onClick={() => handleParticipantStatusUpdate(watch.id, "watching", watch)}
                         className="flex-1 py-2.5 text-[12px] font-medium text-center transition-colors hover:bg-cream/[0.03]"
                         style={{ color: "#2ecc71" }}
                       >
@@ -350,17 +396,17 @@ export function PlannedWatchesSection({ onAddClick }: { onAddClick?: () => void 
                       </button>
                       <div className="w-px bg-cream-faint/[0.06]" />
                       <button
-                        onClick={() => handleStatusUpdate(watch.id, "cancelled")}
+                        onClick={() => handleCancel(watch.id)}
                         className="flex-1 py-2.5 text-[12px] font-medium text-cream-faint text-center transition-colors hover:bg-cream/[0.03]"
                       >
                         Cancel
                       </button>
                     </>
                   )}
-                  {watch.status === "watching" && (
+                  {myStatus === "watching" && (
                     <>
                       <button
-                        onClick={() => handleStatusUpdate(watch.id, "watched")}
+                        onClick={() => handleParticipantStatusUpdate(watch.id, "watched", watch)}
                         className="flex-1 py-2.5 text-[12px] font-medium text-center transition-colors hover:bg-cream/[0.03]"
                         style={{ color: "#c97b3a" }}
                       >
@@ -368,7 +414,7 @@ export function PlannedWatchesSection({ onAddClick }: { onAddClick?: () => void 
                       </button>
                       <div className="w-px bg-cream-faint/[0.06]" />
                       <button
-                        onClick={() => handleStatusUpdate(watch.id, "cancelled")}
+                        onClick={() => handleCancel(watch.id)}
                         className="flex-1 py-2.5 text-[12px] font-medium text-cream-faint text-center transition-colors hover:bg-cream/[0.03]"
                       >
                         Cancel
@@ -382,6 +428,16 @@ export function PlannedWatchesSection({ onAddClick }: { onAddClick?: () => void 
         </div>
       )}
 
+      {ratingModal && (
+        <QuickRatingModal
+          isOpen={ratingModal.open}
+          onClose={() => setRatingModal(null)}
+          movieTitle={ratingModal.movieTitle}
+          tmdbId={ratingModal.tmdbId}
+          moviePoster={ratingModal.moviePoster}
+          onRated={() => mutate()}
+        />
+      )}
     </div>
   )
 }
