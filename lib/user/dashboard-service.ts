@@ -217,6 +217,66 @@ export async function getDashboardData(userId: string) {
       WHERE fr.collective_id IN (SELECT collective_id FROM user_collectives)
       AND fr.created_at > NOW() - INTERVAL '60 days'
       AND fr.user_id != ${userId}::uuid
+
+      UNION ALL
+
+      -- Planned watches added to collectives
+      SELECT DISTINCT ON (pw.id)
+        'planned_watch' as activity_type,
+        pw.id as activity_id,
+        pw.locked_in_at as created_at,
+        u.id as actor_id,
+        COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as actor_name,
+        u.avatar_url as actor_avatar,
+        pw.movie_id as tmdb_id,
+        pw.movie_title as media_title,
+        pw.movie_poster as poster_path,
+        'movie' as media_type,
+        NULL as score,
+        NULL as content,
+        NULL as reaction_type,
+        c.id as collective_id,
+        c.name as collective_name,
+        pw.id as rating_id,
+        NULL as target_user_name
+      FROM planned_watches pw
+      JOIN users u ON pw.created_by = u.id
+      JOIN planned_watch_collectives pwc ON pwc.planned_watch_id = pw.id
+      JOIN collectives c ON pwc.collective_id = c.id
+      WHERE pwc.collective_id IN (SELECT collective_id FROM user_collectives)
+      AND pw.locked_in_at > NOW() - INTERVAL '60 days'
+      AND pw.created_by != ${userId}::uuid
+
+      UNION ALL
+
+      -- Participants who started watching
+      SELECT DISTINCT ON (pwp.id)
+        'started_watching' as activity_type,
+        pwp.id as activity_id,
+        COALESCE(pwp.watched_at, pwp.added_at) as created_at,
+        u.id as actor_id,
+        COALESCE(u.name, SPLIT_PART(u.email, '@', 1), 'User') as actor_name,
+        u.avatar_url as actor_avatar,
+        pw.movie_id as tmdb_id,
+        pw.movie_title as media_title,
+        pw.movie_poster as poster_path,
+        'movie' as media_type,
+        NULL as score,
+        NULL as content,
+        NULL as reaction_type,
+        c.id as collective_id,
+        c.name as collective_name,
+        pw.id as rating_id,
+        NULL as target_user_name
+      FROM planned_watch_participants pwp
+      JOIN planned_watches pw ON pwp.planned_watch_id = pw.id
+      JOIN users u ON pwp.user_id = u.id
+      JOIN planned_watch_collectives pwc ON pwc.planned_watch_id = pw.id
+      JOIN collectives c ON pwc.collective_id = c.id
+      WHERE pwc.collective_id IN (SELECT collective_id FROM user_collectives)
+      AND pwp.watch_status = 'watching'
+      AND pwp.added_at > NOW() - INTERVAL '60 days'
+      AND pwp.user_id != ${userId}::uuid
     ) combined
     ORDER BY created_at DESC
     LIMIT 50
