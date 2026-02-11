@@ -17,6 +17,7 @@ type CollectivePlannedWatchData = {
   createdBy: string
   createdByName: string | null
   createdByAvatar: string | null
+  isCreator: boolean
   isParticipant: boolean
   myRsvpStatus: string | null
   participants: {
@@ -65,7 +66,16 @@ export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
     fetcher,
   )
 
-  const watches = data?.watches ?? []
+  const rawWatches = data?.watches ?? []
+
+  // Sort: anyone actively watching comes first
+  const watches = [...rawWatches].sort((a, b) => {
+    const aWatching = a.participants.some((p) => p.watchStatus === "watching")
+    const bWatching = b.participants.some((p) => p.watchStatus === "watching")
+    if (aWatching && !bWatching) return -1
+    if (!aWatching && bWatching) return 1
+    return 0
+  })
 
   const handleJoin = async (watchId: string) => {
     try {
@@ -89,6 +99,12 @@ export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
 
   return (
     <div>
+      <style>{`
+        @keyframes pw-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
         <SectionLabel>Planned Watches</SectionLabel>
         <span style={{ fontSize: 12, color: "#a69e90" }}>{watches.length} active</span>
@@ -106,6 +122,7 @@ export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
       >
         {watches.map((watch) => {
           const confirmedParticipants = watch.participants.filter((p) => p.rsvpStatus === "confirmed")
+          const hasActiveWatcher = watch.participants.some((p) => p.watchStatus === "watching")
           return (
             <div
               key={watch.id}
@@ -113,25 +130,65 @@ export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
                 minWidth: 180,
                 maxWidth: 200,
                 borderRadius: 14,
-                background: "#1a1714",
-                border: "1px solid rgba(107,99,88,0.06)",
+                background: hasActiveWatcher ? "#131f16" : "#1a1714",
+                border: hasActiveWatcher
+                  ? "1px solid rgba(46,204,113,0.2)"
+                  : "1px solid rgba(107,99,88,0.06)",
                 overflow: "hidden",
                 flexShrink: 0,
                 display: "flex",
                 flexDirection: "column",
+                boxShadow: hasActiveWatcher
+                  ? "0 0 20px rgba(46,204,113,0.08), inset 0 0 30px rgba(46,204,113,0.03)"
+                  : "none",
               }}
             >
               {/* Top accent */}
               <div
                 style={{
-                  height: 2,
-                  background: watch.status === "watching"
-                    ? "linear-gradient(to right, #2ecc71, #2ecc7140, transparent)"
+                  height: hasActiveWatcher ? 3 : 2,
+                  background: hasActiveWatcher
+                    ? "linear-gradient(to right, #2ecc71, #2ecc71aa, #2ecc7140, transparent)"
                     : "linear-gradient(to right, rgba(201,123,58,0.45), transparent)",
                 }}
               />
 
               <div style={{ padding: "12px 14px", flex: 1, display: "flex", flexDirection: "column" }}>
+                {/* Now Watching indicator */}
+                {hasActiveWatcher && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: "#2ecc71",
+                        boxShadow: "0 0 6px #2ecc71aa",
+                        flexShrink: 0,
+                        animation: "pw-pulse 2s ease-in-out infinite",
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        color: "#2ecc71",
+                      }}
+                    >
+                      Now Watching
+                    </span>
+                  </div>
+                )}
+
                 {/* Poster + info row */}
                 <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
                   <div
@@ -232,9 +289,25 @@ export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
                   </div>
                 )}
 
-                {/* Join / Leave */}
+                {/* Owner / Join / Leave */}
                 <div style={{ marginTop: "auto" }}>
-                  {watch.isParticipant ? (
+                  {watch.isCreator ? (
+                    <div
+                      style={{
+                        width: "100%",
+                        padding: "6px 0",
+                        borderRadius: 8,
+                        border: "1px solid #c97b3a25",
+                        background: "#c97b3a08",
+                        color: "#c97b3a",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        textAlign: "center",
+                      }}
+                    >
+                      Owner
+                    </div>
+                  ) : watch.isParticipant ? (
                     <button
                       onClick={() => handleLeave(watch.id)}
                       style={{

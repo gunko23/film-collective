@@ -31,6 +31,7 @@ export type PlannedWatchParticipant = {
 export type CollectivePlannedWatch = PlannedWatch & {
   createdByName: string | null
   createdByAvatar: string | null
+  isCreator: boolean
   isParticipant: boolean
   myRsvpStatus: string | null
   participants: { userId: string; name: string | null; avatarUrl: string | null; rsvpStatus: string; watchStatus: string }[]
@@ -271,6 +272,7 @@ export async function getCollectivePlannedWatches(
       ...mapRow(row),
       createdByName: (row as any).created_by_name ?? null,
       createdByAvatar: (row as any).created_by_avatar ?? null,
+      isCreator: row.created_by === currentUserId,
       isParticipant,
       myRsvpStatus,
       participants: participants.map((p: any) => ({
