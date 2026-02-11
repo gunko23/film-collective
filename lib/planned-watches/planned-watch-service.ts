@@ -252,6 +252,12 @@ export async function getCollectivePlannedWatches(
     JOIN users creator ON creator.id = pw.created_by
     LEFT JOIN planned_watch_participants my_pwp ON my_pwp.planned_watch_id = pw.id AND my_pwp.user_id = ${currentUserId}
     WHERE pw.status IN ('planned', 'watching')
+      AND EXISTS (
+        SELECT 1 FROM planned_watch_participants pwp_check
+        WHERE pwp_check.planned_watch_id = pw.id
+          AND pwp_check.rsvp_status = 'confirmed'
+          AND pwp_check.watch_status != 'watched'
+      )
     ORDER BY pw.locked_in_at DESC
   `
 
