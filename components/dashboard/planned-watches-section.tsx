@@ -18,7 +18,6 @@ type PlannedWatchData = {
   myWatchStatus: string
   scheduledFor: string | null
   lockedInAt: string
-  collectiveId: string | null
   myRsvpStatus: string
   createdByName: string | null
   participants: {

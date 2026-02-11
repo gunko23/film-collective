@@ -7,7 +7,6 @@ export type PlannedWatch = {
   movieYear: number | null
   moviePoster: string | null
   createdBy: string
-  collectiveId: string | null
   status: "planned" | "watching" | "watched" | "cancelled"
   scheduledFor: string | null
   lockedInAt: string
@@ -43,7 +42,7 @@ export type CreatePlannedWatchInput = {
   movieYear?: number | null
   moviePoster?: string | null
   createdBy: string
-  collectiveId?: string | null
+  collectiveIds?: string[]
   participantIds: string[]
   scheduledFor?: string | null
   moodTags?: string[] | null
@@ -57,7 +56,7 @@ export async function createPlannedWatch(input: CreatePlannedWatchInput): Promis
     movieYear,
     moviePoster,
     createdBy,
-    collectiveId,
+    collectiveIds = [],
     participantIds,
     scheduledFor,
     moodTags,
@@ -66,12 +65,21 @@ export async function createPlannedWatch(input: CreatePlannedWatchInput): Promis
 
   // Insert the planned watch
   const rows = await sql`
-    INSERT INTO planned_watches (movie_id, movie_title, movie_year, movie_poster, created_by, collective_id, scheduled_for, source, mood_tags)
-    VALUES (${movieId}, ${movieTitle}, ${movieYear ?? null}, ${moviePoster ?? null}, ${createdBy}, ${collectiveId ?? null}, ${scheduledFor ?? null}, ${source}, ${moodTags ?? null})
+    INSERT INTO planned_watches (movie_id, movie_title, movie_year, movie_poster, created_by, scheduled_for, source, mood_tags)
+    VALUES (${movieId}, ${movieTitle}, ${movieYear ?? null}, ${moviePoster ?? null}, ${createdBy}, ${scheduledFor ?? null}, ${source}, ${moodTags ?? null})
     RETURNING *
   `
 
   const plannedWatch = mapRow(rows[0])
+
+  // Link to collectives via junction table
+  for (const collectiveId of collectiveIds) {
+    await sql`
+      INSERT INTO planned_watch_collectives (planned_watch_id, collective_id)
+      VALUES (${plannedWatch.id}, ${collectiveId})
+      ON CONFLICT (planned_watch_id, collective_id) DO NOTHING
+    `
+  }
 
   // Insert participants — creator is auto-confirmed, others start as 'pending'
   if (participantIds.length > 0) {
@@ -239,10 +247,10 @@ export async function getCollectivePlannedWatches(
     SELECT pw.*, creator.name AS created_by_name, creator.avatar_url AS created_by_avatar,
       my_pwp.rsvp_status AS my_rsvp_status, my_pwp.user_id AS my_participant_id
     FROM planned_watches pw
+    JOIN planned_watch_collectives pwc ON pwc.planned_watch_id = pw.id AND pwc.collective_id = ${collectiveId}
     JOIN users creator ON creator.id = pw.created_by
     LEFT JOIN planned_watch_participants my_pwp ON my_pwp.planned_watch_id = pw.id AND my_pwp.user_id = ${currentUserId}
-    WHERE pw.collective_id = ${collectiveId}
-      AND pw.status IN ('planned', 'watching')
+    WHERE pw.status IN ('planned', 'watching')
     ORDER BY pw.locked_in_at DESC
   `
 
@@ -291,6 +299,18 @@ export async function joinPlannedWatch(
   return rows.length > 0
 }
 
+export async function leavePlannedWatch(
+  plannedWatchId: string,
+  userId: string,
+): Promise<boolean> {
+  const rows = await sql`
+    DELETE FROM planned_watch_participants
+    WHERE planned_watch_id = ${plannedWatchId} AND user_id = ${userId}
+    RETURNING id
+  `
+  return rows.length > 0
+}
+
 export async function getUserActivityStatus(userId: string): Promise<{ status: string; movieTitle?: string } | null> {
   const rows = await sql`
     SELECT pw.status, pw.movie_title
@@ -320,7 +340,6 @@ function mapRow(row: any): PlannedWatch {
     movieYear: row.movie_year,
     moviePoster: row.movie_poster,
     createdBy: row.created_by,
-    collectiveId: row.collective_id,
     status: row.status,
     scheduledFor: row.scheduled_for,
     lockedInAt: row.locked_in_at,

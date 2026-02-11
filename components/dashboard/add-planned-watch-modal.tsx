@@ -49,13 +49,19 @@ const TIMING_OPTIONS = [
 
 // ─── Component ───
 
+type Collective = {
+  id: string
+  name: string
+}
+
 type Props = {
   isOpen: boolean
   onClose: () => void
   onSuccess?: () => void
+  collectives?: Collective[]
 }
 
-export function AddPlannedWatchModal({ isOpen, onClose, onSuccess }: Props) {
+export function AddPlannedWatchModal({ isOpen, onClose, onSuccess, collectives = [] }: Props) {
   const [step, setStep] = useState<"search" | "confirm">("search")
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<Film[]>([])
@@ -63,6 +69,7 @@ export function AddPlannedWatchModal({ isOpen, onClose, onSuccess }: Props) {
   const [trendingFilms, setTrendingFilms] = useState<Film[]>([])
   const [selectedFilm, setSelectedFilm] = useState<Film | null>(null)
   const [selectedTiming, setSelectedTiming] = useState("Tonight")
+  const [selectedCollectiveIds, setSelectedCollectiveIds] = useState<Set<string>>(new Set())
   const [isSaving, setIsSaving] = useState(false)
 
   const modalRef = useRef<HTMLDivElement>(null)
@@ -139,11 +146,12 @@ export function AddPlannedWatchModal({ isOpen, onClose, onSuccess }: Props) {
       setSearchQuery("")
       setSearchResults([])
       setSelectedFilm(null)
-      setSelectedTiming("tonight")
+      setSelectedTiming("Tonight")
+      setSelectedCollectiveIds(new Set(collectives.map((c) => c.id)))
       setIsSaving(false)
       requestAnimationFrame(() => searchInputRef.current?.focus())
     }
-  }, [isOpen])
+  }, [isOpen, collectives])
 
   // ── Lock body scroll ──
 
@@ -190,6 +198,7 @@ export function AddPlannedWatchModal({ isOpen, onClose, onSuccess }: Props) {
           moviePoster: selectedFilm.posterPath ?? null,
           source: "manual",
           scheduledFor: selectedTiming,
+          collectiveIds: Array.from(selectedCollectiveIds),
           participantIds: [],
         }),
       })
@@ -202,7 +211,7 @@ export function AddPlannedWatchModal({ isOpen, onClose, onSuccess }: Props) {
     } finally {
       setIsSaving(false)
     }
-  }, [selectedFilm, selectedTiming, isSaving, onSuccess, onClose])
+  }, [selectedFilm, selectedTiming, selectedCollectiveIds, isSaving, onSuccess, onClose])
 
   if (!isOpen) return null
 
@@ -448,6 +457,81 @@ export function AddPlannedWatchModal({ isOpen, onClose, onSuccess }: Props) {
                 )
               })}
             </div>
+
+            {/* Collective selector */}
+            {collectives.length > 0 && (
+              <>
+                <p style={{ fontSize: 12, fontWeight: 500, color: colors.textMuted, margin: "0 0 10px" }}>
+                  Share with collectives
+                </p>
+                <div style={{ display: "flex", gap: 8, marginBottom: 24, width: "100%", flexWrap: "wrap" }}>
+                  {/* All toggle */}
+                  {collectives.length > 1 && (() => {
+                    const allSelected = selectedCollectiveIds.size === collectives.length
+                    return (
+                      <button
+                        onClick={() => {
+                          if (allSelected) {
+                            setSelectedCollectiveIds(new Set())
+                          } else {
+                            setSelectedCollectiveIds(new Set(collectives.map((c) => c.id)))
+                          }
+                        }}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: 10,
+                          border: `1px solid ${allSelected ? "#c97b3a" : colors.border}`,
+                          background: allSelected ? "#c97b3a14" : "transparent",
+                          color: allSelected ? "#e8943a" : colors.textMuted,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          fontFamily: "inherit",
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        All
+                      </button>
+                    )
+                  })()}
+                  {collectives.map((c) => {
+                    const isActive = selectedCollectiveIds.has(c.id)
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setSelectedCollectiveIds((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(c.id)) {
+                              next.delete(c.id)
+                            } else {
+                              next.add(c.id)
+                            }
+                            return next
+                          })
+                        }}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: 10,
+                          border: `1px solid ${isActive ? "#c97b3a" : colors.border}`,
+                          background: isActive ? "#c97b3a14" : "transparent",
+                          color: isActive ? "#e8943a" : colors.textMuted,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          fontFamily: "inherit",
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {c.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
 
             {/* Add button */}
             <button

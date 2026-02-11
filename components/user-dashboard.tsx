@@ -645,6 +645,7 @@ export function UserDashboard() {
       <AddPlannedWatchModal
         isOpen={showAddPlannedWatch}
         onClose={() => setShowAddPlannedWatch(false)}
+        collectives={collectives}
         onSuccess={() => {
           mutate()
           globalMutate("/api/planned-watches/upcoming")

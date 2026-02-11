@@ -76,6 +76,15 @@ export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
     }
   }
 
+  const handleLeave = async (watchId: string) => {
+    try {
+      await fetch(`/api/planned-watches/${watchId}/leave`, { method: "POST" })
+      mutate()
+    } catch (err) {
+      console.error("Failed to leave planned watch:", err)
+    }
+  }
+
   if (watches.length === 0) return null
 
   return (
@@ -223,10 +232,11 @@ export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
                   </div>
                 )}
 
-                {/* Join / Joined */}
+                {/* Join / Leave */}
                 <div style={{ marginTop: "auto" }}>
                   {watch.isParticipant ? (
-                    <div
+                    <button
+                      onClick={() => handleLeave(watch.id)}
                       style={{
                         width: "100%",
                         padding: "6px 0",
@@ -237,10 +247,13 @@ export function CollectivePlannedWatchesSection({ collectiveId }: Props) {
                         fontSize: 11,
                         fontWeight: 600,
                         textAlign: "center",
+                        cursor: "pointer",
+                        transition: "all 0.15s",
+                        fontFamily: "inherit",
                       }}
                     >
                       Joined
-                    </div>
+                    </button>
                   ) : (
                     <button
                       onClick={() => handleJoin(watch.id)}

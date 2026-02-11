@@ -246,7 +246,6 @@ export const plannedWatches = pgTable("planned_watches", {
   createdBy: uuid("created_by")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  collectiveId: uuid("collective_id").references(() => collectives.id, { onDelete: "set null" }),
   status: text("status").notNull().default("planned"), // 'planned', 'watching', 'watched', 'cancelled'
   scheduledFor: text("scheduled_for"),
   lockedInAt: timestamp("locked_in_at", { withTimezone: true }).defaultNow(),
@@ -274,6 +273,21 @@ export const plannedWatchParticipants = pgTable(
     watchedAt: timestamp("watched_at", { withTimezone: true }),
   },
   (table) => [unique().on(table.plannedWatchId, table.userId)],
+)
+
+export const plannedWatchCollectives = pgTable(
+  "planned_watch_collectives",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    plannedWatchId: uuid("planned_watch_id")
+      .notNull()
+      .references(() => plannedWatches.id, { onDelete: "cascade" }),
+    collectiveId: uuid("collective_id")
+      .notNull()
+      .references(() => collectives.id, { onDelete: "cascade" }),
+    addedAt: timestamp("added_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [unique().on(table.plannedWatchId, table.collectiveId)],
 )
 
 // ============================================
