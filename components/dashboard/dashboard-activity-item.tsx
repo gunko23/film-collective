@@ -26,7 +26,7 @@ export function getUserGradient(name: string): [string, string] {
 }
 
 export type Activity = {
-  activity_type: "rating" | "comment" | "reaction" | "discussion"
+  activity_type: "rating" | "comment" | "reaction" | "discussion" | "planned_watch" | "started_watching"
   activity_id: string
   created_at: string
   actor_id: string
@@ -101,14 +101,41 @@ export function DashboardActivityItem({ activity }: { activity: Activity }) {
             <span className="font-medium">{activity.media_title}</span>
           </>
         )
+      case "planned_watch":
+        return (
+          <>
+            <span className="text-cream-muted"> added </span>
+            <span className="font-medium">{activity.media_title}</span>
+            <span className="text-cream-muted"> to planned watches</span>
+          </>
+        )
+      case "started_watching":
+        return (
+          <>
+            <span className="text-cream-muted"> started watching </span>
+            <span className="font-medium">{activity.media_title}</span>
+          </>
+        )
       default:
         return null
     }
   }
 
+  const href = (() => {
+    switch (activity.activity_type) {
+      case "rating":
+        return `/movies/${activity.tmdb_id}`
+      case "planned_watch":
+      case "started_watching":
+        return `/collectives/${activity.collective_id}`
+      default:
+        return `/collectives/${activity.collective_id}/movie/${activity.tmdb_id}/conversation`
+    }
+  })()
+
   return (
     <Link
-      href={`/collectives/${activity.collective_id}/movie/${activity.tmdb_id}/conversation`}
+      href={href}
       className="flex gap-3.5 lg:gap-4 p-4 lg:p-5 bg-card rounded-[14px] border border-cream-faint/[0.05] mb-2.5 lg:mb-3 transition-all duration-300 hover:border-cream-faint/[0.12]"
     >
       <div
@@ -141,6 +168,18 @@ export function DashboardActivityItem({ activity }: { activity: Activity }) {
             ))}
             <span className="text-xs lg:text-sm font-semibold ml-1" style={{ color: "#ff6b2d" }}>
               {(activity.score / 20).toFixed(1)}
+            </span>
+          </div>
+        )}
+
+        {activity.activity_type === "started_watching" && (
+          <div className="flex items-center gap-1.5 mb-1.5 lg:mb-2">
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full"
+              style={{ background: "#2ecc71", boxShadow: "0 0 6px #2ecc71aa" }}
+            />
+            <span className="text-[10px] lg:text-[11px] font-bold uppercase tracking-wider" style={{ color: "#2ecc71" }}>
+              Now Watching
             </span>
           </div>
         )}

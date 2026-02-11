@@ -17,6 +17,14 @@ INSERT INTO planned_watch_collectives (planned_watch_id, collective_id)
 SELECT id, collective_id FROM planned_watches
 WHERE collective_id IS NOT NULL;
 
+-- Backfill: link planned watches that had no collective_id to their creator's collectives
+INSERT INTO planned_watch_collectives (planned_watch_id, collective_id)
+SELECT pw.id, cm.collective_id
+FROM planned_watches pw
+JOIN collective_memberships cm ON cm.user_id = pw.created_by
+WHERE pw.collective_id IS NULL
+ON CONFLICT (planned_watch_id, collective_id) DO NOTHING;
+
 -- Drop the old column and its index
 DROP INDEX IF EXISTS idx_pw_collective;
 ALTER TABLE planned_watches DROP COLUMN collective_id;
