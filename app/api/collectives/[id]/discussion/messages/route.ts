@@ -4,6 +4,7 @@ import { getSafeUser } from "@/lib/auth/auth-utils"
 import { publishToChannel } from "@/lib/ably/server"
 import { getDiscussionChannelName } from "@/lib/ably/channel-names"
 import { sendPushNotificationToCollectiveMembers } from "@/lib/push/push-service"
+import { notifyCollectiveMembers } from "@/lib/notifications/notification-service"
 import {
   verifyCollectiveMembership,
   getDiscussionMessages,
@@ -113,6 +114,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       url: `/collectives/${collectiveId}?section=discussion`,
       tag: `discussion-${collectiveId}`,
     }).catch((err) => console.error("Push notification error:", err))
+
+    // Create in-app notifications for collective members
+    notifyCollectiveMembers(collectiveId, dbUser.id, {
+      type: "discussion",
+      content: gifUrl ? "sent a GIF" : content?.substring(0, 80),
+    }).catch((err) => console.error("In-app notification error:", err))
 
     return NextResponse.json({ message: fullMessage })
   } catch (error) {
