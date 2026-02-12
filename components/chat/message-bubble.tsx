@@ -219,7 +219,7 @@ export const MessageBubble = memo(function MessageBubble({
               border: isOwn
                 ? "1px solid rgba(61, 90, 150, 0.13)"
                 : "1px solid rgba(107, 99, 88, 0.05)",
-              fontSize: 14,
+              fontSize: 13,
               lineHeight: 1.5,
               color: "#e8e2d6",
             }}
