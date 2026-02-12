@@ -39,12 +39,24 @@ export async function savePushSubscription(userId: string, subscription: PushSub
 export async function removePushSubscription(userId: string, endpoint: string) {
   try {
     await sql`
-      DELETE FROM push_subscriptions 
+      DELETE FROM push_subscriptions
       WHERE user_id = ${userId} AND endpoint = ${endpoint}
     `
     return { success: true }
   } catch (error) {
     console.error("Error removing push subscription:", error)
+    return { success: false, error }
+  }
+}
+
+export async function removeAllPushSubscriptions(userId: string) {
+  try {
+    await sql`
+      DELETE FROM push_subscriptions WHERE user_id = ${userId}
+    `
+    return { success: true }
+  } catch (error) {
+    console.error("Error removing all push subscriptions:", error)
     return { success: false, error }
   }
 }

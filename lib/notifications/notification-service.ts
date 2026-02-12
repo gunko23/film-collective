@@ -68,12 +68,34 @@ export async function createNotification(params: CreateNotificationParams) {
         pushBody = `${actorName} did something`
     }
 
+    // Build push URL based on notification type
+    let pushUrl: string
+    switch (type) {
+      case "discussion":
+        pushUrl = `/collectives/${collectiveId}?tab=chat`
+        break
+      case "comment":
+      case "thread_reply":
+      case "reaction":
+        pushUrl = ratingId
+          ? `/collectives/${collectiveId}/conversation/${ratingId}`
+          : `/collectives/${collectiveId}`
+        break
+      default:
+        pushUrl = `/collectives/${collectiveId}`
+    }
+
+    // Use a stable tag per type so duplicates from multiple subscriptions collapse
+    const pushTag = type === "discussion"
+      ? `discussion-${collectiveId}`
+      : `notification-${notificationId}`
+
     // Send push notification (fire and forget - don't block)
     sendPushNotification(userId, {
       title: pushTitle,
       body: pushBody,
-      url: `/collectives/${collectiveId}`,
-      tag: `notification-${notificationId}`,
+      url: pushUrl,
+      tag: pushTag,
       notificationId,
     }).catch((err) => console.error("Push notification failed:", err))
 
