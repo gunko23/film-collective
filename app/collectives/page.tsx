@@ -9,12 +9,19 @@ import { AuthErrorBoundary } from "@/components/auth-error-boundary"
 import { LightLeaks } from "@/components/soulframe/light-leaks"
 import { getCollectiveInitials } from "@/components/soulframe/collective-badge"
 
+type MemberPreview = {
+  id: string
+  name: string | null
+  avatar_url: string | null
+}
+
 type Collective = {
   id: string
   name: string
   description: string | null
   role: string
   member_count: number
+  member_previews: MemberPreview[]
   created_at: string
 }
 
@@ -35,30 +42,47 @@ function getRoleLabel(role: string): string {
   }
 }
 
-function MemberStack({ count, color }: { count: number; color: string }) {
-  const dots = Array.from({ length: Math.min(count, 5) }, (_, i) => i)
+function MemberStack({ count, color, members }: { count: number; color: string; members: MemberPreview[] }) {
+  const displayMembers = members.slice(0, Math.min(count, 5))
   return (
     <div className="flex items-center">
-      {dots.map((i) => (
+      {displayMembers.map((member, i) => (
         <div
-          key={i}
-          className="rounded-full"
+          key={member.id}
+          className="rounded-full overflow-hidden flex items-center justify-center"
           style={{
-            width: 20,
-            height: 20,
-            background: `linear-gradient(145deg, ${color}55, ${color}22)`,
+            width: 22,
+            height: 22,
+            background: member.avatar_url
+              ? "transparent"
+              : `linear-gradient(145deg, ${color}55, ${color}22)`,
             border: "1.5px solid #141210",
             marginLeft: i > 0 ? -7 : 0,
-            zIndex: dots.length - i,
+            zIndex: displayMembers.length - i,
             position: "relative",
           }}
-        />
+        >
+          {member.avatar_url ? (
+            <img
+              src={member.avatar_url}
+              alt={member.name || "Member"}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span
+              className="text-[8px] font-bold"
+              style={{ color: `${color}cc` }}
+            >
+              {member.name ? member.name.charAt(0).toUpperCase() : "?"}
+            </span>
+          )}
+        </div>
       ))}
       <span
         className="ml-2.5 text-xs"
         style={{ color: "#807060", letterSpacing: "0.01em" }}
       >
-        {count}
+        {count} {count === 1 ? "member" : "members"}
       </span>
     </div>
   )
@@ -172,7 +196,7 @@ function CollectiveCard({
         </div>
 
         {/* Members */}
-        <MemberStack count={collective.member_count} color={accentColor} />
+        <MemberStack count={collective.member_count} color={accentColor} members={collective.member_previews || []} />
       </div>
     </Link>
   )

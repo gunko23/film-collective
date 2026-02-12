@@ -13,10 +13,21 @@ function generateInviteCode(): string {
 // Get all collectives for a user
 export async function getUserCollectives(userId: string) {
   const result = await sql`
-    SELECT 
+    SELECT
       c.*,
       cm.role,
-      (SELECT COUNT(*) FROM collective_memberships WHERE collective_id = c.id) as member_count
+      (SELECT COUNT(*) FROM collective_memberships WHERE collective_id = c.id) as member_count,
+      (
+        SELECT COALESCE(json_agg(json_build_object('id', u.id, 'name', u.name, 'avatar_url', u.avatar_url)), '[]'::json)
+        FROM (
+          SELECT u.id, u.name, u.avatar_url
+          FROM collective_memberships cm2
+          JOIN users u ON cm2.user_id = u.id
+          WHERE cm2.collective_id = c.id
+          ORDER BY cm2.created_at ASC
+          LIMIT 5
+        ) u
+      ) as member_previews
     FROM collectives c
     JOIN collective_memberships cm ON c.id = cm.collective_id
     WHERE cm.user_id = ${userId}::uuid
