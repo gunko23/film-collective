@@ -85,12 +85,17 @@ export async function createNotification(params: CreateNotificationParams) {
         pushUrl = `/collectives/${collectiveId}`
     }
 
+    // Use a stable tag per type so duplicates from multiple subscriptions collapse
+    const pushTag = type === "discussion"
+      ? `discussion-${collectiveId}`
+      : `notification-${notificationId}`
+
     // Send push notification (fire and forget - don't block)
     sendPushNotification(userId, {
       title: pushTitle,
       body: pushBody,
       url: pushUrl,
-      tag: `notification-${notificationId}`,
+      tag: pushTag,
       notificationId,
     }).catch((err) => console.error("Push notification failed:", err))
 

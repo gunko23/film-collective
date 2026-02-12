@@ -64,7 +64,7 @@ self.addEventListener("push", (event) => {
       { action: "dismiss", title: "Dismiss" },
     ],
     tag: data.tag || "default",
-    renotify: true,
+    renotify: false,
   }
 
   event.waitUntil(self.registration.showNotification(data.title || "Film Collective", options))

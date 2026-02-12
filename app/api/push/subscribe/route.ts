@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 import { ensureUserExists } from "@/lib/db/user-service"
-import { savePushSubscription, removePushSubscription } from "@/lib/push/push-service"
+import { savePushSubscription, removePushSubscription, removeAllPushSubscriptions } from "@/lib/push/push-service"
 
 export async function POST(request: NextRequest) {
   const { user, error } = await getSafeUser()
@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
 
     // Ensure user exists in DB before saving subscription (FK constraint)
     const dbUser = await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
+
+    // Remove all old subscriptions for this user to prevent stale duplicates
+    await removeAllPushSubscriptions(dbUser.id)
 
     const result = await savePushSubscription(dbUser.id, subscription)
 
