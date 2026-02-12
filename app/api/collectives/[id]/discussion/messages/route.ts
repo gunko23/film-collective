@@ -3,14 +3,12 @@ import { ensureUserExists } from "@/lib/db/user-service"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 import { publishToChannel } from "@/lib/ably/server"
 import { getDiscussionChannelName } from "@/lib/ably/channel-names"
-import { sendPushNotificationToCollectiveMembers } from "@/lib/push/push-service"
 import { notifyCollectiveMembers } from "@/lib/notifications/notification-service"
 import {
   verifyCollectiveMembership,
   getDiscussionMessages,
   updateReadReceipt,
   createDiscussionMessage,
-  getCollectiveName,
 } from "@/lib/chat/chat-service"
 
 // GET: Fetch messages with pagination
@@ -103,23 +101,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     await publishToChannel(getDiscussionChannelName(collectiveId), "new_message", fullMessage)
 
-    const collectiveName = await getCollectiveName(collectiveId)
-    const senderName = user.displayName || dbUser.name || "Someone"
-    const messagePreview = gifUrl ? "sent a GIF" : content?.substring(0, 50) + (content?.length > 50 ? "..." : "")
-
-    // Fire and forget - don't block the response
-    sendPushNotificationToCollectiveMembers(collectiveId, dbUser.id, {
-      title: `${collectiveName} Discussion`,
-      body: `${senderName}: ${messagePreview}`,
-      url: `/collectives/${collectiveId}?tab=chat`,
-      tag: `discussion-${collectiveId}`,
-    }).catch((err) => console.error("Push notification error:", err))
-
-    // Create in-app notifications for collective members
+    // Create in-app + push notifications for collective members
     notifyCollectiveMembers(collectiveId, dbUser.id, {
       type: "discussion",
       content: gifUrl ? "sent a GIF" : content?.substring(0, 80),
-    }).catch((err) => console.error("In-app notification error:", err))
+    }).catch((err) => console.error("Notification error:", err))
 
     return NextResponse.json({ message: fullMessage })
   } catch (error) {
