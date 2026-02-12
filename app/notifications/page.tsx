@@ -287,7 +287,7 @@ export default function NotificationsPage() {
 
                 {/* Action type badge */}
                 <div
-                  className="absolute -bottom-[3px] -right-[3px] w-5 h-5 rounded-md flex items-center justify-center"
+                  className="absolute -bottom-[5px] -right-[5px] w-5 h-5 rounded-md flex items-center justify-center"
                   style={{
                     background: "#0d0a08",
                     border: "1px solid rgba(255,255,255,0.04)",
