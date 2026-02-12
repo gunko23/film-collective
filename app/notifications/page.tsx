@@ -254,7 +254,7 @@ export default function NotificationsPage() {
               )}
 
               {/* Avatar with action badge */}
-              <div className="relative flex-shrink-0">
+              <div className="relative flex-shrink-0 w-[42px] h-[42px] self-start">
                 <div
                   className="w-[42px] h-[42px] rounded-xl overflow-hidden flex items-center justify-center"
                   style={{
