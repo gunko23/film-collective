@@ -10,16 +10,16 @@ import { useNotificationStream } from "@/hooks/use-notification-stream"
 
 interface Notification {
   id: string
-  type: "comment" | "reaction"
+  type: "comment" | "reaction" | "thread_reply" | "discussion" | "started_watching"
   actor_id: string
   actor_name: string
   actor_avatar: string | null
-  rating_id: string
+  rating_id: string | null
   collective_id: string
   collective_name: string
   content: string | null
-  media_type: string
-  media_title: string
+  media_type: string | null
+  media_title: string | null
   media_poster: string | null
   is_read: boolean
   created_at: string
@@ -98,32 +98,78 @@ export function NotificationBell() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "comment":
+      case "thread_reply":
         return <MessageCircle className="h-4 w-4 text-blue" />
       case "reaction":
         return <Heart className="h-4 w-4 text-rose" />
+      case "discussion":
+        return <MessageCircle className="h-4 w-4 text-violet-400" />
+      case "started_watching":
+        return <Bell className="h-4 w-4 text-green-400" />
       default:
         return <Bell className="h-4 w-4" />
     }
   }
 
-  const getNotificationText = (notification: Notification) => {
-    if (notification.type === "comment") {
-      return (
-        <>
-          <span className="font-medium text-cream">{notification.actor_name}</span> commented on your rating of{" "}
-          <span className="font-medium text-cream">{notification.media_title}</span>
-        </>
-      )
-    } else if (notification.type === "reaction") {
-      const emoji = emojiMap[notification.content || ""] || notification.content
-      return (
-        <>
-          <span className="font-medium text-cream">{notification.actor_name}</span> reacted {emoji} to your rating of{" "}
-          <span className="font-medium text-cream">{notification.media_title}</span>
-        </>
-      )
+  const getNotificationLink = (notification: Notification) => {
+    switch (notification.type) {
+      case "discussion":
+        return `/collectives/${notification.collective_id}?tab=chat`
+      case "started_watching":
+        return `/collectives/${notification.collective_id}`
+      case "comment":
+      case "thread_reply":
+      case "reaction":
+        return notification.rating_id
+          ? `/collectives/${notification.collective_id}/conversation/${notification.rating_id}`
+          : `/collectives/${notification.collective_id}`
+      default:
+        return `/collectives/${notification.collective_id}`
     }
-    return null
+  }
+
+  const getNotificationText = (notification: Notification) => {
+    switch (notification.type) {
+      case "comment":
+        return (
+          <>
+            <span className="font-medium text-cream">{notification.actor_name}</span> commented on your rating of{" "}
+            <span className="font-medium text-cream">{notification.media_title}</span>
+          </>
+        )
+      case "thread_reply":
+        return (
+          <>
+            <span className="font-medium text-cream">{notification.actor_name}</span> replied in a thread on{" "}
+            <span className="font-medium text-cream">{notification.media_title}</span>
+          </>
+        )
+      case "reaction": {
+        const emoji = emojiMap[notification.content || ""] || notification.content
+        return (
+          <>
+            <span className="font-medium text-cream">{notification.actor_name}</span> reacted {emoji} to your rating of{" "}
+            <span className="font-medium text-cream">{notification.media_title}</span>
+          </>
+        )
+      }
+      case "discussion":
+        return (
+          <>
+            <span className="font-medium text-cream">{notification.actor_name}</span> sent a message in{" "}
+            <span className="font-medium text-cream">{notification.collective_name}</span>
+          </>
+        )
+      case "started_watching":
+        return (
+          <>
+            <span className="font-medium text-cream">{notification.actor_name}</span> started watching{" "}
+            <span className="font-medium text-cream">{notification.media_title}</span>
+          </>
+        )
+      default:
+        return null
+    }
   }
 
   return (
@@ -174,7 +220,7 @@ export function NotificationBell() {
                 return (
                   <Link
                     key={notification.id}
-                    href={`/collectives/${notification.collective_id}/conversation/${notification.rating_id}`}
+                    href={getNotificationLink(notification)}
                     onClick={() => {
                       if (!notification.is_read) {
                         markAsRead([notification.id])

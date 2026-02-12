@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
 import { Bell, MessageCircle, Heart, CheckCheck, ArrowLeft, Play, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import useSWR from "swr"
+import useSWR, { mutate as globalMutate } from "swr"
 import { formatDistanceToNow } from "date-fns"
 
 interface Notification {
@@ -53,7 +53,25 @@ export default function NotificationsPage() {
   const unreadCount = data?.unreadCount || 0
   const hasMore = (page + 1) * limit < total
 
-  const markAsRead = async (notificationIds?: string[]) => {
+  // Auto-mark all as read when page loads with unread notifications
+  const hasMarkedRef = useRef(false)
+  useEffect(() => {
+    if (unreadCount > 0 && !hasMarkedRef.current) {
+      hasMarkedRef.current = true
+      fetch("/api/notifications/mark-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAll: true }),
+      })
+        .then(() => {
+          mutate()
+          window.dispatchEvent(new Event("notifications-read"))
+        })
+        .catch((err) => console.error("Error auto-marking notifications as read:", err))
+    }
+  }, [unreadCount, mutate])
+
+  const markAsRead = useCallback(async (notificationIds?: string[]) => {
     try {
       await fetch("/api/notifications/mark-read", {
         method: "POST",
@@ -61,10 +79,11 @@ export default function NotificationsPage() {
         body: JSON.stringify(notificationIds ? { notificationIds } : { markAll: true }),
       })
       mutate()
+      window.dispatchEvent(new Event("notifications-read"))
     } catch (error) {
       console.error("Error marking notifications as read:", error)
     }
-  }
+  }, [mutate])
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -85,7 +104,7 @@ export default function NotificationsPage() {
   const getNotificationLink = (notification: Notification) => {
     switch (notification.type) {
       case "discussion":
-        return `/collectives/${notification.collective_id}?section=discussion`
+        return `/collectives/${notification.collective_id}?tab=chat`
       case "started_watching":
         return `/collectives/${notification.collective_id}`
       case "comment":

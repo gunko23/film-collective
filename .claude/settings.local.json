@@ -31,7 +31,10 @@
       "Bash(pwsh:*)",
       "Bash(tasklist:*)",
       "Bash(git rm:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git commit:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)"
     ]
   }
 }
