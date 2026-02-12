@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       user_id: r.user_id,
       user_name: r.user_name,
       user_avatar: r.user_avatar,
-      score: r.overall_score ? Math.round(r.overall_score / 20) : null,
+      score: r.overall_score ? r.overall_score / 20 : null,
       user_comment: r.user_comment,
       rated_at: r.rated_at,
     }))
