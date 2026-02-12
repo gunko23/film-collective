@@ -16,7 +16,6 @@ import {
   Loader2,
   LogIn,
   LayoutDashboard,
-  Bell,
 } from "lucide-react"
 import { useUser, useStackApp } from "@stackframe/stack"
 import { Button } from "@/components/ui/button"

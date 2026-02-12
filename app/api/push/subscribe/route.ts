@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSafeUser } from "@/lib/auth/auth-utils"
+import { ensureUserExists } from "@/lib/db/user-service"
 import { savePushSubscription, removePushSubscription } from "@/lib/push/push-service"
 
 export async function POST(request: NextRequest) {
@@ -16,7 +17,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid subscription data" }, { status: 400 })
     }
 
-    const result = await savePushSubscription(user.id, subscription)
+    // Ensure user exists in DB before saving subscription (FK constraint)
+    const dbUser = await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
+
+    const result = await savePushSubscription(dbUser.id, subscription)
 
     if (result.success) {
       return NextResponse.json({ success: true })
@@ -43,7 +47,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Endpoint required" }, { status: 400 })
     }
 
-    const result = await removePushSubscription(user.id, endpoint)
+    const dbUser = await ensureUserExists(user.id, user.primaryEmail || "", user.displayName, user.profileImageUrl)
+    const result = await removePushSubscription(dbUser.id, endpoint)
 
     if (result.success) {
       return NextResponse.json({ success: true })

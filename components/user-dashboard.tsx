@@ -386,7 +386,6 @@ export function UserDashboard() {
               className="relative size-10 rounded-full bg-card border border-cream-faint/[0.08] flex items-center justify-center"
             >
               <BellIcon size={20} />
-              <div className="absolute top-2 right-2 size-[7px] rounded-full bg-orange" />
             </Link>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

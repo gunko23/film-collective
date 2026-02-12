@@ -1,9 +1,7 @@
-const CACHE_NAME = "film-collective-v1"
-const urlsToCache = ["/", "/globals.css"]
+const CACHE_NAME = "film-collective-v2"
 
-// Install event - cache essential assets
+// Install event - activate immediately
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(urlsToCache)))
   self.skipWaiting()
 })
 
@@ -54,8 +52,8 @@ self.addEventListener("push", (event) => {
 
   const options = {
     body: data.body || "You have a new notification",
-    icon: "/icon-192.jpg",
-    badge: "/icon-192.jpg",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
     vibrate: [100, 50, 100],
     data: {
       url: data.url || "/",

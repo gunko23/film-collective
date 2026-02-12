@@ -101,6 +101,7 @@ export const MessageBubble = memo(function MessageBubble({
   gifUrl,
   userId,
   userName,
+  userAvatar,
   createdAt,
   isOptimistic,
   isOwn,
@@ -132,7 +133,18 @@ export const MessageBubble = memo(function MessageBubble({
   const senderColors = useMemo(() => getSenderColor(userName), [userName])
   const initial = userName?.[0]?.toUpperCase() || "?"
 
-  const avatarEl = (
+  const avatarEl = userAvatar ? (
+    <img
+      src={userAvatar}
+      alt={userName}
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: "50%",
+        objectFit: "cover",
+      }}
+    />
+  ) : (
     <div
       style={{
         width: 28,

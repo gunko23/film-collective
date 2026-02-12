@@ -97,9 +97,17 @@ export function useNotificationStream() {
     }
     document.addEventListener("visibilitychange", handleVisibilityChange)
 
+    // Listen for "notifications-read" events from other components
+    // so the badge clears immediately without waiting for the next SSE poll
+    const handleNotificationsRead = () => {
+      setState((prev) => ({ ...prev, unreadCount: 0 }))
+    }
+    window.addEventListener("notifications-read", handleNotificationsRead)
+
     return () => {
       disconnect()
       document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("notifications-read", handleNotificationsRead)
     }
   }, [connect, disconnect])
 

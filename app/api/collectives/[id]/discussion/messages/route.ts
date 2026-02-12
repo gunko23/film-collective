@@ -111,7 +111,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     sendPushNotificationToCollectiveMembers(collectiveId, dbUser.id, {
       title: `${collectiveName} Discussion`,
       body: `${senderName}: ${messagePreview}`,
-      url: `/collectives/${collectiveId}?section=discussion`,
+      url: `/collectives/${collectiveId}?tab=chat`,
       tag: `discussion-${collectiveId}`,
     }).catch((err) => console.error("Push notification error:", err))
 

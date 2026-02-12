@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Settings, ChevronRight } from "lucide-react"
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
 import { GeneralDiscussion } from "@/components/general-discussion"
@@ -120,7 +120,12 @@ export function MobileCollectiveView({
   insightsContent,
 }: Props) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<CollectiveTab>("feed")
+  const searchParams = useSearchParams()
+  const initialTab = searchParams.get("tab")
+  const validTabs: CollectiveTab[] = ["feed", "chat", "films", "insights", "tonights-pick"]
+  const [activeTab, setActiveTab] = useState<CollectiveTab>(
+    initialTab && validTabs.includes(initialTab as CollectiveTab) ? (initialTab as CollectiveTab) : "feed"
+  )
   const [recentActivity, setRecentActivity] = useState<FeedActivity[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
   const [showMembersModal, setShowMembersModal] = useState(false)
@@ -532,7 +537,7 @@ export function MobileCollectiveView({
       )}
 
       {/* ─── Mobile: Collective Header ──────────────────── */}
-      {activeTab !== "tonights-pick" && (
+      {activeTab !== "tonights-pick" && activeTab !== "chat" && (
         <div className="lg:hidden sf-reveal" style={{ padding: "60px 24px 0" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -576,13 +581,13 @@ export function MobileCollectiveView({
 
       {/* ─── Mobile: Pill Tab Bar ───────────────────────── */}
       {activeTab !== "tonights-pick" && (
-        <div className="lg:hidden sf-reveal sf-delay-1">
+        <div className={`lg:hidden sf-reveal sf-delay-1 ${activeTab === "chat" ? "fixed top-[44px] left-0 right-0 z-[499]" : ""}`}>
           <PillTabBar activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
       )}
 
       {/* ─── Mobile Tab Content ─────────────────────────── */}
-      <div className={`lg:hidden sf-reveal sf-delay-2 ${activeTab === "chat" ? "fixed inset-x-0 bottom-20 top-[260px]" : activeTab === "tonights-pick" ? "flex-1 min-h-0" : ""}`}>
+      <div className={`lg:hidden sf-reveal sf-delay-2 ${activeTab === "chat" ? "fixed inset-x-0 bottom-20 top-[96px]" : activeTab === "tonights-pick" ? "flex-1 min-h-0" : ""}`}>
 
         {/* Feed Tab */}
         {activeTab === "feed" && (
