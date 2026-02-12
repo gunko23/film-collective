@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Bell, MessageCircle, Heart, CheckCheck, ArrowLeft } from "lucide-react"
+import { Bell, MessageCircle, Heart, CheckCheck, ArrowLeft, Play, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/header"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -11,16 +11,16 @@ import { formatDistanceToNow } from "date-fns"
 
 interface Notification {
   id: string
-  type: "comment" | "reaction"
+  type: "comment" | "reaction" | "thread_reply" | "discussion" | "started_watching"
   actor_id: string
   actor_name: string
   actor_avatar: string | null
-  rating_id: string
+  rating_id: string | null
   collective_id: string
   collective_name: string
   content: string | null
-  media_type: string
-  media_title: string
+  media_type: string | null
+  media_title: string | null
   media_poster: string | null
   is_read: boolean
   created_at: string
@@ -69,35 +69,87 @@ export default function NotificationsPage() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "comment":
+      case "thread_reply":
         return <MessageCircle className="h-5 w-5 text-blue-500" />
       case "reaction":
         return <Heart className="h-5 w-5 text-pink-500" />
+      case "discussion":
+        return <MessageSquare className="h-5 w-5 text-violet-500" />
+      case "started_watching":
+        return <Play className="h-5 w-5 text-green-500" />
       default:
         return <Bell className="h-5 w-5" />
     }
   }
 
-  const getNotificationText = (notification: Notification) => {
-    if (notification.type === "comment") {
-      return (
-        <>
-          <span className="font-semibold">{notification.actor_name}</span> commented on your rating of{" "}
-          <span className="font-semibold">{notification.media_title}</span>
-          {notification.content && (
-            <p className="text-muted-foreground mt-1 text-sm line-clamp-2">"{notification.content}"</p>
-          )}
-        </>
-      )
-    } else if (notification.type === "reaction") {
-      const emoji = emojiMap[notification.content || ""] || notification.content
-      return (
-        <>
-          <span className="font-semibold">{notification.actor_name}</span> reacted {emoji} to your rating of{" "}
-          <span className="font-semibold">{notification.media_title}</span>
-        </>
-      )
+  const getNotificationLink = (notification: Notification) => {
+    switch (notification.type) {
+      case "discussion":
+        return `/collectives/${notification.collective_id}?section=discussion`
+      case "started_watching":
+        return `/collectives/${notification.collective_id}`
+      case "comment":
+      case "thread_reply":
+      case "reaction":
+        return notification.rating_id
+          ? `/collectives/${notification.collective_id}/conversation/${notification.rating_id}`
+          : `/collectives/${notification.collective_id}`
+      default:
+        return `/collectives/${notification.collective_id}`
     }
-    return null
+  }
+
+  const getNotificationText = (notification: Notification) => {
+    switch (notification.type) {
+      case "comment":
+        return (
+          <>
+            <span className="font-semibold">{notification.actor_name}</span> commented on your rating of{" "}
+            <span className="font-semibold">{notification.media_title}</span>
+            {notification.content && (
+              <span className="block text-muted-foreground mt-1 text-sm line-clamp-2">&quot;{notification.content}&quot;</span>
+            )}
+          </>
+        )
+      case "thread_reply":
+        return (
+          <>
+            <span className="font-semibold">{notification.actor_name}</span> replied in a thread on{" "}
+            <span className="font-semibold">{notification.media_title}</span>
+            {notification.content && (
+              <span className="block text-muted-foreground mt-1 text-sm line-clamp-2">&quot;{notification.content}&quot;</span>
+            )}
+          </>
+        )
+      case "reaction": {
+        const emoji = emojiMap[notification.content || ""] || notification.content
+        return (
+          <>
+            <span className="font-semibold">{notification.actor_name}</span> reacted {emoji} to your rating of{" "}
+            <span className="font-semibold">{notification.media_title}</span>
+          </>
+        )
+      }
+      case "discussion":
+        return (
+          <>
+            <span className="font-semibold">{notification.actor_name}</span> sent a message in{" "}
+            <span className="font-semibold">{notification.collective_name}</span>
+            {notification.content && (
+              <span className="block text-muted-foreground mt-1 text-sm line-clamp-2">&quot;{notification.content}&quot;</span>
+            )}
+          </>
+        )
+      case "started_watching":
+        return (
+          <>
+            <span className="font-semibold">{notification.actor_name}</span> started watching{" "}
+            <span className="font-semibold">{notification.media_title}</span>
+          </>
+        )
+      default:
+        return null
+    }
   }
 
   return (
@@ -171,7 +223,7 @@ export default function NotificationsPage() {
               {notifications.map((notification, index) => (
                 <Link
                   key={notification.id}
-                  href={`/collectives/${notification.collective_id}/conversation/${notification.rating_id}`}
+                  href={getNotificationLink(notification)}
                   onClick={() => {
                     if (!notification.is_read) {
                       markAsRead([notification.id])
@@ -193,7 +245,7 @@ export default function NotificationsPage() {
                     </div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-foreground leading-snug">{getNotificationText(notification)}</p>
+                    <div className="text-foreground leading-snug">{getNotificationText(notification)}</div>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}

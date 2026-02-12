@@ -4,12 +4,12 @@ import { sendPushNotification } from "@/lib/push/push-service"
 interface CreateNotificationParams {
   userId: string // The user who will receive the notification
   actorId: string // The user who performed the action
-  type: "comment" | "reaction"
-  ratingId: string
+  type: "comment" | "reaction" | "thread_reply" | "discussion" | "started_watching"
+  ratingId?: string
   collectiveId: string
-  content?: string // Comment text or emoji
-  mediaType: string
-  mediaTitle: string
+  content?: string // Comment text, emoji, or message preview
+  mediaType?: string
+  mediaTitle?: string
   mediaPoster?: string
 }
 
@@ -28,23 +28,45 @@ export async function createNotification(params: CreateNotificationParams) {
 
     const result = await sql`
       INSERT INTO notifications (
-        user_id, actor_id, type, rating_id, collective_id, 
+        user_id, actor_id, type, rating_id, collective_id,
         content, media_type, media_title, media_poster
       )
       VALUES (
-        ${userId}, ${actorId}, ${type}, ${ratingId}, ${collectiveId},
-        ${content || null}, ${mediaType}, ${mediaTitle}, ${mediaPoster || null}
+        ${userId}, ${actorId}, ${type}, ${ratingId || null}, ${collectiveId},
+        ${content || null}, ${mediaType || null}, ${mediaTitle || null}, ${mediaPoster || null}
       )
       RETURNING id
     `
 
     const notificationId = result[0]?.id
 
-    const pushTitle = type === "comment" ? "New Comment" : "New Reaction"
-    const pushBody =
-      type === "comment"
-        ? `${actorName} commented on your ${mediaTitle} rating: "${content?.substring(0, 50)}${(content?.length || 0) > 50 ? "..." : ""}"`
-        : `${actorName} reacted ${content} to your ${mediaTitle} rating`
+    let pushTitle: string
+    let pushBody: string
+    switch (type) {
+      case "comment":
+        pushTitle = "New Comment"
+        pushBody = `${actorName} commented on your ${mediaTitle} rating: "${content?.substring(0, 50)}${(content?.length || 0) > 50 ? "..." : ""}"`
+        break
+      case "thread_reply":
+        pushTitle = "New Reply"
+        pushBody = `${actorName} replied in a thread on ${mediaTitle}: "${content?.substring(0, 50)}${(content?.length || 0) > 50 ? "..." : ""}"`
+        break
+      case "reaction":
+        pushTitle = "New Reaction"
+        pushBody = `${actorName} reacted ${content} to your ${mediaTitle} rating`
+        break
+      case "discussion":
+        pushTitle = "New Message"
+        pushBody = `${actorName}: ${content?.substring(0, 80)}${(content?.length || 0) > 80 ? "..." : ""}`
+        break
+      case "started_watching":
+        pushTitle = "Now Watching"
+        pushBody = `${actorName} started watching ${mediaTitle}`
+        break
+      default:
+        pushTitle = "Notification"
+        pushBody = `${actorName} did something`
+    }
 
     // Send push notification (fire and forget - don't block)
     sendPushNotification(userId, {
@@ -59,6 +81,29 @@ export async function createNotification(params: CreateNotificationParams) {
   } catch (error) {
     console.error("Error creating notification:", error)
     return null
+  }
+}
+
+export async function notifyCollectiveMembers(
+  collectiveId: string,
+  actorId: string,
+  params: Omit<CreateNotificationParams, "userId" | "actorId" | "collectiveId">,
+) {
+  try {
+    const members = await sql`
+      SELECT user_id FROM collective_memberships
+      WHERE collective_id = ${collectiveId}::uuid AND user_id != ${actorId}::uuid
+    `
+    for (const member of members) {
+      await createNotification({
+        userId: member.user_id,
+        actorId,
+        collectiveId,
+        ...params,
+      })
+    }
+  } catch (error) {
+    console.error("Error notifying collective members:", error)
   }
 }
 

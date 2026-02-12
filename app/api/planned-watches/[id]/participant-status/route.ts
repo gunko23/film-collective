@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getSafeUser } from "@/lib/auth/auth-utils"
 import { updateParticipantWatchStatus } from "@/lib/planned-watches/planned-watch-service"
+import { notifyCollectiveMembers } from "@/lib/notifications/notification-service"
+import { sql } from "@/lib/db"
 
 export async function PATCH(
   request: NextRequest,
@@ -39,6 +41,25 @@ export async function PATCH(
         { error: "Planned watch not found or you are not a confirmed participant" },
         { status: 404 },
       )
+    }
+
+    // Notify collective members when someone starts watching
+    if (watchStatus === "watching") {
+      // Look up movie title and linked collectives for this planned watch
+      const watchInfo = await sql`
+        SELECT pw.movie_title, pw.movie_poster, pwc.collective_id
+        FROM planned_watches pw
+        JOIN planned_watch_collectives pwc ON pwc.planned_watch_id = pw.id
+        WHERE pw.id = ${id}
+      `
+      for (const row of watchInfo) {
+        notifyCollectiveMembers(row.collective_id, user.id, {
+          type: "started_watching",
+          mediaTitle: row.movie_title,
+          mediaPoster: row.movie_poster,
+          mediaType: "movie",
+        }).catch((err) => console.error("Started watching notification error:", err))
+      }
     }
 
     return NextResponse.json({
